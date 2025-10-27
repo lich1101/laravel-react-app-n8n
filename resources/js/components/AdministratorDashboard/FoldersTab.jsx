@@ -10,6 +10,8 @@ const FoldersTab = () => {
     const [projects, setProjects] = useState([]);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isAdministrator = user.role === 'administrator';
     const [showForm, setShowForm] = useState(false);
     const [showWorkflowModal, setShowWorkflowModal] = useState(false);
     const [showProjectModal, setShowProjectModal] = useState(false);
@@ -33,16 +35,32 @@ const FoldersTab = () => {
 
     const fetchData = async () => {
         try {
-            const [foldersRes, workflowsRes, projectsRes, usersRes] = await Promise.all([
-                axios.get('/folders'),
-                axios.get('/workflows'),
-                axios.get('/projects'),
-                axios.get('/users')
-            ]);
-            setFolders(foldersRes.data);
-            setWorkflows(workflowsRes.data);
-            setProjects(projectsRes.data);
-            setUsers(usersRes.data);
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            
+            // Admin users don't have access to projects API
+            if (user.role === 'admin') {
+                const [foldersRes, workflowsRes, usersRes] = await Promise.all([
+                    axios.get('/folders'),
+                    axios.get('/workflows'),
+                    axios.get('/users')
+                ]);
+                setFolders(foldersRes.data);
+                setWorkflows(workflowsRes.data);
+                setProjects([]); // No projects for admin users
+                setUsers(usersRes.data);
+            } else {
+                // Administrator has access to all APIs
+                const [foldersRes, workflowsRes, projectsRes, usersRes] = await Promise.all([
+                    axios.get('/folders'),
+                    axios.get('/workflows'),
+                    axios.get('/projects'),
+                    axios.get('/users')
+                ]);
+                setFolders(foldersRes.data);
+                setWorkflows(workflowsRes.data);
+                setProjects(projectsRes.data);
+                setUsers(usersRes.data);
+            }
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
@@ -230,9 +248,11 @@ const FoldersTab = () => {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Workflows
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Projects
-                            </th>
+                            {isAdministrator && (
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Projects
+                                </th>
+                            )}
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Actions
                             </th>
@@ -254,9 +274,11 @@ const FoldersTab = () => {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                     {folder.workflows?.length || 0} workflows
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                    {folder.projects?.length || 0} projects
-                                </td>
+                                {isAdministrator && (
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        {folder.projects?.length || 0} projects
+                                    </td>
+                                )}
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                     <button
                                         onClick={() => handleEdit(folder)}
@@ -270,18 +292,22 @@ const FoldersTab = () => {
                                     >
                                         Workflows
                                     </button>
-                                    <button
-                                        onClick={() => handleAssignProjects(folder)}
-                                        className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
-                                    >
-                                        Projects
-                                    </button>
-                                    <button
-                                        onClick={() => handleSyncFolder(folder)}
-                                        className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
-                                    >
-                                        Sync
-                                    </button>
+                                    {isAdministrator && (
+                                        <button
+                                            onClick={() => handleAssignProjects(folder)}
+                                            className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
+                                        >
+                                            Projects
+                                        </button>
+                                    )}
+                                    {isAdministrator && (
+                                        <button
+                                            onClick={() => handleSyncFolder(folder)}
+                                            className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
+                                        >
+                                            Sync
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => handleManagePermissions(folder)}
                                         className="text-cyan-600 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
