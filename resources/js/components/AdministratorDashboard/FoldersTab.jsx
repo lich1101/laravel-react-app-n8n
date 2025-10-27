@@ -112,8 +112,9 @@ const FoldersTab = () => {
 
     const handleSyncConfirm = async () => {
         try {
-            await axios.post(`/folders/${syncFolder.id}/sync`);
+            const response = await axios.post(`/folders/${syncFolder.id}/sync`);
             fetchData();
+            return response; // Return response for SyncModal to process
         } catch (error) {
             console.error('Error syncing folder:', error);
             throw error; // Re-throw to let SyncModal handle the error display

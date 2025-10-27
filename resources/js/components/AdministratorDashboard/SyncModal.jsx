@@ -4,45 +4,50 @@ const SyncModal = ({ isOpen, onClose, onConfirm, folderName }) => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [progress, setProgress] = useState(0);
     const [currentStep, setCurrentStep] = useState('');
+    const [syncResults, setSyncResults] = useState(null);
+    const [errors, setErrors] = useState([]);
 
     const handleConfirm = async () => {
         setIsSyncing(true);
         setProgress(0);
         setCurrentStep('Preparing sync...');
+        setSyncResults(null);
+        setErrors([]);
 
         try {
-            // Simulate progress steps
-            const steps = [
-                'Validating folder data...',
-                'Finding assigned projects...',
-                'Calling project domain APIs...',
-                'Creating/updating folders in projects...',
-                'Finalizing sync...'
-            ];
+            // Call the actual sync function
+            const response = await onConfirm();
 
-            for (let i = 0; i < steps.length; i++) {
-                setCurrentStep(steps[i]);
-                setProgress((i + 1) * 20);
-                await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
+            // Check if response contains sync results
+            if (response && response.data) {
+                setSyncResults(response.data.sync_results || []);
+                setErrors(response.data.errors || []);
             }
 
-            // Call the actual sync function
-            await onConfirm();
-
             setProgress(100);
-            setCurrentStep('Sync completed successfully!');
+            setCurrentStep('Sync completed!');
 
             // Close modal after a short delay
             setTimeout(() => {
                 setIsSyncing(false);
                 setProgress(0);
                 setCurrentStep('');
+                setSyncResults(null);
+                setErrors([]);
                 onClose();
-            }, 1000);
+            }, 3000);
 
         } catch (error) {
-            setCurrentStep('Sync failed: ' + (error.message || 'Unknown error'));
+            setCurrentStep('Sync failed: ' + (error.response?.data?.message || error.message || 'Unknown error'));
             setIsSyncing(false);
+
+            // Show error details if available
+            if (error.response?.data?.errors) {
+                setErrors(error.response.data.errors);
+            }
+            if (error.response?.data?.sync_results) {
+                setSyncResults(error.response.data.sync_results);
+            }
         }
     };
 
@@ -92,6 +97,46 @@ const SyncModal = ({ isOpen, onClose, onConfirm, folderName }) => {
                                 {progress}% complete
                             </p>
                         </div>
+
+                        {/* Show sync results if available */}
+                        {syncResults && syncResults.length > 0 && (
+                            <div className="mt-4">
+                                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Sync Results:</h4>
+                                <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    {syncResults.map((result, index) => (
+                                        <div key={index} className="text-xs p-2 rounded bg-gray-100 dark:bg-gray-700">
+                                            <span className="font-medium">{result.project}:</span>
+                                            <span className={`ml-2 ${
+                                                result.status === 'success' || result.status === 'created' || result.status === 'updated'
+                                                    ? 'text-green-600 dark:text-green-400'
+                                                    : result.status === 'failed'
+                                                        ? 'text-red-600 dark:text-red-400'
+                                                        : 'text-yellow-600 dark:text-yellow-400'
+                                            }`}>
+                                                {result.status}
+                                            </span>
+                                            {result.error && (
+                                                <div className="text-red-500 text-xs mt-1">{result.error}</div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Show errors if any */}
+                        {errors && errors.length > 0 && (
+                            <div className="mt-4">
+                                <h4 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">Errors:</h4>
+                                <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    {errors.map((error, index) => (
+                                        <div key={index} className="text-xs text-red-500 p-2 rounded bg-red-50 dark:bg-red-900/20">
+                                            {error}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="flex space-x-3">

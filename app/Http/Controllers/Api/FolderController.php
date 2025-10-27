@@ -162,19 +162,21 @@ class FolderController extends Controller
 
     private function createFolderInProject(Folder $folder, Project $project)
     {
+        $projectDomain = $project->domain ?: $project->subdomain;
+        $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders';
+
+        \Log::info("Creating folder in project domain: {$apiUrl}");
+
+        $workflowsData = $folder->workflows->map(function ($workflow) {
+            return [
+                'name' => $workflow->name,
+                'description' => $workflow->description,
+                'nodes' => $workflow->nodes,
+                'edges' => $workflow->edges,
+            ];
+        })->toArray();
+
         try {
-            $projectDomain = $project->domain ?: $project->subdomain;
-            $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders';
-
-            $workflowsData = $folder->workflows->map(function ($workflow) {
-                return [
-                    'name' => $workflow->name,
-                    'description' => $workflow->description,
-                    'nodes' => $workflow->nodes,
-                    'edges' => $workflow->edges,
-                ];
-            })->toArray();
-
             $response = Http::timeout(30)->post($apiUrl, [
                 'name' => $folder->name,
                 'description' => $folder->description,
@@ -183,45 +185,52 @@ class FolderController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
+                \Log::info("Response from project domain: " . json_encode($data));
 
                 // Create mapping
                 FolderProjectMapping::create([
                     'admin_folder_id' => $folder->id,
                     'project_id' => $project->id,
-                    'project_folder_id' => $data['folder_id'],
+                    'project_folder_id' => $data['folder_id'] ?? $data['id'] ?? null,
                     'workflow_mappings' => array_combine(
                         $folder->workflows->pluck('id')->toArray(),
-                        $data['workflow_ids']
+                        $data['workflow_ids'] ?? []
                     ),
                 ]);
 
-                \Log::info("Created folder in project domain: {$projectDomain}");
+                \Log::info("Successfully created folder in project domain: {$projectDomain}");
             } else {
-                \Log::error("Failed to create folder in project domain: {$projectDomain}. Response: " . $response->body());
+                $errorMsg = "Failed to create folder in project domain: {$projectDomain}. Status: {$response->status()}, Response: " . $response->body();
+                \Log::error($errorMsg);
+                throw new \Exception($errorMsg);
             }
         } catch (\Exception $e) {
-            \Log::error("Error creating folder in project domain: " . $e->getMessage());
+            $errorMsg = "Error creating folder in project domain {$projectDomain}: " . $e->getMessage();
+            \Log::error($errorMsg);
+            throw new \Exception($errorMsg);
         }
     }
 
     private function updateFolderInProject(Folder $folder, Project $project, FolderProjectMapping $mapping)
     {
+        $projectDomain = $project->domain ?: $project->subdomain;
+        $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders/' . $mapping->project_folder_id;
+
+        \Log::info("Updating folder in project domain: {$apiUrl}");
+
+        $workflowsData = $folder->workflows->map(function ($workflow) use ($mapping) {
+            $projectWorkflowId = $mapping->workflow_mappings[$workflow->id] ?? null;
+
+            return [
+                'id' => $projectWorkflowId,
+                'name' => $workflow->name,
+                'description' => $workflow->description,
+                'nodes' => $workflow->nodes,
+                'edges' => $workflow->edges,
+            ];
+        })->toArray();
+
         try {
-            $projectDomain = $project->domain ?: $project->subdomain;
-            $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders/' . $mapping->project_folder_id;
-
-            $workflowsData = $folder->workflows->map(function ($workflow) use ($mapping) {
-                $projectWorkflowId = $mapping->workflow_mappings[$workflow->id] ?? null;
-
-                return [
-                    'id' => $projectWorkflowId,
-                    'name' => $workflow->name,
-                    'description' => $workflow->description,
-                    'nodes' => $workflow->nodes,
-                    'edges' => $workflow->edges,
-                ];
-            })->toArray();
-
             $response = Http::timeout(30)->put($apiUrl, [
                 'name' => $folder->name,
                 'description' => $folder->description,
@@ -229,12 +238,16 @@ class FolderController extends Controller
             ]);
 
             if ($response->successful()) {
-                \Log::info("Updated folder in project domain: {$projectDomain}");
+                \Log::info("Successfully updated folder in project domain: {$projectDomain}");
             } else {
-                \Log::error("Failed to update folder in project domain: {$projectDomain}. Response: " . $response->body());
+                $errorMsg = "Failed to update folder in project domain: {$projectDomain}. Status: {$response->status()}, Response: " . $response->body();
+                \Log::error($errorMsg);
+                throw new \Exception($errorMsg);
             }
         } catch (\Exception $e) {
-            \Log::error("Error updating folder in project domain: " . $e->getMessage());
+            $errorMsg = "Error updating folder in project domain {$projectDomain}: " . $e->getMessage();
+            \Log::error($errorMsg);
+            throw new \Exception($errorMsg);
         }
     }
 
@@ -323,16 +336,78 @@ class FolderController extends Controller
         $folder = Folder::findOrFail($id);
 
         try {
-            // Sync workflows to projects
-            $this->syncFolderToProjects($folder);
-
             $folder->load(['creator', 'workflows', 'projects']);
 
+            // Check if folder has any projects assigned
+            if ($folder->projects->isEmpty()) {
+                return response()->json([
+                    'message' => 'No projects assigned to this folder',
+                    'folder' => $folder
+                ]);
+            }
+
+            $syncResults = [];
+            $errors = [];
+
+            // Try to sync to each project individually
+            foreach ($folder->projects as $project) {
+                try {
+                    $projectDomain = $project->domain ?: $project->subdomain;
+
+                    // Skip localhost
+                    if (str_contains($projectDomain, '127.0.0.1') || str_contains($projectDomain, 'localhost')) {
+                        $syncResults[] = [
+                            'project' => $project->name,
+                            'status' => 'skipped',
+                            'reason' => 'localhost domain'
+                        ];
+                        continue;
+                    }
+
+                    \Log::info("Attempting to sync folder '{$folder->name}' to project '{$project->name}' (Domain: {$projectDomain})");
+
+                    // Check if mapping exists
+                    $mapping = FolderProjectMapping::where('admin_folder_id', $folder->id)
+                        ->where('project_id', $project->id)
+                        ->first();
+
+                    if (!$mapping) {
+                        $this->createFolderInProject($folder, $project);
+                        $syncResults[] = [
+                            'project' => $project->name,
+                            'status' => 'created',
+                            'domain' => $projectDomain
+                        ];
+                    } else {
+                        $this->updateFolderInProject($folder, $project, $mapping);
+                        $syncResults[] = [
+                            'project' => $project->name,
+                            'status' => 'updated',
+                            'domain' => $projectDomain
+                        ];
+                    }
+
+                } catch (\Exception $e) {
+                    $errorMsg = "Error syncing to project '{$project->name}': " . $e->getMessage();
+                    \Log::error($errorMsg);
+                    $errors[] = $errorMsg;
+                    $syncResults[] = [
+                        'project' => $project->name,
+                        'status' => 'failed',
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+
             return response()->json([
-                'message' => 'Folder synced successfully to all projects',
-                'folder' => $folder
+                'message' => 'Folder sync completed',
+                'folder' => $folder,
+                'sync_results' => $syncResults,
+                'errors' => $errors
             ]);
+
         } catch (\Exception $e) {
+            \Log::error("Error in syncFolder: " . $e->getMessage());
             return response()->json([
                 'message' => 'Error syncing folder',
                 'error' => $e->getMessage()
