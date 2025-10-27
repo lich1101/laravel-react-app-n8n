@@ -268,6 +268,14 @@ class FolderController extends Controller
 
             if ($response->successful()) {
                 \Log::info("Successfully updated folder in project domain: {$projectDomain}");
+            } else if ($response->status() === 404) {
+                // Folder not found - it was deleted, recreate it
+                \Log::warning("Folder not found (404), deleting old mapping and recreating folder");
+                $mapping->delete();
+                
+                // Recreate the folder
+                $this->createFolderInProject($folder, $project);
+                \Log::info("Successfully recreated folder after 404 error");
             } else {
                 $errorMsg = "Failed to update folder in project domain: {$projectDomain}. Status: {$response->status()}, Response: " . $response->body();
                 \Log::error($errorMsg);
