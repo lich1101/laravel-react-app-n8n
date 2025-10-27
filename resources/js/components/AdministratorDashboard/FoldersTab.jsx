@@ -37,10 +37,10 @@ const FoldersTab = () => {
         try {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             
-            // Admin users don't have access to projects API
+            // Admin users (User Project) use different API
             if (user.role === 'admin') {
                 const [foldersRes, workflowsRes, usersRes] = await Promise.all([
-                    axios.get('/folders'),
+                    axios.get('/project-folders'), // Use project-folders API for admin users
                     axios.get('/workflows'),
                     axios.get('/users')
                 ]);
@@ -49,7 +49,7 @@ const FoldersTab = () => {
                 setProjects([]); // No projects for admin users
                 setUsers(usersRes.data);
             } else {
-                // Administrator has access to all APIs
+                // Administrator (Administrator App) has access to all APIs
                 const [foldersRes, workflowsRes, projectsRes, usersRes] = await Promise.all([
                     axios.get('/folders'),
                     axios.get('/workflows'),
