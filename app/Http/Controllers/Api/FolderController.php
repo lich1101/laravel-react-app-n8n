@@ -7,6 +7,7 @@ use App\Models\Folder;
 use App\Models\Workflow;
 use App\Models\Project;
 use App\Models\FolderProjectMapping;
+use App\Models\FolderUserPermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -17,7 +18,7 @@ class FolderController extends Controller
     private function checkAdministrator()
     {
         $user = auth()->user();
-        if (!$user || $user->role !== 'administrator') {
+        if (!$user || !in_array($user->role, ['administrator', 'admin'])) {
             throw new \Illuminate\Auth\Access\AuthorizationException('Unauthorized. Administrator access required.');
         }
     }
@@ -441,5 +442,112 @@ class FolderController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Grant permission to user for a folder
+     * Admin only
+     */
+    public function grantPermission(Request $request, string $id): JsonResponse
+    {
+        $this->checkAdministrator();
+        
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'permission' => 'required|in:view,edit',
+        ]);
+
+        $folder = Folder::findOrFail($id);
+        $currentUser = auth()->user();
+
+        // Check if granting user is the folder creator or admin
+        if ($folder->created_by !== $currentUser->id && $currentUser->role !== 'admin') {
+            return response()->json([
+                'error' => 'Only folder creator or admin can grant permissions'
+            ], 403);
+        }
+
+        // Check if user is trying to grant permission to themselves
+        if ($request->user_id == $currentUser->id) {
+            return response()->json([
+                'error' => 'Cannot grant permission to yourself'
+            ], 400);
+        }
+
+        // Create or update permission
+        $permission = FolderUserPermission::updateOrCreate(
+            [
+                'folder_id' => $folder->id,
+                'user_id' => $request->user_id,
+            ],
+            [
+                'permission' => $request->permission,
+                'granted_by' => $currentUser->id,
+            ]
+        );
+
+        \Log::info("Admin {$currentUser->email} granted '{$request->permission}' permission to user {$request->user_id} for folder '{$folder->name}'");
+
+        $folder->load(['permissions.user', 'authorizedUsers']);
+
+        return response()->json([
+            'message' => 'Permission granted successfully',
+            'permission' => $permission->load('user'),
+            'folder' => $folder
+        ]);
+    }
+
+    /**
+     * Revoke permission from user for a folder
+     * Admin only
+     */
+    public function revokePermission(string $folderId, string $userId): JsonResponse
+    {
+        $this->checkAdministrator();
+        
+        $folder = Folder::findOrFail($folderId);
+        $currentUser = auth()->user();
+
+        // Check if revoking user is the folder creator or admin
+        if ($folder->created_by !== $currentUser->id && $currentUser->role !== 'admin') {
+            return response()->json([
+                'error' => 'Only folder creator or admin can revoke permissions'
+            ], 403);
+        }
+
+        $deleted = FolderUserPermission::where('folder_id', $folderId)
+            ->where('user_id', $userId)
+            ->delete();
+
+        if ($deleted) {
+            \Log::info("Admin {$currentUser->email} revoked permission from user {$userId} for folder '{$folder->name}'");
+            
+            return response()->json([
+                'message' => 'Permission revoked successfully'
+            ]);
+        }
+
+        return response()->json([
+            'error' => 'Permission not found'
+        ], 404);
+    }
+
+    /**
+     * Get all permissions for a folder
+     * Admin only
+     */
+    public function getFolderPermissions(string $id): JsonResponse
+    {
+        $this->checkAdministrator();
+        
+        $folder = Folder::findOrFail($id);
+        $permissions = FolderUserPermission::where('folder_id', $id)
+            ->with(['user', 'grantedBy'])
+            ->get();
+
+        return response()->json([
+            'folder' => $folder,
+            'permissions' => $permissions
+        ]);
     }
 }
