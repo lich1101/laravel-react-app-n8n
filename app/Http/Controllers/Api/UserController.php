@@ -12,7 +12,7 @@ class UserController extends Controller
     private function checkAdmin()
     {
         $user = auth()->user();
-        if (!$user || $user->role !== 'admin') {
+        if (!$user || ($user->role !== 'admin' && $user->role !== 'administrator')) {
             throw new \Illuminate\Auth\Access\AuthorizationException('Unauthorized');
         }
     }

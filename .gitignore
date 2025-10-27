@@ -22,3 +22,20 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Ignore all .gitignore files in subdirectories
+storage/**/.gitignore
+bootstrap/cache/.gitignore
+
+# Ignore storage contents but keep directory structure
+storage/app/*
+!storage/app/.gitignore
+!storage/app/public/
+!storage/app/private/
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+storage/logs/*
+bootstrap/cache/*
+!bootstrap/cache/.gitignore
