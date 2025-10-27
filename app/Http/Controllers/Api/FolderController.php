@@ -163,6 +163,10 @@ class FolderController extends Controller
     private function createFolderInProject(Folder $folder, Project $project)
     {
         $projectDomain = $project->domain ?: $project->subdomain;
+        // Add https:// if not present
+        if (!str_starts_with($projectDomain, 'http')) {
+            $projectDomain = 'https://' . $projectDomain;
+        }
         $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders';
 
         \Log::info("Creating folder in project domain: {$apiUrl}");
@@ -177,11 +181,16 @@ class FolderController extends Controller
         })->toArray();
 
         try {
-            $response = Http::timeout(30)->post($apiUrl, [
-                'name' => $folder->name,
-                'description' => $folder->description,
-                'workflows' => $workflowsData,
-            ]);
+            // Get API token for the project domain
+            $token = env('USER_APP_API_TOKEN');
+            
+            $response = Http::timeout(30)
+                ->withToken($token)
+                ->post($apiUrl, [
+                    'name' => $folder->name,
+                    'description' => $folder->description,
+                    'workflows' => $workflowsData,
+                ]);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -214,6 +223,10 @@ class FolderController extends Controller
     private function updateFolderInProject(Folder $folder, Project $project, FolderProjectMapping $mapping)
     {
         $projectDomain = $project->domain ?: $project->subdomain;
+        // Add https:// if not present
+        if (!str_starts_with($projectDomain, 'http')) {
+            $projectDomain = 'https://' . $projectDomain;
+        }
         $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders/' . $mapping->project_folder_id;
 
         \Log::info("Updating folder in project domain: {$apiUrl}");
@@ -231,11 +244,16 @@ class FolderController extends Controller
         })->toArray();
 
         try {
-            $response = Http::timeout(30)->put($apiUrl, [
-                'name' => $folder->name,
-                'description' => $folder->description,
-                'workflows' => $workflowsData,
-            ]);
+            // Get API token for the project domain
+            $token = env('USER_APP_API_TOKEN');
+            
+            $response = Http::timeout(30)
+                ->withToken($token)
+                ->put($apiUrl, [
+                    'name' => $folder->name,
+                    'description' => $folder->description,
+                    'workflows' => $workflowsData,
+                ]);
 
             if ($response->successful()) {
                 \Log::info("Successfully updated folder in project domain: {$projectDomain}");
