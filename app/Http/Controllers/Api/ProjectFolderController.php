@@ -21,10 +21,16 @@ class ProjectFolderController extends Controller
         }
 
         $folders = Folder::where('created_by', $user->id)
-            ->with(['workflows' => function($query) use ($user) {
+            ->with(['directWorkflows' => function($query) use ($user) {
                 $query->where('user_id', $user->id);
             }])
             ->get();
+
+        // Map directWorkflows to workflows for frontend compatibility
+        $folders->each(function($folder) {
+            $folder->workflows = $folder->directWorkflows ?? [];
+            unset($folder->directWorkflows);
+        });
 
         return response()->json($folders);
     }

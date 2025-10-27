@@ -29,13 +29,21 @@ class Folder extends Model
     }
 
     /**
-     * Workflows in this folder
+     * Workflows in this folder (via pivot table)
      */
     public function workflows(): BelongsToMany
     {
         return $this->belongsToMany(Workflow::class, 'folder_workflows')
             ->withPivot('order')
             ->orderBy('order');
+    }
+
+    /**
+     * Workflows with direct folder_id relationship
+     */
+    public function directWorkflows(): HasMany
+    {
+        return $this->hasMany(Workflow::class, 'folder_id');
     }
 
     /**
