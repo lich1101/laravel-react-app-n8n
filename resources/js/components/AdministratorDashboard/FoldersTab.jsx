@@ -411,13 +411,21 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
 
     const handleSave = async () => {
         try {
-            await axios.post(`/folders/${folder.id}/assign-projects`, {
+            const response = await axios.post(`/folders/${folder.id}/assign-projects`, {
                 project_ids: selectedProjects
             });
+
+            // Show success message if available
+            if (response.data.message) {
+                console.log(response.data.message);
+            }
+
             onSave();
             onClose();
         } catch (error) {
             console.error('Error assigning projects:', error);
+            // Show user-friendly error message
+            alert('Có lỗi xảy ra khi gán folder cho project. Vui lòng thử lại.');
         }
     };
 

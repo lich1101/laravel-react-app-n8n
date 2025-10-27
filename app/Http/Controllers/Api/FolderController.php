@@ -129,27 +129,33 @@ class FolderController extends Controller
         $projects = $folder->projects;
 
         foreach ($projects as $project) {
-            $projectDomain = $project->domain ?: $project->subdomain;
+            try {
+                $projectDomain = $project->domain ?: $project->subdomain;
 
-            // Skip localhost to prevent infinite loop
-            if (str_contains($projectDomain, '127.0.0.1') || str_contains($projectDomain, 'localhost')) {
-                \Log::info("Skipping localhost project domain: {$projectDomain}");
+                // Skip localhost to prevent infinite loop
+                if (str_contains($projectDomain, '127.0.0.1') || str_contains($projectDomain, 'localhost')) {
+                    \Log::info("Skipping localhost project domain: {$projectDomain}");
+                    continue;
+                }
+
+                \Log::info("Syncing folder '{$folder->name}' to project '{$project->name}' (Domain: {$projectDomain})");
+
+                // Check if mapping exists
+                $mapping = FolderProjectMapping::where('admin_folder_id', $folder->id)
+                    ->where('project_id', $project->id)
+                    ->first();
+
+                if (!$mapping) {
+                    // First time sync - create folder in project domain
+                    $this->createFolderInProject($folder, $project);
+                } else {
+                    // Update existing folder in project domain
+                    $this->updateFolderInProject($folder, $project, $mapping);
+                }
+            } catch (\Exception $e) {
+                \Log::error("Error syncing folder '{$folder->name}' to project '{$project->name}': " . $e->getMessage());
+                // Continue with other projects even if one fails
                 continue;
-            }
-
-            \Log::info("Syncing folder '{$folder->name}' to project '{$project->name}' (Domain: {$projectDomain})");
-
-            // Check if mapping exists
-            $mapping = FolderProjectMapping::where('admin_folder_id', $folder->id)
-                ->where('project_id', $project->id)
-                ->first();
-
-            if (!$mapping) {
-                // First time sync - create folder in project domain
-                $this->createFolderInProject($folder, $project);
-            } else {
-                // Update existing folder in project domain
-                $this->updateFolderInProject($folder, $project, $mapping);
             }
         }
     }
@@ -169,7 +175,7 @@ class FolderController extends Controller
                 ];
             })->toArray();
 
-            $response = Http::post($apiUrl, [
+            $response = Http::timeout(30)->post($apiUrl, [
                 'name' => $folder->name,
                 'description' => $folder->description,
                 'workflows' => $workflowsData,
@@ -216,7 +222,7 @@ class FolderController extends Controller
                 ];
             })->toArray();
 
-            $response = Http::put($apiUrl, [
+            $response = Http::timeout(30)->put($apiUrl, [
                 'name' => $folder->name,
                 'description' => $folder->description,
                 'workflows' => $workflowsData,
@@ -287,13 +293,25 @@ class FolderController extends Controller
             'project_ids.*' => 'exists:projects,id',
         ]);
 
-        $folder->projects()->sync($request->project_ids);
+        try {
+            // First, sync the folder-project relationship
+            $folder->projects()->sync($request->project_ids);
 
-        // Sync workflows to projects
-        $this->syncFolderToProjects($folder);
+            $folder->load(['creator', 'workflows', 'projects']);
 
-        $folder->load(['creator', 'workflows', 'projects']);
-        return response()->json($folder);
+            // Return success immediately, sync can be done manually later
+            return response()->json([
+                'message' => 'Folder assigned to projects successfully',
+                'folder' => $folder
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error("Error assigning folder to projects: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Error assigning folder to projects',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
