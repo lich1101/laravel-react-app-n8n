@@ -42,8 +42,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Project routes (administrator only)
     Route::apiResource('projects', ProjectController::class);
 
-    // Project folder routes (for project domains)
+    // Project folder routes (for regular authenticated users)
     Route::get('/project-folders', [ProjectFolderController::class, 'getFolders']);
+});
+
+// Project folder management routes (for Administrator app using admin key)
+Route::middleware('admin.key')->group(function () {
     Route::post('/project-folders', [ProjectFolderController::class, 'createFolder']);
     Route::put('/project-folders/{folderId}', [ProjectFolderController::class, 'updateFolder']);
     Route::delete('/project-folders/{folderId}', [ProjectFolderController::class, 'deleteFolder']);
