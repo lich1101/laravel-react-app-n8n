@@ -4,11 +4,31 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Workflow;
+use App\Models\Folder;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class ProjectFolderController extends Controller
 {
+    /**
+     * Get folders for the authenticated user
+     */
+    public function getFolders(): JsonResponse
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $folders = Folder::where('created_by', $user->id)
+            ->with(['workflows' => function($query) use ($user) {
+                $query->where('user_id', $user->id);
+            }])
+            ->get();
+
+        return response()->json($folders);
+    }
+
     /**
      * Create folder in project domain
      */
@@ -30,14 +50,16 @@ class ProjectFolderController extends Controller
 
         \Log::info("Creating folder '{$request->name}' from Administrator App for user: {$user->email}");
 
-        // For now, we'll create workflows directly in this project
-        // In real implementation, this would be called from the project's subdomain
-        $folderData = [
+        // Create the folder first
+        $folder = Folder::create([
             'name' => $request->name,
             'description' => $request->description,
-        ];
+            'created_by' => $user->id,
+        ]);
 
-        // Create workflows if provided
+        \Log::info("Created folder '{$folder->name}' with ID: {$folder->id}");
+
+        // Create workflows if provided and attach to folder
         $workflowIds = [];
         if ($request->has('workflows')) {
             foreach ($request->workflows as $workflowData) {
@@ -48,16 +70,17 @@ class ProjectFolderController extends Controller
                     'nodes' => $workflowData['nodes'] ?? [],
                     'edges' => $workflowData['edges'] ?? [],
                     'active' => false,
+                    'folder_id' => $folder->id,
                     'is_from_folder' => true,
                 ]);
                 $workflowIds[] = $workflow->id;
-                \Log::info("Created workflow '{$workflow->name}' with ID: {$workflow->id}");
+                \Log::info("Created workflow '{$workflow->name}' with ID: {$workflow->id} in folder: {$folder->id}");
             }
         }
 
         return response()->json([
             'success' => true,
-            'folder_id' => 'generated_folder_id_' . time(), // This would be the folder ID in project domain
+            'folder_id' => $folder->id,
             'workflow_ids' => $workflowIds,
         ], 201);
     }
@@ -73,6 +96,29 @@ class ProjectFolderController extends Controller
             'workflows' => 'sometimes|array',
         ]);
 
+        // Get authenticated user
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        // Find the folder
+        $folder = Folder::find($folderId);
+        if (!$folder) {
+            return response()->json(['error' => 'Folder not found'], 404);
+        }
+
+        \Log::info("Updating folder '{$folder->name}' (ID: {$folderId}) for user: {$user->email}");
+
+        // Update folder details
+        if ($request->has('name')) {
+            $folder->name = $request->name;
+        }
+        if ($request->has('description')) {
+            $folder->description = $request->description;
+        }
+        $folder->save();
+
         // Update workflows
         if ($request->has('workflows')) {
             foreach ($request->workflows as $workflowData) {
@@ -86,18 +132,21 @@ class ProjectFolderController extends Controller
                             'nodes' => $workflowData['nodes'] ?? [],
                             'edges' => $workflowData['edges'] ?? [],
                         ]);
+                        \Log::info("Updated workflow '{$workflow->name}' with ID: {$workflow->id}");
                     }
                 } else {
                     // Create new workflow
-                    Workflow::create([
-                        'user_id' => auth()->id(),
+                    $workflow = Workflow::create([
+                        'user_id' => $user->id,
                         'name' => $workflowData['name'],
                         'description' => $workflowData['description'] ?? '',
                         'nodes' => $workflowData['nodes'] ?? [],
                         'edges' => $workflowData['edges'] ?? [],
                         'active' => false,
+                        'folder_id' => $folder->id,
                         'is_from_folder' => true,
                     ]);
+                    \Log::info("Created new workflow '{$workflow->name}' with ID: {$workflow->id} in folder: {$folder->id}");
                 }
             }
         }
@@ -110,10 +159,27 @@ class ProjectFolderController extends Controller
      */
     public function deleteFolder(string $folderId): JsonResponse
     {
+        // Get authenticated user
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        // Find the folder
+        $folder = Folder::find($folderId);
+        if (!$folder) {
+            return response()->json(['error' => 'Folder not found'], 404);
+        }
+
+        \Log::info("Deleting folder '{$folder->name}' (ID: {$folderId}) for user: {$user->email}");
+
         // Delete all workflows in this folder
-        Workflow::where('is_from_folder', true)
-            ->where('user_id', auth()->id())
+        Workflow::where('folder_id', $folderId)
+            ->where('user_id', $user->id)
             ->delete();
+
+        // Delete the folder
+        $folder->delete();
 
         return response()->json(['message' => 'Folder deleted successfully']);
     }

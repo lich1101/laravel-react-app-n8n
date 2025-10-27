@@ -43,6 +43,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('projects', ProjectController::class);
 
     // Project folder routes (for project domains)
+    Route::get('/project-folders', [ProjectFolderController::class, 'getFolders']);
     Route::post('/project-folders', [ProjectFolderController::class, 'createFolder']);
     Route::put('/project-folders/{folderId}', [ProjectFolderController::class, 'updateFolder']);
     Route::delete('/project-folders/{folderId}', [ProjectFolderController::class, 'deleteFolder']);

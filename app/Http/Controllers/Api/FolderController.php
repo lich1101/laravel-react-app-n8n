@@ -183,7 +183,15 @@ class FolderController extends Controller
         try {
             // Get API token for the project domain
             $token = env('USER_APP_API_TOKEN');
-            
+
+            \Log::info("API Token: " . ($token ? 'Set' : 'Not set'));
+            \Log::info("Request URL: {$apiUrl}");
+            \Log::info("Request data: " . json_encode([
+                'name' => $folder->name,
+                'description' => $folder->description,
+                'workflows' => $workflowsData,
+            ]));
+
             $response = Http::timeout(30)
                 ->withToken($token)
                 ->post($apiUrl, [
@@ -246,7 +254,15 @@ class FolderController extends Controller
         try {
             // Get API token for the project domain
             $token = env('USER_APP_API_TOKEN');
-            
+
+            \Log::info("API Token: " . ($token ? 'Set' : 'Not set'));
+            \Log::info("Update Request URL: {$apiUrl}");
+            \Log::info("Update Request data: " . json_encode([
+                'name' => $folder->name,
+                'description' => $folder->description,
+                'workflows' => $workflowsData,
+            ]));
+
             $response = Http::timeout(30)
                 ->withToken($token)
                 ->put($apiUrl, [

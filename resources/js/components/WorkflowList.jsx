@@ -4,20 +4,42 @@ import { useNavigate } from 'react-router-dom';
 
 const WorkflowList = () => {
     const [workflows, setWorkflows] = useState([]);
+    const [folders, setFolders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const navigate = useNavigate();
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            const [workflowsRes, foldersRes] = await Promise.all([
+                axios.get('/workflows'),
+                axios.get('/project-folders')
+            ]);
+            setWorkflows(workflowsRes.data);
+            setFolders(foldersRes.data);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Group workflows by folder
     const folderMap = {};
     const workflowsWithoutFolder = [];
 
     workflows.forEach(workflow => {
-        if (workflow.is_from_folder && workflow.folder_id && workflow.folder_id !== null) {
+        if (workflow.folder_id && workflow.folder_id !== null) {
             if (!folderMap[workflow.folder_id]) {
+                const folder = folders.find(f => f.id === workflow.folder_id);
                 folderMap[workflow.folder_id] = {
                     id: workflow.folder_id,
-                    name: workflow.name.split(' - ')[0], // Extract folder name from workflow name
+                    name: folder ? folder.name : `Folder ${workflow.folder_id}`,
+                    description: folder ? folder.description : '',
                     workflows: []
                 };
             }
@@ -27,29 +49,14 @@ const WorkflowList = () => {
         }
     });
 
-    const folders = Object.values(folderMap);
-
-    useEffect(() => {
-        fetchWorkflows();
-    }, []);
-
-    const fetchWorkflows = async () => {
-        try {
-            const response = await axios.get('/workflows');
-            setWorkflows(response.data);
-        } catch (error) {
-            console.error('Error fetching workflows:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const foldersWithWorkflows = Object.values(folderMap);
 
     const handleDelete = async (id, e) => {
         e.stopPropagation();
         if (window.confirm('Are you sure you want to delete this workflow?')) {
             try {
                 await axios.delete(`/workflows/${id}`);
-                fetchWorkflows();
+                fetchData();
             } catch (error) {
                 console.error('Error deleting workflow:', error);
             }
@@ -61,7 +68,7 @@ const WorkflowList = () => {
         try {
             const newActive = !workflow.active;
             await axios.put(`/workflows/${workflow.id}`, { active: newActive });
-            fetchWorkflows();
+            fetchData();
         } catch (error) {
             if (error.response?.status === 400) {
                 alert('Cannot activate workflow without a webhook node');
