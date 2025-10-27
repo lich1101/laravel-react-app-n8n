@@ -19,6 +19,14 @@ const FolderWorkflowView = ({ folder, onBack }) => {
 
     const fetchFolderWorkflows = async () => {
         try {
+            // If folder already has workflows loaded (from project-folders API), use them
+            if (folder.workflows && folder.workflows.length > 0) {
+                setWorkflows(folder.workflows);
+                setLoading(false);
+                return;
+            }
+
+            // Otherwise fetch from folders API (for administrator)
             const response = await axios.get(`/folders/${folder.id}`);
             const folderData = response.data;
             setWorkflows(folderData.workflows || []);
