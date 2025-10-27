@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import axios from '../../config/axios';
 import FolderWorkflowView from './FolderWorkflowView';
 import SyncModal from './SyncModal';
+import PermissionModal from './PermissionModal';
 
 const FoldersTab = () => {
     const [folders, setFolders] = useState([]);
     const [workflows, setWorkflows] = useState([]);
     const [projects, setProjects] = useState([]);
+    const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [showWorkflowModal, setShowWorkflowModal] = useState(false);
@@ -16,6 +18,8 @@ const FoldersTab = () => {
     const [viewingFolder, setViewingFolder] = useState(null);
     const [showSyncModal, setShowSyncModal] = useState(false);
     const [syncFolder, setSyncFolder] = useState(null);
+    const [showPermissionModal, setShowPermissionModal] = useState(false);
+    const [permissionFolder, setPermissionFolder] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -29,14 +33,16 @@ const FoldersTab = () => {
 
     const fetchData = async () => {
         try {
-            const [foldersRes, workflowsRes, projectsRes] = await Promise.all([
+            const [foldersRes, workflowsRes, projectsRes, usersRes] = await Promise.all([
                 axios.get('/folders'),
                 axios.get('/workflows'),
-                axios.get('/projects')
+                axios.get('/projects'),
+                axios.get('/users')
             ]);
             setFolders(foldersRes.data);
             setWorkflows(workflowsRes.data);
             setProjects(projectsRes.data);
+            setUsers(usersRes.data);
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
@@ -108,6 +114,11 @@ const FoldersTab = () => {
     const handleSyncFolder = async (folder) => {
         setSyncFolder(folder);
         setShowSyncModal(true);
+    };
+
+    const handleManagePermissions = (folder) => {
+        setPermissionFolder(folder);
+        setShowPermissionModal(true);
     };
 
     const handleSyncConfirm = async () => {
@@ -270,6 +281,12 @@ const FoldersTab = () => {
                                         className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
                                     >
                                         Sync
+                                    </button>
+                                    <button
+                                        onClick={() => handleManagePermissions(folder)}
+                                        className="text-cyan-600 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                                    >
+                                        Permissions
                                     </button>
                                     <button
                                         onClick={() => handleDelete(folder.id)}
@@ -470,6 +487,17 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
                     </button>
                 </div>
             </div>
+            {showPermissionModal && permissionFolder && (
+                <PermissionModal
+                    folder={permissionFolder}
+                    users={users}
+                    onClose={() => {
+                        setShowPermissionModal(false);
+                        setPermissionFolder(null);
+                    }}
+                    onUpdate={fetchData}
+                />
+            )}
         </div>
     );
 };

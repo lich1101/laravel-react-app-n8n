@@ -108,7 +108,25 @@ class WorkflowController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $user = auth()->user();
-        $workflow = Workflow::where('user_id', $user->id)->findOrFail($id);
+        $workflow = Workflow::findOrFail($id);
+
+        // Check ownership hoặc permission
+        if ($workflow->user_id !== $user->id) {
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'Bạn không có quyền xóa workflow này'
+            ], 403);
+        }
+
+        // Ngăn xóa workflows được sync từ Administrator (is_from_folder = true)
+        // Chỉ admin mới được xóa workflows từ folder
+        if ($workflow->is_from_folder && $user->role !== 'admin') {
+            return response()->json([
+                'error' => 'Cannot delete workflow from folder',
+                'message' => 'Workflow này được sync từ Administrator. Bạn không thể xóa, chỉ có thể sửa. Liên hệ Admin để xóa.'
+            ], 403);
+        }
+
         $workflow->delete();
 
         return response()->json(['message' => 'Workflow deleted successfully']);
