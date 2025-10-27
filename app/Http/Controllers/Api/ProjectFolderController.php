@@ -20,6 +20,16 @@ class ProjectFolderController extends Controller
             'workflows' => 'nullable|array',
         ]);
 
+        // Get authenticated user (from API token)
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json([
+                'error' => 'Unauthenticated'
+            ], 401);
+        }
+
+        \Log::info("Creating folder '{$request->name}' from Administrator App for user: {$user->email}");
+
         // For now, we'll create workflows directly in this project
         // In real implementation, this would be called from the project's subdomain
         $folderData = [
@@ -32,7 +42,7 @@ class ProjectFolderController extends Controller
         if ($request->has('workflows')) {
             foreach ($request->workflows as $workflowData) {
                 $workflow = Workflow::create([
-                    'user_id' => auth()->id(), // This would be the project user
+                    'user_id' => $user->id,
                     'name' => $workflowData['name'],
                     'description' => $workflowData['description'] ?? '',
                     'nodes' => $workflowData['nodes'] ?? [],
@@ -41,11 +51,13 @@ class ProjectFolderController extends Controller
                     'is_from_folder' => true,
                 ]);
                 $workflowIds[] = $workflow->id;
+                \Log::info("Created workflow '{$workflow->name}' with ID: {$workflow->id}");
             }
         }
 
         return response()->json([
-            'folder_id' => 'generated_folder_id', // This would be the folder ID in project domain
+            'success' => true,
+            'folder_id' => 'generated_folder_id_' . time(), // This would be the folder ID in project domain
             'workflow_ids' => $workflowIds,
         ], 201);
     }
