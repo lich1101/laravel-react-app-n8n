@@ -15,8 +15,8 @@ const AdministratorDashboard = () => {
     };
 
     const tabs = [
-        { id: 'projects', label: 'Projects' },
         { id: 'folders', label: 'Folders' },
+        { id: 'projects', label: 'Projects' },
         { id: 'users', label: 'Users' },
     ];
 
@@ -54,11 +54,10 @@ const AdministratorDashboard = () => {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                                        activeTab === tab.id
+                                    className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${activeTab === tab.id
                                             ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                                    }`}
+                                        }`}
                                 >
                                     {tab.label}
                                 </button>
@@ -68,8 +67,8 @@ const AdministratorDashboard = () => {
 
                     {/* Tab Content */}
                     <div className="p-6">
-                        {activeTab === 'projects' && <ProjectsTab />}
                         {activeTab === 'folders' && <FoldersTab />}
+                        {activeTab === 'projects' && <ProjectsTab />}
                         {activeTab === 'users' && <UsersTab />}
                     </div>
                 </div>
