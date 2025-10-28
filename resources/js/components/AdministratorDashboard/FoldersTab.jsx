@@ -14,7 +14,7 @@ const FoldersTab = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isAdministrator = user.role === 'administrator';
     const navigate = useNavigate();
-    const [showForm, setShowForm] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
     const [showWorkflowModal, setShowWorkflowModal] = useState(false);
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [showFolderWorkflows, setShowFolderWorkflows] = useState(false);
@@ -22,9 +22,14 @@ const FoldersTab = () => {
     const [viewingFolder, setViewingFolder] = useState(null);
     const [showSyncModal, setShowSyncModal] = useState(false);
     const [syncFolder, setSyncFolder] = useState(null);
-    const [showPermissionForm, setShowPermissionForm] = useState(false);
+    const [showPermissionModal, setShowPermissionModal] = useState(false);
     const [permissionFolder, setPermissionFolder] = useState(null);
     const [folderPermissions, setFolderPermissions] = useState([]);
+    const [showCreateWorkflowModal, setShowCreateWorkflowModal] = useState(false);
+    const [newWorkflowData, setNewWorkflowData] = useState({
+        name: '',
+        description: ''
+    });
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -99,6 +104,27 @@ const FoldersTab = () => {
         setDragOverFolder(null);
     };
 
+    const handleCreateWorkflow = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await axios.post('/workflows', {
+                name: newWorkflowData.name,
+                description: newWorkflowData.description,
+                nodes: [],
+                edges: []
+            });
+            
+            setShowCreateWorkflowModal(false);
+            setNewWorkflowData({ name: '', description: '' });
+            
+            // Navigate to the newly created workflow
+            navigate(`/workflows/${response.data.id}`);
+        } catch (error) {
+            console.error('Error creating workflow:', error);
+            alert('Failed to create workflow');
+        }
+    };
+
     const fetchData = async () => {
         try {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -151,7 +177,7 @@ const FoldersTab = () => {
                 });
             }
             setFormData({ name: '', description: '', workflows: [] });
-            setShowForm(false);
+            setShowEditModal(false);
             setEditingFolder(null);
             fetchData();
         } catch (error) {
@@ -166,7 +192,7 @@ const FoldersTab = () => {
             description: folder.description || '',
             workflows: folder.workflows?.map(w => w.id) || []
         });
-        setShowForm(true);
+        setShowEditModal(true);
     };
 
     const handleDelete = async (id) => {
@@ -202,9 +228,7 @@ const FoldersTab = () => {
 
     const handleManagePermissions = async (folder) => {
         setPermissionFolder(folder);
-        setShowPermissionForm(true);
-        setShowForm(false);
-        setEditingFolder(null);
+        setShowPermissionModal(true);
         
         // Fetch current permissions
         try {
@@ -284,7 +308,7 @@ const FoldersTab = () => {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Folders</h2>
                 <div className="flex space-x-2">
                     <button
-                        onClick={() => navigate('/workflows/new')}
+                        onClick={() => setShowCreateWorkflowModal(true)}
                         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -294,7 +318,7 @@ const FoldersTab = () => {
                     </button>
                     <button
                         onClick={() => {
-                            setShowForm(true);
+                            setShowEditModal(true);
                             setEditingFolder(null);
                             setFormData({ name: '', description: '', workflows: [] });
                         }}
@@ -307,132 +331,6 @@ const FoldersTab = () => {
                     </button>
                 </div>
             </div>
-
-            {showForm && (
-                <div className="mb-6 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                    <h3 className="text-md font-semibold mb-3 text-gray-900 dark:text-white">
-                        {editingFolder ? 'Edit Folder' : 'Add New Folder'}
-                    </h3>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Name
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Description
-                            </label>
-                            <textarea
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                rows={3}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            />
-                        </div>
-                        <div className="flex space-x-2">
-                            <button
-                                type="submit"
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                            >
-                                {editingFolder ? 'Update' : 'Create'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowForm(false);
-                                    setEditingFolder(null);
-                                }}
-                                className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
-
-            {/* Permission Form - INLINE like Edit Form */}
-            {showPermissionForm && permissionFolder && (
-                <div className="mb-6 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                    <h3 className="text-md font-semibold mb-4 text-gray-900 dark:text-white">
-                        Phân quyền Folder: {permissionFolder.name}
-                    </h3>
-
-                    {/* User List with Radio Buttons and Permission Select */}
-                    <div className="space-y-3">
-                        {users.filter(u => u.role === 'user' && u.id).map((user) => {
-                            const existingPermission = folderPermissions.find(p => p.user_id === user.id);
-                            const hasPermission = !!existingPermission;
-                            
-                            return (
-                                <div key={user.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded">
-                                    <div className="flex items-center space-x-3 flex-1">
-                                        <input
-                                            type="radio"
-                                            checked={hasPermission}
-                                            onChange={(e) => {
-                                                if (e.target.checked && !hasPermission) {
-                                                    // Default to 'view' when checking
-                                                    handleGrantPermission(user.id, 'view');
-                                                }
-                                            }}
-                                            className="h-4 w-4 text-blue-600"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="font-medium text-gray-900 dark:text-white">
-                                                {user.name}
-                                            </div>
-                                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                {user.email}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    {hasPermission && (
-                                        <div className="flex items-center space-x-2">
-                                            <select
-                                                value={existingPermission.permission}
-                                                onChange={(e) => handleGrantPermission(user.id, e.target.value)}
-                                                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
-                                            >
-                                                <option value="view">View (Xem)</option>
-                                                <option value="edit">Edit (Sửa)</option>
-                                            </select>
-                                            <button
-                                                onClick={() => handleRevokePermission(user.id)}
-                                                className="text-red-600 hover:text-red-800 dark:text-red-400 text-sm"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    <div className="mt-4 flex space-x-2">
-                        <button
-                            onClick={() => {
-                                setShowPermissionForm(false);
-                                setPermissionFolder(null);
-                                setFolderPermissions([]);
-                            }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                        >
-                            Done
-                        </button>
-                    </div>
-                </div>
-            )}
 
             {/* Folders Tree View */}
             <div className="space-y-2">
@@ -566,7 +464,7 @@ const FoldersTab = () => {
                                                 draggable
                                                 onDragStart={(e) => handleDragStart(e, workflow, folder.id)}
                                                 onDragEnd={handleDragEnd}
-                                                onClick={() => navigate(`/workflows/${workflow.id}`)}
+                                                onDoubleClick={() => navigate(`/workflows/${workflow.id}`)}
                                                 className="pl-12 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded flex items-center justify-between cursor-move"
                                             >
                                                 <div className="flex items-center space-x-2">
@@ -617,7 +515,7 @@ const FoldersTab = () => {
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, workflow, null)}
                                     onDragEnd={handleDragEnd}
-                                    onClick={() => navigate(`/workflows/${workflow.id}`)}
+                                    onDoubleClick={() => navigate(`/workflows/${workflow.id}`)}
                                     className="bg-gray-800 rounded-lg p-3 hover:bg-gray-750 cursor-move flex items-center justify-between"
                                 >
                                     <div className="flex items-center space-x-3">
@@ -693,6 +591,192 @@ const FoldersTab = () => {
                 onConfirm={handleSyncConfirm}
                 folderName={syncFolder?.name || ''}
             />
+
+            {/* Create Workflow Modal */}
+            {showCreateWorkflowModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                            Create New Workflow
+                        </h3>
+                        <form onSubmit={handleCreateWorkflow}>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={newWorkflowData.name}
+                                    onChange={(e) => setNewWorkflowData({ ...newWorkflowData, name: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    placeholder="Enter workflow name"
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Description
+                                </label>
+                                <textarea
+                                    value={newWorkflowData.description}
+                                    onChange={(e) => setNewWorkflowData({ ...newWorkflowData, description: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    placeholder="Enter workflow description (optional)"
+                                    rows="3"
+                                />
+                            </div>
+                            <div className="flex space-x-2">
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Create
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowCreateWorkflowModal(false);
+                                        setNewWorkflowData({ name: '', description: '' });
+                                    }}
+                                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit/Add Folder Modal */}
+            {showEditModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                            {editingFolder ? 'Edit Folder' : 'Add New Folder'}
+                        </h3>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    placeholder="Enter folder name"
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Description
+                                </label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    placeholder="Enter folder description (optional)"
+                                    rows="3"
+                                />
+                            </div>
+                            <div className="flex space-x-2">
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                                >
+                                    {editingFolder ? 'Update' : 'Create'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowEditModal(false);
+                                        setEditingFolder(null);
+                                        setFormData({ name: '', description: '', workflows: [] });
+                                    }}
+                                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Permissions Modal */}
+            {showPermissionModal && permissionFolder && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                            Phân quyền Folder: {permissionFolder.name}
+                        </h3>
+                        
+                        {/* User List with Radio Buttons and Permission Select */}
+                        <div className="space-y-3 mb-4">
+                            {users.filter(u => u.role === 'user' && u.id).map((user) => {
+                                const existingPermission = folderPermissions.find(p => p.user_id === user.id);
+                                const hasPermission = !!existingPermission;
+                                
+                                return (
+                                    <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                                        <div className="flex items-center space-x-3 flex-1">
+                                            <input
+                                                type="checkbox"
+                                                checked={hasPermission}
+                                                onChange={(e) => {
+                                                    if (e.target.checked && !hasPermission) {
+                                                        // Default to 'view' when checking
+                                                        handleGrantPermission(user.id, 'view');
+                                                    } else if (!e.target.checked && hasPermission) {
+                                                        handleRevokePermission(user.id);
+                                                    }
+                                                }}
+                                                className="h-4 w-4 text-blue-600 rounded"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="font-medium text-gray-900 dark:text-white">
+                                                    {user.name}
+                                                </div>
+                                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                    {user.email}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {hasPermission && (
+                                            <div className="flex items-center space-x-2">
+                                                <select
+                                                    value={existingPermission.permission}
+                                                    onChange={(e) => handleGrantPermission(user.id, e.target.value)}
+                                                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+                                                >
+                                                    <option value="view">View (Xem)</option>
+                                                    <option value="edit">Edit (Sửa)</option>
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex justify-end">
+                            <button
+                                onClick={() => {
+                                    setShowPermissionModal(false);
+                                    setPermissionFolder(null);
+                                    setFolderPermissions([]);
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -843,7 +927,6 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
                     </button>
                 </div>
             </div>
-
         </div>
     );
 };
