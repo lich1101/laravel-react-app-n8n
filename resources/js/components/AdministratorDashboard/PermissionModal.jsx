@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from '../../config/axios';
 
 const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
+    console.log('PermissionModal RENDER START', { folder, users, hasFolder: !!folder, hasUsers: !!users });
+    
     const [permissions, setPermissions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState('');

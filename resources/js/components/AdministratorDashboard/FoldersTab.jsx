@@ -136,6 +136,8 @@ const FoldersTab = () => {
 
     const handleManagePermissions = (folder) => {
         console.log('handleManagePermissions called for folder:', folder.name);
+        console.log('Current users state:', users);
+        console.log('Current showPermissionModal:', showPermissionModal);
         setPermissionFolder(folder);
         setShowPermissionModal(true);
         console.log('Modal state updated:', { showPermissionModal: true, folder: folder.name });
