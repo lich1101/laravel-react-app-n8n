@@ -99,6 +99,7 @@ class WorkflowController extends Controller
             'nodes' => 'sometimes|array',
             'edges' => 'sometimes|array',
             'active' => 'sometimes|boolean',
+            'folder_id' => 'nullable|exists:folders,id',
         ]);
 
         $updateData = [];
@@ -128,6 +129,9 @@ class WorkflowController extends Controller
                 }
             }
             $updateData['active'] = $request->active;
+        }
+        if ($request->has('folder_id')) {
+            $updateData['folder_id'] = $request->folder_id;
         }
 
         $workflow->update($updateData);

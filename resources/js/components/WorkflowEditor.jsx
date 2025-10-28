@@ -47,6 +47,18 @@ const nodeTypes = {
 function WorkflowEditor() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    // Get back URL based on user role
+    const getBackUrl = () => {
+        if (currentUser.role === 'administrator') {
+            return '/administrator';
+        } else if (currentUser.role === 'admin') {
+            return '/admin';
+        }
+        return '/workflows';
+    };
+    
     const [workflow, setWorkflow] = useState(null);
     const [nodes, setNodes] = useState([]);
     const [edges, setEdges] = useState([]);
@@ -95,7 +107,7 @@ function WorkflowEditor() {
             // If workflow not found, redirect to list
             if (error.response?.status === 404) {
                 alert('Workflow không tồn tại');
-                navigate('/workflows');
+                navigate(getBackUrl());
             }
         }
     };
@@ -549,7 +561,7 @@ function WorkflowEditor() {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                         <button
-                            onClick={() => navigate('/workflows')}
+                            onClick={() => navigate(getBackUrl())}
                             className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                         >
                             ← Back

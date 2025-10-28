@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../config/axios';
+import { useNavigate } from 'react-router-dom';
 import FolderWorkflowView from './FolderWorkflowView';
 import SyncModal from './SyncModal';
 
@@ -12,6 +13,7 @@ const FoldersTab = () => {
     const [expandedFolders, setExpandedFolders] = useState({});
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isAdministrator = user.role === 'administrator';
+    const navigate = useNavigate();
     const [showForm, setShowForm] = useState(false);
     const [showWorkflowModal, setShowWorkflowModal] = useState(false);
     const [showProjectModal, setShowProjectModal] = useState(false);
@@ -29,6 +31,8 @@ const FoldersTab = () => {
         workflows: []
     });
     const [editingFolder, setEditingFolder] = useState(null);
+    const [draggedWorkflow, setDraggedWorkflow] = useState(null);
+    const [dragOverFolder, setDragOverFolder] = useState(null);
 
     useEffect(() => {
         fetchData();
@@ -39,6 +43,84 @@ const FoldersTab = () => {
             ...prev,
             [folderId]: !prev[folderId]
         }));
+    };
+
+    // Drag and Drop handlers
+    const handleDragStart = (e, workflow, folderId = null) => {
+        e.stopPropagation();
+        setDraggedWorkflow({ ...workflow, currentFolderId: folderId });
+    };
+
+    const handleDragOver = (e, folderId) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOverFolder(folderId);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOverFolder(null);
+    };
+
+    const handleDrop = async (e, targetFolderId) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOverFolder(null);
+
+        if (!draggedWorkflow) return;
+
+        const workflowId = draggedWorkflow.id;
+        const sourceFolderId = draggedWorkflow.currentFolderId;
+
+        console.log('🔄 Drag Drop Debug:', {
+            workflowId,
+            sourceFolderId,
+            targetFolderId,
+            isSameFolder: sourceFolderId === targetFolderId
+        });
+
+        // If dropping in the same folder, do nothing
+        if (sourceFolderId === targetFolderId) {
+            console.log('⚠️ Same folder, skipping');
+            setDraggedWorkflow(null);
+            return;
+        }
+
+        try {
+            console.log('📤 Sending API request:', {
+                url: `/workflows/${workflowId}`,
+                data: { folder_id: targetFolderId }
+            });
+
+            // Update workflow's folder
+            const response = await axios.put(`/workflows/${workflowId}`, {
+                folder_id: targetFolderId
+            });
+
+            console.log('✅ API Response:', response.data);
+
+            // Refresh data
+            await fetchData();
+            
+            const message = targetFolderId 
+                ? `Workflow moved to folder successfully!` 
+                : `Workflow moved to root successfully!`;
+            
+            console.log('🎉 Success:', message);
+            alert(message);
+        } catch (error) {
+            console.error('❌ Error moving workflow:', error);
+            console.error('❌ Error response:', error.response?.data);
+            alert('Failed to move workflow: ' + (error.response?.data?.message || error.message));
+        }
+
+        setDraggedWorkflow(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedWorkflow(null);
+        setDragOverFolder(null);
     };
 
     const fetchData = async () => {
@@ -224,16 +306,30 @@ const FoldersTab = () => {
         <div>
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Folders</h2>
-                <button
-                    onClick={() => {
-                        setShowForm(true);
-                        setEditingFolder(null);
-                        setFormData({ name: '', description: '', workflows: [] });
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                >
-                    Add Folder
-                </button>
+                <div className="flex space-x-2">
+                    <button
+                        onClick={() => navigate('/workflows/new')}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Create Workflow</span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            setShowForm(true);
+                            setEditingFolder(null);
+                            setFormData({ name: '', description: '', workflows: [] });
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Add Folder</span>
+                    </button>
+                </div>
             </div>
 
             {showForm && (
@@ -365,9 +461,17 @@ const FoldersTab = () => {
             {/* Folders Tree View */}
             <div className="space-y-2">
                 {folders.map((folder) => (
-                    <div key={folder.id} className="bg-gray-800 rounded-lg overflow-hidden">
+                    <div 
+                        key={folder.id} 
+                        className="bg-gray-800 rounded-lg overflow-hidden"
+                        onDragOver={(e) => handleDragOver(e, folder.id)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, folder.id)}
+                    >
                         {/* Folder Header */}
-                        <div className="flex items-center justify-between p-4 hover:bg-gray-750">
+                        <div className={`flex items-center justify-between p-4 hover:bg-gray-750 ${
+                            dragOverFolder === folder.id ? 'bg-blue-900 border-2 border-blue-500' : ''
+                        }`}>
                             <div className="flex items-center space-x-3 flex-1">
                                 {/* Expand/Collapse Button */}
                                 <button
@@ -483,7 +587,11 @@ const FoldersTab = () => {
                                         {folder.workflows.map((workflow) => (
                                             <div
                                                 key={workflow.id}
-                                                className="pl-12 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded flex items-center justify-between"
+                                                draggable
+                                                onDragStart={(e) => handleDragStart(e, workflow, folder.id)}
+                                                onDragEnd={handleDragEnd}
+                                                onClick={() => navigate(`/workflows/${workflow.id}`)}
+                                                className="pl-12 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded flex items-center justify-between cursor-move"
                                             >
                                                 <div className="flex items-center space-x-2">
                                                     <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
@@ -513,6 +621,64 @@ const FoldersTab = () => {
                 {folders.length === 0 && !loading && (
                     <p className="text-center text-gray-400 py-8">No folders found. Create one to get started!</p>
                 )}
+            </div>
+
+            {/* Standalone Workflows (No Folder) */}
+            {workflows.filter(w => !w.folder_id).length > 0 && (
+                <div className="mt-6">
+                    <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Standalone Workflows
+                    </h3>
+                    <div className="space-y-2">
+                        {workflows
+                            .filter(w => !w.folder_id)
+                            .map((workflow) => (
+                                <div
+                                    key={workflow.id}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, workflow, null)}
+                                    onDragEnd={handleDragEnd}
+                                    onClick={() => navigate(`/workflows/${workflow.id}`)}
+                                    className="bg-gray-800 rounded-lg p-3 hover:bg-gray-750 cursor-move flex items-center justify-between"
+                                >
+                                    <div className="flex items-center space-x-3">
+                                        <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                                        </svg>
+                                        <span className="text-white">{workflow.name}</span>
+                                    </div>
+                                    <div className="flex items-center space-x-3">
+                                        <span className={`text-xs px-2 py-1 rounded ${workflow.active ? 'bg-green-600' : 'bg-gray-600'}`}>
+                                            {workflow.active ? 'Active' : 'Inactive'}
+                                        </span>
+                                        <span className="text-xs text-gray-400">
+                                            {new Date(workflow.updated_at).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))
+                        }
+                    </div>
+                </div>
+            )}
+
+            {/* Drop Zone for Root Level */}
+            <div
+                onDragOver={(e) => handleDragOver(e, null)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, null)}
+                className={`mt-4 p-6 border-2 border-dashed rounded-lg text-center ${
+                    dragOverFolder === null && draggedWorkflow
+                        ? 'border-blue-500 bg-blue-900/20'
+                        : 'border-gray-600 bg-gray-800/50'
+                }`}
+            >
+                <p className="text-gray-400 text-sm">
+                    {draggedWorkflow ? '📂 Drop here to remove from folder' : '💡 Drag workflows here to organize'}
+                </p>
             </div>
 
             {/* Workflow Management Modal */}
