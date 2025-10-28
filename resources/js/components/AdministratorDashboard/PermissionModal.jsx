@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../config/axios';
 
+// PERMISSION MODAL V3.0 - REBUILT FROM SCRATCH
 const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
-    console.log('PermissionModal RENDER START', { folder, users, hasFolder: !!folder, hasUsers: !!users });
-    
     const [permissions, setPermissions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedUser, setSelectedUser] = useState('');
+    const [selectedUserId, setSelectedUserId] = useState('');
     const [selectedPermission, setSelectedPermission] = useState('view');
     const [granting, setGranting] = useState(false);
 
     useEffect(() => {
-        console.log('PermissionModal mounted!', { folder: folder?.name, users: users?.length });
         if (folder) {
             fetchPermissions();
         }
@@ -19,10 +17,12 @@ const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
 
     const fetchPermissions = async () => {
         try {
+            setLoading(true);
             const response = await axios.get(`/folders/${folder.id}/permissions`);
-            setPermissions(response.data.permissions);
+            setPermissions(response.data.permissions || []);
         } catch (error) {
             console.error('Error fetching permissions:', error);
+            setPermissions([]);
         } finally {
             setLoading(false);
         }
@@ -30,7 +30,7 @@ const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
 
     const handleGrantPermission = async (e) => {
         e.preventDefault();
-        if (!selectedUser) {
+        if (!selectedUserId) {
             alert('Vui lòng chọn user');
             return;
         }
@@ -38,14 +38,14 @@ const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
         setGranting(true);
         try {
             await axios.post(`/folders/${folder.id}/grant-permission`, {
-                user_id: parseInt(selectedUser),
+                user_id: parseInt(selectedUserId),
                 permission: selectedPermission
             });
             
             alert('Phân quyền thành công!');
             fetchPermissions();
-            setSelectedUser('');
-            onUpdate && onUpdate();
+            setSelectedUserId('');
+            if (onUpdate) onUpdate();
         } catch (error) {
             console.error('Error granting permission:', error);
             alert(error.response?.data?.error || 'Lỗi khi phân quyền');
@@ -55,7 +55,7 @@ const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
     };
 
     const handleRevokePermission = async (userId) => {
-        if (!confirm('Bạn có chắc muốn thu hồi quyền này?')) {
+        if (!window.confirm('Bạn có chắc muốn thu hồi quyền này?')) {
             return;
         }
 
@@ -63,32 +63,39 @@ const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
             await axios.delete(`/folders/${folder.id}/revoke-permission/${userId}`);
             alert('Thu hồi quyền thành công!');
             fetchPermissions();
-            onUpdate && onUpdate();
+            if (onUpdate) onUpdate();
         } catch (error) {
             console.error('Error revoking permission:', error);
             alert('Lỗi khi thu hồi quyền');
         }
     };
 
-    // Filter users who don't have permission yet and are not the folder creator
-    const availableUsers = Array.isArray(users) ? users.filter(user => 
-        user?.id && user.id !== folder.created_by && 
-        !permissions.some(p => p.user_id === user.id)
-    ) : [];
-
-    console.log('PermissionModal about to return JSX', { 
-        folder: folder?.name, 
-        usersCount: users?.length, 
-        availableUsersCount: availableUsers.length,
-        permissionsCount: permissions.length 
+    // Filter available users - handle empty objects safely
+    const availableUsers = (users || []).filter(user => {
+        if (!user || !user.id) return false;
+        if (user.id === folder.created_by) return false;
+        return !permissions.some(p => p.user_id === user.id);
     });
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style={{zIndex: 9999}} onClick={onClose}>
-            <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-white">Phân quyền Folder: {folder.name}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">
+        <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" 
+            style={{zIndex: 99999}}
+            onClick={onClose}
+        >
+            <div 
+                className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto" 
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                        Phân quyền Folder: {folder.name}
+                    </h2>
+                    <button 
+                        onClick={onClose} 
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -96,103 +103,94 @@ const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
                 </div>
 
                 {/* Grant Permission Form */}
-                <div className="bg-gray-800 rounded-lg p-4 mb-6">
-                    <h3 className="text-white font-semibold mb-3">Cấp quyền mới</h3>
-                    <form onSubmit={handleGrantPermission} className="space-y-3">
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        Phân quyền mới
+                    </h3>
+                    <form onSubmit={handleGrantPermission} className="space-y-4">
                         <div>
-                            <label className="block text-sm text-gray-300 mb-2">Chọn User</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Chọn User
+                            </label>
                             <select
-                                value={selectedUser}
-                                onChange={(e) => setSelectedUser(e.target.value)}
-                                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
-                                required
+                                value={selectedUserId}
+                                onChange={(e) => setSelectedUserId(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                disabled={granting}
                             >
                                 <option value="">-- Chọn user --</option>
-                                {availableUsers.map(user => (
+                                {availableUsers.map((user) => (
                                     <option key={user.id} value={user.id}>
-                                        {user.name} ({user.email}) - {user.role}
+                                        {user.name} ({user.email})
                                     </option>
                                 ))}
                             </select>
                         </div>
 
                         <div>
-                            <label className="block text-sm text-gray-300 mb-2">Quyền hạn</label>
-                            <div className="space-y-2">
-                                <label className="flex items-center space-x-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="permission"
-                                        value="view"
-                                        checked={selectedPermission === 'view'}
-                                        onChange={(e) => setSelectedPermission(e.target.value)}
-                                        className="form-radio text-blue-600"
-                                    />
-                                    <div>
-                                        <span className="text-white font-medium">View (Xem)</span>
-                                        <p className="text-sm text-gray-400">Chỉ xem folder và workflows, không sửa được</p>
-                                    </div>
-                                </label>
-                                <label className="flex items-center space-x-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        name="permission"
-                                        value="edit"
-                                        checked={selectedPermission === 'edit'}
-                                        onChange={(e) => setSelectedPermission(e.target.value)}
-                                        className="form-radio text-blue-600"
-                                    />
-                                    <div>
-                                        <span className="text-white font-medium">Edit (Sửa)</span>
-                                        <p className="text-sm text-gray-400">Xem và chỉnh sửa workflows (KHÔNG được xóa folder)</p>
-                                    </div>
-                                </label>
-                            </div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Loại quyền
+                            </label>
+                            <select
+                                value={selectedPermission}
+                                onChange={(e) => setSelectedPermission(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                disabled={granting}
+                            >
+                                <option value="view">View (Chỉ xem)</option>
+                                <option value="edit">Edit (Xem và sửa)</option>
+                            </select>
                         </div>
 
                         <button
                             type="submit"
-                            disabled={granting || !selectedUser}
-                            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-2 rounded font-medium"
+                            disabled={granting || !selectedUserId}
+                            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md font-medium"
                         >
-                            {granting ? 'Đang cấp quyền...' : 'Cấp quyền'}
+                            {granting ? 'Đang xử lý...' : 'Phân quyền'}
                         </button>
                     </form>
                 </div>
 
                 {/* Current Permissions List */}
                 <div>
-                    <h3 className="text-white font-semibold mb-3">Danh sách quyền hiện tại</h3>
+                    <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        Danh sách quyền hiện tại
+                    </h3>
                     {loading ? (
-                        <p className="text-gray-400">Đang tải...</p>
+                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                            Đang tải...
+                        </div>
                     ) : permissions.length === 0 ? (
-                        <p className="text-gray-400 text-center py-4">Chưa có ai được phân quyền</p>
+                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                            Chưa có ai được phân quyền
+                        </div>
                     ) : (
                         <div className="space-y-2">
-                            {permissions.map(permission => (
-                                <div key={permission.id} className="bg-gray-800 rounded-lg p-4 flex justify-between items-center">
+                            {permissions.map((perm) => (
+                                <div 
+                                    key={perm.id} 
+                                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                                >
                                     <div className="flex-1">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">
-                                                {permission.user.name.charAt(0).toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <p className="text-white font-medium">{permission.user.name}</p>
-                                                <p className="text-sm text-gray-400">{permission.user.email}</p>
-                                            </div>
+                                        <div className="font-medium text-gray-900 dark:text-white">
+                                            {perm.user_name || 'Unknown User'}
+                                        </div>
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                            {perm.user_email}
                                         </div>
                                     </div>
-                                    <div className="flex items-center space-x-4">
+                                    <div className="flex items-center space-x-3">
                                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                            permission.permission === 'edit' 
-                                                ? 'bg-green-900 text-green-300' 
-                                                : 'bg-blue-900 text-blue-300'
+                                            perm.permission === 'edit' 
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                                         }`}>
-                                            {permission.permission === 'edit' ? '✏️ Edit' : '👁️ View'}
+                                            {perm.permission === 'edit' ? 'Edit' : 'View'}
                                         </span>
                                         <button
-                                            onClick={() => handleRevokePermission(permission.user_id)}
-                                            className="text-red-400 hover:text-red-300 px-3 py-1 border border-red-400 hover:border-red-300 rounded"
+                                            onClick={() => handleRevokePermission(perm.user_id)}
+                                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium"
                                         >
                                             Thu hồi
                                         </button>
@@ -202,28 +200,9 @@ const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
                         </div>
                     )}
                 </div>
-
-                {/* Info */}
-                <div className="mt-6 bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg p-4">
-                    <div className="flex items-start space-x-2">
-                        <svg className="w-5 h-5 text-yellow-500 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                        <div className="text-sm text-yellow-200">
-                            <p className="font-semibold mb-1">Lưu ý về quyền hạn:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                                <li>Users với quyền <strong>View</strong>: Chỉ xem folder và workflows</li>
-                                <li>Users với quyền <strong>Edit</strong>: Xem và sửa workflows</li>
-                                <li>Users <strong>KHÔNG được xóa</strong> folders/workflows được sync từ Administrator</li>
-                                <li>Chỉ Admin có thể xóa folders và phân quyền</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     );
 };
 
 export default PermissionModal;
-

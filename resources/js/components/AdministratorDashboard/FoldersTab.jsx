@@ -135,12 +135,8 @@ const FoldersTab = () => {
     };
 
     const handleManagePermissions = (folder) => {
-        console.log('handleManagePermissions called for folder:', folder.name);
-        console.log('Current users state:', users);
-        console.log('Current showPermissionModal:', showPermissionModal);
         setPermissionFolder(folder);
         setShowPermissionModal(true);
-        console.log('Modal state updated:', { showPermissionModal: true, folder: folder.name });
     };
 
     const handleSyncConfirm = async () => {
@@ -518,31 +514,18 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
                 </div>
             </div>
 
-            {(() => {
-                console.log('Render check:', { 
-                    showPermissionModal, 
-                    permissionFolder: permissionFolder?.name,
-                    shouldRender: showPermissionModal && permissionFolder,
-                    usersCount: users?.length 
-                });
-                if (showPermissionModal && permissionFolder) {
-                    console.log('About to render PermissionModal...');
-                    return (
-                        <PermissionModal
-                            key={permissionFolder.id}
-                            folder={permissionFolder}
-                            users={users}
-                            onClose={() => {
-                                console.log('PermissionModal onClose called');
-                                setShowPermissionModal(false);
-                                setPermissionFolder(null);
-                            }}
-                            onUpdate={fetchData}
-                        />
-                    );
-                }
-                return null;
-            })()}
+            {showPermissionModal && permissionFolder && (
+                <PermissionModal
+                    key={`permission-${permissionFolder.id}`}
+                    folder={permissionFolder}
+                    users={users}
+                    onClose={() => {
+                        setShowPermissionModal(false);
+                        setPermissionFolder(null);
+                    }}
+                    onUpdate={fetchData}
+                />
+            )}
         </div>
     );
 };
