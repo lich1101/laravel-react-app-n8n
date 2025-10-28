@@ -8,6 +8,8 @@ const UsersTab = () => {
     const [showForm, setShowForm] = useState(false);
     const [showProjectModal, setShowProjectModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const isAdministrator = currentUser.role === 'administrator';
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -23,12 +25,22 @@ const UsersTab = () => {
 
     const fetchData = async () => {
         try {
-            const [usersRes, projectsRes] = await Promise.all([
-                axios.get('/users'),
-                axios.get('/projects')
-            ]);
-            setUsers(usersRes.data);
-            setProjects(projectsRes.data);
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            
+            // Admin users don't have access to projects API
+            if (user.role === 'admin') {
+                const usersRes = await axios.get('/users');
+                setUsers(usersRes.data);
+                setProjects([]); // No projects for admin users
+            } else {
+                // Administrator has access to projects API
+                const [usersRes, projectsRes] = await Promise.all([
+                    axios.get('/users'),
+                    axios.get('/projects')
+                ]);
+                setUsers(usersRes.data);
+                setProjects(projectsRes.data);
+            }
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
@@ -173,14 +185,15 @@ const UsersTab = () => {
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Project
-                            </label>
-                            <select
-                                value={formData.project_id || ''}
-                                onChange={(e) => setFormData({ ...formData, project_id: e.target.value || null })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                        {isAdministrator && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Project
+                                </label>
+                                <select
+                                    value={formData.project_id || ''}
+                                    onChange={(e) => setFormData({ ...formData, project_id: e.target.value || null })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                             >
                                 <option value="">No Project</option>
                                 {projects.map((project) => (
@@ -190,6 +203,7 @@ const UsersTab = () => {
                                 ))}
                             </select>
                         </div>
+                        )}
                         <div className="flex space-x-2">
                             <button
                                 type="submit"
@@ -225,9 +239,11 @@ const UsersTab = () => {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Role
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Project
-                            </th>
+                            {isAdministrator && (
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Project
+                                </th>
+                            )}
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Actions
                             </th>
@@ -255,9 +271,11 @@ const UsersTab = () => {
                                         {user.role}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                    {getProjectName(user.project_id)}
-                                </td>
+                                {isAdministrator && (
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        {getProjectName(user.project_id)}
+                                    </td>
+                                )}
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                     <button
                                         onClick={() => handleEdit(user)}
@@ -265,12 +283,14 @@ const UsersTab = () => {
                                     >
                                         Edit
                                     </button>
-                                    <button
-                                        onClick={() => handleAssignProject(user)}
-                                        className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                                    >
-                                        Project
-                                    </button>
+                                    {isAdministrator && (
+                                        <button
+                                            onClick={() => handleAssignProject(user)}
+                                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                        >
+                                            Project
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => handleDelete(user.id)}
                                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
