@@ -73,46 +73,22 @@ const FoldersTab = () => {
         const workflowId = draggedWorkflow.id;
         const sourceFolderId = draggedWorkflow.currentFolderId;
 
-        console.log('🔄 Drag Drop Debug:', {
-            workflowId,
-            sourceFolderId,
-            targetFolderId,
-            isSameFolder: sourceFolderId === targetFolderId
-        });
-
         // If dropping in the same folder, do nothing
         if (sourceFolderId === targetFolderId) {
-            console.log('⚠️ Same folder, skipping');
             setDraggedWorkflow(null);
             return;
         }
 
         try {
-            console.log('📤 Sending API request:', {
-                url: `/workflows/${workflowId}`,
-                data: { folder_id: targetFolderId }
-            });
-
             // Update workflow's folder
-            const response = await axios.put(`/workflows/${workflowId}`, {
+            await axios.put(`/workflows/${workflowId}`, {
                 folder_id: targetFolderId
             });
 
-            console.log('✅ API Response:', response.data);
-
             // Refresh data
             await fetchData();
-            
-            const message = targetFolderId 
-                ? `Workflow moved to folder successfully!` 
-                : `Workflow moved to root successfully!`;
-            
-            console.log('🎉 Success:', message);
-            alert(message);
         } catch (error) {
-            console.error('❌ Error moving workflow:', error);
-            console.error('❌ Error response:', error.response?.data);
-            alert('Failed to move workflow: ' + (error.response?.data?.message || error.message));
+            console.error('Error moving workflow:', error);
         }
 
         setDraggedWorkflow(null);
