@@ -9,6 +9,7 @@ const FoldersTab = () => {
     const [projects, setProjects] = useState([]);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [expandedFolders, setExpandedFolders] = useState({});
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isAdministrator = user.role === 'administrator';
     const [showForm, setShowForm] = useState(false);
@@ -32,6 +33,13 @@ const FoldersTab = () => {
     useEffect(() => {
         fetchData();
     }, []);
+
+    const toggleFolder = (folderId) => {
+        setExpandedFolders(prev => ({
+            ...prev,
+            [folderId]: !prev[folderId]
+        }));
+    };
 
     const fetchData = async () => {
         try {
@@ -354,96 +362,157 @@ const FoldersTab = () => {
                 </div>
             )}
 
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Name
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Description
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Workflows
-                            </th>
-                            {isAdministrator && (
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Projects
-                                </th>
-                            )}
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                        {folders.map((folder) => (
-                            <tr
-                                key={folder.id}
-                                onDoubleClick={() => handleDoubleClickFolder(folder)}
-                                className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-                            >
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                    {folder.name}
-                                </td>
-                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                                    {folder.description || '-'}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                    {folder.workflows?.length || 0} workflows
-                                </td>
+            {/* Folders Tree View */}
+            <div className="space-y-2">
+                {folders.map((folder) => (
+                    <div key={folder.id} className="bg-gray-800 rounded-lg overflow-hidden">
+                        {/* Folder Header */}
+                        <div className="flex items-center justify-between p-4 hover:bg-gray-750">
+                            <div className="flex items-center space-x-3 flex-1">
+                                {/* Expand/Collapse Button */}
+                                <button
+                                    onClick={() => toggleFolder(folder.id)}
+                                    className="text-gray-400 hover:text-white"
+                                >
+                                    <svg
+                                        className={`w-5 h-5 transition-transform ${expandedFolders[folder.id] ? 'transform rotate-90' : ''}`}
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+
+                                {/* Folder Icon */}
+                                <svg className="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                                </svg>
+
+                                {/* Folder Name & Info */}
+                                <div className="flex-1">
+                                    <div className="flex items-center space-x-2">
+                                        <span className="text-white font-medium">{folder.name}</span>
+                                        <span className="text-gray-400 text-sm">({folder.workflows?.length || 0})</span>
+                                        {isAdministrator && folder.projects?.length > 0 && (
+                                            <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">
+                                                {folder.projects.length} project{folder.projects.length > 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {folder.description && (
+                                        <p className="text-gray-400 text-sm mt-1">{folder.description}</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center space-x-2">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEdit(folder);
+                                    }}
+                                    className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
+                                    title="Edit"
+                                >
+                                    ✏️ Edit
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleManageWorkflows(folder);
+                                    }}
+                                    className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded"
+                                    title="Manage Workflows"
+                                >
+                                    📄 Workflows
+                                </button>
                                 {isAdministrator && (
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                        {folder.projects?.length || 0} projects
-                                    </td>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAssignProjects(folder);
+                                        }}
+                                        className="px-3 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded"
+                                        title="Assign Projects"
+                                    >
+                                        🏢 Projects
+                                    </button>
                                 )}
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                {isAdministrator && (
                                     <button
-                                        onClick={() => handleEdit(folder)}
-                                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSyncFolder(folder);
+                                        }}
+                                        className="px-3 py-1 text-xs bg-orange-600 hover:bg-orange-700 text-white rounded"
+                                        title="Sync to Projects"
                                     >
-                                        Edit
+                                        🔄 Sync
                                     </button>
-                                    <button
-                                        onClick={() => handleManageWorkflows(folder)}
-                                        className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                                    >
-                                        Workflows
-                                    </button>
-                                    {isAdministrator && (
-                                        <button
-                                            onClick={() => handleAssignProjects(folder)}
-                                            className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
-                                        >
-                                            Projects
-                                        </button>
-                                    )}
-                                    {isAdministrator && (
-                                        <button
-                                            onClick={() => handleSyncFolder(folder)}
-                                            className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
-                                        >
-                                            Sync
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => handleManagePermissions(folder)}
-                                        className="text-cyan-600 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
-                                    >
-                                        Permissions
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(folder.id)}
-                                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                    >
-                                        Delete
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                                )}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleManagePermissions(folder);
+                                    }}
+                                    className="px-3 py-1 text-xs bg-cyan-600 hover:bg-cyan-700 text-white rounded"
+                                    title="Manage Permissions"
+                                >
+                                    🔒 Permissions
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDelete(folder.id);
+                                    }}
+                                    className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded"
+                                    title="Delete Folder"
+                                >
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Workflows List (when expanded) */}
+                        {expandedFolders[folder.id] && (
+                            <div className="bg-gray-900 px-4 py-2">
+                                {folder.workflows && folder.workflows.length > 0 ? (
+                                    <div className="space-y-1">
+                                        {folder.workflows.map((workflow) => (
+                                            <div
+                                                key={workflow.id}
+                                                className="pl-12 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded flex items-center justify-between"
+                                            >
+                                                <div className="flex items-center space-x-2">
+                                                    <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                                                    </svg>
+                                                    <span>{workflow.name}</span>
+                                                </div>
+                                                <div className="flex items-center space-x-2">
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${workflow.active ? 'bg-green-600' : 'bg-gray-600'}`}>
+                                                        {workflow.active ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(workflow.updated_at).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="pl-12 py-2 text-sm text-gray-500 italic">No workflows in this folder</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                ))}
+
+                {folders.length === 0 && !loading && (
+                    <p className="text-center text-gray-400 py-8">No folders found. Create one to get started!</p>
+                )}
             </div>
 
             {/* Workflow Management Modal */}
