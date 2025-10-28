@@ -170,18 +170,30 @@ class ProjectFolderController extends Controller
         // Update workflows
         if ($request->has('workflows')) {
             foreach ($request->workflows as $workflowData) {
-                if (isset($workflowData['id'])) {
-                    // Update existing workflow
+                $workflow = null;
+                
+                // Try to find workflow by ID first
+                if (isset($workflowData['id']) && $workflowData['id']) {
                     $workflow = Workflow::find($workflowData['id']);
-                    if ($workflow) {
-                        $workflow->update([
-                            'name' => $workflowData['name'],
-                            'description' => $workflowData['description'] ?? '',
-                            'nodes' => $workflowData['nodes'] ?? [],
-                            'edges' => $workflowData['edges'] ?? [],
-                        ]);
-                        \Log::info("Updated workflow '{$workflow->name}' with ID: {$workflow->id}");
-                    }
+                }
+                
+                // If not found by ID, try to find by name + folder_id
+                if (!$workflow) {
+                    $workflow = Workflow::where('folder_id', $folder->id)
+                        ->where('name', $workflowData['name'])
+                        ->where('is_from_folder', true)
+                        ->first();
+                }
+                
+                if ($workflow) {
+                    // Update existing workflow
+                    $workflow->update([
+                        'name' => $workflowData['name'],
+                        'description' => $workflowData['description'] ?? '',
+                        'nodes' => $workflowData['nodes'] ?? [],
+                        'edges' => $workflowData['edges'] ?? [],
+                    ]);
+                    \Log::info("Updated workflow '{$workflow->name}' with ID: {$workflow->id}");
                 } else {
                     // Create new workflow
                     $workflow = Workflow::create([
