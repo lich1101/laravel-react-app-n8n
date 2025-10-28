@@ -9,6 +9,7 @@ const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
     const [granting, setGranting] = useState(false);
 
     useEffect(() => {
+        console.log('PermissionModal mounted!', { folder: folder?.name, users: users?.length });
         if (folder) {
             fetchPermissions();
         }

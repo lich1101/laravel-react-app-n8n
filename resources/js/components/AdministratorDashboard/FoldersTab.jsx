@@ -135,8 +135,10 @@ const FoldersTab = () => {
     };
 
     const handleManagePermissions = (folder) => {
+        console.log('handleManagePermissions called for folder:', folder.name);
         setPermissionFolder(folder);
         setShowPermissionModal(true);
+        console.log('Modal state updated:', { showPermissionModal: true, folder: folder.name });
     };
 
     const handleSyncConfirm = async () => {
