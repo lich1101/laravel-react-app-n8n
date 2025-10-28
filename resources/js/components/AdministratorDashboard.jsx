@@ -5,7 +5,7 @@ import FoldersTab from './AdministratorDashboard/FoldersTab';
 import UsersTab from './AdministratorDashboard/UsersTab';
 
 const AdministratorDashboard = () => {
-    const [activeTab, setActiveTab] = useState('projects');
+    const [activeTab, setActiveTab] = useState('folders');
     const navigate = useNavigate();
 
     const handleLogout = () => {
