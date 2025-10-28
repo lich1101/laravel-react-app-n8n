@@ -513,6 +513,7 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
                     </button>
                 </div>
             </div>
+
             {showPermissionModal && permissionFolder && (
                 <PermissionModal
                     folder={permissionFolder}
