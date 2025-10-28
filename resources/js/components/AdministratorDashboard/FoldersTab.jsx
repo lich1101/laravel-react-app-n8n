@@ -518,17 +518,31 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
                 </div>
             </div>
 
-            {showPermissionModal && permissionFolder && (
-                <PermissionModal
-                    folder={permissionFolder}
-                    users={users}
-                    onClose={() => {
-                        setShowPermissionModal(false);
-                        setPermissionFolder(null);
-                    }}
-                    onUpdate={fetchData}
-                />
-            )}
+            {(() => {
+                console.log('Render check:', { 
+                    showPermissionModal, 
+                    permissionFolder: permissionFolder?.name,
+                    shouldRender: showPermissionModal && permissionFolder,
+                    usersCount: users?.length 
+                });
+                if (showPermissionModal && permissionFolder) {
+                    console.log('About to render PermissionModal...');
+                    return (
+                        <PermissionModal
+                            key={permissionFolder.id}
+                            folder={permissionFolder}
+                            users={users}
+                            onClose={() => {
+                                console.log('PermissionModal onClose called');
+                                setShowPermissionModal(false);
+                                setPermissionFolder(null);
+                            }}
+                            onUpdate={fetchData}
+                        />
+                    );
+                }
+                return null;
+            })()}
         </div>
     );
 };

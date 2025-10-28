@@ -71,10 +71,17 @@ const PermissionModal = ({ folder, users, onClose, onUpdate }) => {
     };
 
     // Filter users who don't have permission yet and are not the folder creator
-    const availableUsers = users.filter(user => 
-        user.id !== folder.created_by && 
+    const availableUsers = Array.isArray(users) ? users.filter(user => 
+        user?.id && user.id !== folder.created_by && 
         !permissions.some(p => p.user_id === user.id)
-    );
+    ) : [];
+
+    console.log('PermissionModal about to return JSX', { 
+        folder: folder?.name, 
+        usersCount: users?.length, 
+        availableUsersCount: availableUsers.length,
+        permissionsCount: permissions.length 
+    });
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style={{zIndex: 9999}} onClick={onClose}>
