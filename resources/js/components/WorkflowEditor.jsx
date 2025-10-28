@@ -67,6 +67,23 @@ function WorkflowEditor() {
     }, [id]);
 
     const fetchWorkflow = async () => {
+        // If creating new workflow
+        if (id === 'new') {
+            const newWorkflow = {
+                id: null,
+                name: 'Untitled Workflow',
+                description: '',
+                active: false,
+                nodes: [],
+                edges: []
+            };
+            setWorkflow(newWorkflow);
+            setNodes([]);
+            setEdges([]);
+            return;
+        }
+
+        // Fetch existing workflow
         try {
             const response = await axios.get(`/workflows/${id}`);
             const data = response.data;
@@ -75,6 +92,11 @@ function WorkflowEditor() {
             setEdges(data.edges || []);
         } catch (error) {
             console.error('Error fetching workflow:', error);
+            // If workflow not found, redirect to list
+            if (error.response?.status === 404) {
+                alert('Workflow không tồn tại');
+                navigate('/workflows');
+            }
         }
     };
 
@@ -121,10 +143,24 @@ function WorkflowEditor() {
         setIsSaving(true);
         setSaved(false);
         try {
-            await axios.put(`/workflows/${id}`, {
-                nodes,
-                edges,
-            });
+            if (id === 'new' || !workflow?.id) {
+                // Create new workflow
+                const response = await axios.post('/workflows', {
+                    name: workflow?.name || 'Untitled Workflow',
+                    description: workflow?.description || '',
+                    nodes,
+                    edges,
+                    active: false
+                });
+                // Redirect to the newly created workflow
+                navigate(`/workflows/${response.data.id}`, { replace: true });
+            } else {
+                // Update existing workflow
+                await axios.put(`/workflows/${id}`, {
+                    nodes,
+                    edges,
+                });
+            }
             setSaved(true);
             setTimeout(() => setSaved(false), 2000);
         } catch (error) {
@@ -136,6 +172,11 @@ function WorkflowEditor() {
     };
 
     const handleToggleActive = async () => {
+        if (id === 'new' || !workflow?.id) {
+            alert('Vui lòng lưu workflow trước khi activate');
+            return;
+        }
+        
         try {
             const newActive = !workflow.active;
             await axios.put(`/workflows/${id}`, { active: newActive });
@@ -447,15 +488,17 @@ function WorkflowEditor() {
             node.id === selectedNode.id ? updatedNode : node
         ));
 
-        // Save to backend
-        try {
-            await axios.post(`/workflows/${id}/nodes`, {
-                node_id: selectedNode.id,
-                type: selectedNode.type,
-                config: config,
-            });
-        } catch (error) {
-            console.error('Error saving node config:', error);
+        // Save to backend (only if workflow is already created)
+        if (id !== 'new' && workflow?.id) {
+            try {
+                await axios.post(`/workflows/${id}/nodes`, {
+                    node_id: selectedNode.id,
+                    type: selectedNode.type,
+                    config: config,
+                });
+            } catch (error) {
+                console.error('Error saving node config:', error);
+            }
         }
     };
 

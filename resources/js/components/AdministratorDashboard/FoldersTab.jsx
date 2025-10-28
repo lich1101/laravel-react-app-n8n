@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import axios from '../../config/axios';
 import FolderWorkflowView from './FolderWorkflowView';
 import SyncModal from './SyncModal';
-import PermissionModal from './PermissionModal';
 
 const FoldersTab = () => {
     const [folders, setFolders] = useState([]);
@@ -20,8 +19,9 @@ const FoldersTab = () => {
     const [viewingFolder, setViewingFolder] = useState(null);
     const [showSyncModal, setShowSyncModal] = useState(false);
     const [syncFolder, setSyncFolder] = useState(null);
-    const [showPermissionModal, setShowPermissionModal] = useState(false);
+    const [showPermissionForm, setShowPermissionForm] = useState(false);
     const [permissionFolder, setPermissionFolder] = useState(null);
+    const [folderPermissions, setFolderPermissions] = useState([]);
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -134,9 +134,53 @@ const FoldersTab = () => {
         setShowSyncModal(true);
     };
 
-    const handleManagePermissions = (folder) => {
+    const handleManagePermissions = async (folder) => {
         setPermissionFolder(folder);
-        setShowPermissionModal(true);
+        setShowPermissionForm(true);
+        setShowForm(false);
+        setEditingFolder(null);
+        
+        // Fetch current permissions
+        try {
+            const response = await axios.get(`/folders/${folder.id}/permissions`);
+            setFolderPermissions(response.data.permissions || []);
+        } catch (error) {
+            console.error('Error fetching permissions:', error);
+            setFolderPermissions([]);
+        }
+    };
+
+    const handleGrantPermission = async (userId, permission) => {
+        try {
+            await axios.post(`/folders/${permissionFolder.id}/grant-permission`, {
+                user_id: userId,
+                permission: permission
+            });
+            
+            // Refresh permissions
+            const response = await axios.get(`/folders/${permissionFolder.id}/permissions`);
+            setFolderPermissions(response.data.permissions || []);
+        } catch (error) {
+            console.error('Error granting permission:', error);
+            alert(error.response?.data?.error || 'Lỗi khi phân quyền');
+        }
+    };
+
+    const handleRevokePermission = async (userId) => {
+        if (!window.confirm('Bạn có chắc muốn thu hồi quyền này?')) {
+            return;
+        }
+
+        try {
+            await axios.delete(`/folders/${permissionFolder.id}/revoke-permission/${userId}`);
+            
+            // Refresh permissions
+            const response = await axios.get(`/folders/${permissionFolder.id}/permissions`);
+            setFolderPermissions(response.data.permissions || []);
+        } catch (error) {
+            console.error('Error revoking permission:', error);
+            alert('Lỗi khi thu hồi quyền');
+        }
     };
 
     const handleSyncConfirm = async () => {
@@ -232,6 +276,81 @@ const FoldersTab = () => {
                             </button>
                         </div>
                     </form>
+                </div>
+            )}
+
+            {/* Permission Form - INLINE like Edit Form */}
+            {showPermissionForm && permissionFolder && (
+                <div className="mb-6 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
+                    <h3 className="text-md font-semibold mb-4 text-gray-900 dark:text-white">
+                        Phân quyền Folder: {permissionFolder.name}
+                    </h3>
+
+                    {/* User List with Radio Buttons and Permission Select */}
+                    <div className="space-y-3">
+                        {users.filter(u => u.role === 'user' && u.id).map((user) => {
+                            const existingPermission = folderPermissions.find(p => p.user_id === user.id);
+                            const hasPermission = !!existingPermission;
+                            
+                            return (
+                                <div key={user.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded">
+                                    <div className="flex items-center space-x-3 flex-1">
+                                        <input
+                                            type="radio"
+                                            checked={hasPermission}
+                                            onChange={(e) => {
+                                                if (e.target.checked && !hasPermission) {
+                                                    // Default to 'view' when checking
+                                                    handleGrantPermission(user.id, 'view');
+                                                }
+                                            }}
+                                            className="h-4 w-4 text-blue-600"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-medium text-gray-900 dark:text-white">
+                                                {user.name}
+                                            </div>
+                                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                {user.email}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {hasPermission && (
+                                        <div className="flex items-center space-x-2">
+                                            <select
+                                                value={existingPermission.permission}
+                                                onChange={(e) => handleGrantPermission(user.id, e.target.value)}
+                                                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+                                            >
+                                                <option value="view">View (Xem)</option>
+                                                <option value="edit">Edit (Sửa)</option>
+                                            </select>
+                                            <button
+                                                onClick={() => handleRevokePermission(user.id)}
+                                                className="text-red-600 hover:text-red-800 dark:text-red-400 text-sm"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="mt-4 flex space-x-2">
+                        <button
+                            onClick={() => {
+                                setShowPermissionForm(false);
+                                setPermissionFolder(null);
+                                setFolderPermissions([]);
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                        >
+                            Done
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -514,18 +633,6 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
                 </div>
             </div>
 
-            {showPermissionModal && permissionFolder && (
-                <PermissionModal
-                    key={`permission-${permissionFolder.id}`}
-                    folder={permissionFolder}
-                    users={users}
-                    onClose={() => {
-                        setShowPermissionModal(false);
-                        setPermissionFolder(null);
-                    }}
-                    onUpdate={fetchData}
-                />
-            )}
         </div>
     );
 };

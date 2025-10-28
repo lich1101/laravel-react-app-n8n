@@ -7,7 +7,9 @@ const WorkflowList = () => {
     const [folders, setFolders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [expandedFolders, setExpandedFolders] = useState({});
     const navigate = useNavigate();
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
     useEffect(() => {
         fetchData();
@@ -50,6 +52,24 @@ const WorkflowList = () => {
     });
 
     const foldersWithWorkflows = Object.values(folderMap);
+
+    const toggleFolder = (folderId) => {
+        setExpandedFolders(prev => ({
+            ...prev,
+            [folderId]: !prev[folderId]
+        }));
+    };
+
+    const canEditWorkflow = (folder) => {
+        if (!folder) return true; // Workflows without folder - user owns them
+        return folder.user_permission === 'edit';
+    };
+
+    const canDeleteWorkflow = (workflow, folder) => {
+        if (workflow.is_from_folder) return false; // Synced workflows cannot be deleted
+        if (!folder) return true; // User's own workflows
+        return folder.can_delete; // Based on folder permission
+    };
 
     const handleDelete = async (id, workflow, e) => {
         e.stopPropagation();
@@ -158,9 +178,88 @@ const WorkflowList = () => {
                     </button>
                 </div>
 
-                {/* Workflow List */}
+                {/* Folder Tree */}
                 <div className="space-y-2">
-                    {sortedWorkflows.map((workflow) => (
+                    {/* Folders with workflows */}
+                    {folders.map((folder) => (
+                        <div key={`folder-${folder.id}`} className="border border-gray-800 rounded-lg overflow-hidden">
+                            {/* Folder Header */}
+                            <div 
+                                className="bg-gray-900 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-800"
+                                onClick={() => toggleFolder(folder.id)}
+                            >
+                                <div className="flex items-center space-x-3">
+                                    <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedFolders[folder.id] ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                                    </svg>
+                                    <span className="text-white font-medium">{folder.name}</span>
+                                    <span className="text-sm text-gray-400">({folder.workflows?.length || 0})</span>
+                                    {folder.user_permission === 'view' && (
+                                        <span className="px-2 py-0.5 bg-blue-900 text-blue-300 text-xs rounded-full">
+                                            View Only
+                                        </span>
+                                    )}
+                                    {folder.user_permission === 'edit' && folder.created_by !== currentUser.id && (
+                                        <span className="px-2 py-0.5 bg-green-900 text-green-300 text-xs rounded-full">
+                                            Can Edit
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Folder Workflows - Collapsible */}
+                            {expandedFolders[folder.id] && (
+                                <div className="bg-gray-950">
+                                    {folder.workflows?.map((workflow) => (
+                                        <div
+                                            key={workflow.id}
+                                            onClick={() => navigate(`/workflows/${workflow.id}`)}
+                                            className="px-4 py-3 pl-12 flex items-center justify-between cursor-pointer hover:bg-gray-900 transition-colors border-t border-gray-800"
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center space-x-2 mb-1">
+                                                    <h3 className="text-white font-medium">{workflow.name}</h3>
+                                                    {workflow.is_from_folder && (
+                                                        <span className="px-2 py-0.5 bg-purple-900 text-purple-300 text-xs rounded-full flex items-center space-x-1">
+                                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                                                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                                                            </svg>
+                                                            <span>Synced</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center space-x-3 text-sm text-gray-400">
+                                                    <span>Last updated {getTimeAgo(workflow.updated_at)}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center space-x-6 ml-4">
+                                                <span className={`text-sm ${workflow.active ? 'text-green-400' : 'text-gray-400'}`}>
+                                                    {workflow.active ? 'Active' : 'Inactive'}
+                                                </span>
+                                                {!canDeleteWorkflow(workflow, folder) && (
+                                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                    </svg>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+
+                    {/* Workflows without folder - My Workflows */}
+                    {workflowsWithoutFolder.length > 0 && (
+                        <div className="mt-4">
+                            <h3 className="text-gray-400 text-sm font-semibold mb-2 px-2">MY WORKFLOWS</h3>
+                        </div>
+                    )}
+                    {workflowsWithoutFolder.map((workflow) => (
                         <div
                             key={workflow.id}
                             onClick={() => navigate(`/workflows/${workflow.id}`)}
