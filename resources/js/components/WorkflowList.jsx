@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
 import { useNavigate } from 'react-router-dom';
+import CredentialsTab from './CredentialsTab';
 
 const WorkflowList = () => {
     const [workflows, setWorkflows] = useState([]);
@@ -8,6 +9,7 @@ const WorkflowList = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedFolders, setExpandedFolders] = useState({});
+    const [activeTab, setActiveTab] = useState('workflows'); // 'workflows' or 'credentials'
     const navigate = useNavigate();
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -132,14 +134,16 @@ const WorkflowList = () => {
             {/* Header */}
             <nav className="bg-gray-900 border-b border-gray-800 px-6 py-4">
                 <div className="flex justify-between items-center">
-                    <h1 className="text-xl font-semibold">My Workflows</h1>
+                    <h1 className="text-xl font-semibold">My Workspace</h1>
                     <div className="flex items-center space-x-4">
-                        <button
-                            onClick={() => navigate('/workflows/new')}
-                            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm font-medium"
-                        >
-                            New Workflow
-                        </button>
+                        {activeTab === 'workflows' && (
+                            <button
+                                onClick={() => navigate('/workflows/new')}
+                                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm font-medium"
+                            >
+                                New Workflow
+                            </button>
+                        )}
                         <button
                             onClick={handleLogout}
                             className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm font-medium"
@@ -150,7 +154,38 @@ const WorkflowList = () => {
                 </div>
             </nav>
 
-            <div className="px-6 py-6">
+            {/* Tabs */}
+            <div className="border-b border-gray-800 bg-gray-900">
+                <div className="px-6">
+                    <nav className="flex space-x-8" aria-label="Tabs">
+                        <button
+                            onClick={() => setActiveTab('workflows')}
+                            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'workflows'
+                                    ? 'border-blue-500 text-blue-500'
+                                    : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+                            }`}
+                        >
+                            Workflows
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('credentials')}
+                            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'credentials'
+                                    ? 'border-blue-500 text-blue-500'
+                                    : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+                            }`}
+                        >
+                            Credentials
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            <div className="px-6 py-6">{activeTab === 'credentials' ? (
+                    <CredentialsTab />
+                ) : (
+                    <>
                 {/* Search and Filter Bar */}
                 <div className="flex items-center space-x-3 mb-6">
                     <div className="flex-1 relative">
@@ -345,6 +380,8 @@ const WorkflowList = () => {
                         </div>
                     )}
                 </div>
+                    </>
+                )}
             </div>
         </div>
     );

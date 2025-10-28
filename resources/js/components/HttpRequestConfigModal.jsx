@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import VariableInput from './VariableInput';
+import CredentialModal from './CredentialModal';
+import axios from '../config/axios';
 
 function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes }) {
     const [config, setConfig] = useState({
         method: 'GET',
         url: '',
         auth: 'none',
-        credential: '',
+        credentialId: null,
         queryParams: [],
         headers: [],
         bodyType: 'json',
@@ -16,11 +18,15 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
     const [testResults, setTestResults] = useState(null);
     const [isTesting, setIsTesting] = useState(false);
     const [selectedVariable, setSelectedVariable] = useState(null);
+    const [credentials, setCredentials] = useState([]);
+    const [showCredentialModal, setShowCredentialModal] = useState(false);
+    const [selectedCredentialType, setSelectedCredentialType] = useState('bearer');
 
     useEffect(() => {
         if (node?.data?.config) {
             setConfig({ ...config, ...node.data.config });
         }
+        fetchCredentials();
     }, [node]);
 
     useEffect(() => {
@@ -34,6 +40,23 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
             console.log('HttpRequestConfigModal - Incoming edges for this node:', incomingEdges);
         }
     }, [node, allEdges, allNodes, inputData]);
+
+    const fetchCredentials = async (type = null) => {
+        try {
+            const params = type ? { type } : {};
+            const response = await axios.get('/credentials', { params });
+            setCredentials(Array.isArray(response.data) ? response.data : []);
+        } catch (error) {
+            console.error('Error fetching credentials:', error);
+            setCredentials([]); // Ensure it's always an array on error
+        }
+    };
+
+    const handleCredentialSaved = (credential) => {
+        fetchCredentials();
+        setConfig({ ...config, credentialId: credential.id });
+        setShowCredentialModal(false);
+    };
 
     // Render draggable JSON with clickable values
     const renderDraggableJSON = (obj, prefix = '', indent = 0) => {
@@ -324,12 +347,17 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 </label>
                                 <select
                                     value={config.auth}
-                                    onChange={(e) => setConfig({ ...config, auth: e.target.value })}
+                                    onChange={(e) => {
+                                        setConfig({ ...config, auth: e.target.value, credentialId: null });
+                                        setSelectedCredentialType(e.target.value === 'basic' ? 'basic' : e.target.value === 'bearer' ? 'bearer' : 'api_key');
+                                    }}
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 >
                                     <option value="none">None</option>
                                     <option value="basic">Basic Auth</option>
                                     <option value="bearer">Bearer Token</option>
+                                    <option value="api_key">API Key</option>
+                                    <option value="oauth2">OAuth2</option>
                                     <option value="custom">Custom Header</option>
                                 </select>
                             </div>
@@ -339,10 +367,56 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Credential
                                     </label>
+                                    <div className="flex space-x-2">
+                                        <select
+                                            value={config.credentialId || ''}
+                                            onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
+                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        >
+                                            <option value="">Select Credential...</option>
+                                            {Array.isArray(credentials) && credentials
+                                                .filter(cred => cred.type === config.auth || config.auth === 'custom')
+                                                .map(cred => (
+                                                    <option key={cred.id} value={cred.id}>
+                                                        {cred.name} ({cred.type})
+                                                    </option>
+                                                ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedCredentialType(config.auth === 'basic' ? 'basic' : config.auth === 'bearer' ? 'bearer' : 'api_key');
+                                                setShowCredentialModal(true);
+                                            }}
+                                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                            title="Create new credential"
+                                        >
+                                            + New
+                                        </button>
+                                    </div>
+                                    {!config.credentialId && (
+                                        <p className="mt-1 text-xs text-orange-600 dark:text-orange-400">
+                                            ⚠️ Please select a credential or create a new one
+                                        </p>
+                                    )}
+                                    {config.credentialId && (
+                                        <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                                            ✓ Credential selected
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Legacy credential input (hidden when using credential selector) */}
+                            {(config.auth === 'custom') && !config.credentialId && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Custom Credential Value
+                                    </label>
                                     <VariableInput
                                         type="text"
                                         name="credential"
-                                        value={config.credential}
+                                        value={config.credential || ''}
                                         onChange={(e) => setConfig({ ...config, credential: e.target.value })}
                                         onDrop={(e) => {
                                             e.preventDefault();
@@ -631,6 +705,14 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                     </div>
                 </div>
             </div>
+
+            {/* Credential Modal */}
+            <CredentialModal
+                isOpen={showCredentialModal}
+                onClose={() => setShowCredentialModal(false)}
+                onSave={handleCredentialSaved}
+                credentialType={selectedCredentialType}
+            />
         </div>
     );
 }

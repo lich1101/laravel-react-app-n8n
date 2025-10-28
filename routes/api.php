@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\FolderController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectFolderController;
+use App\Http\Controllers\Api\CredentialController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -49,6 +50,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/folders/{folder}/grant-permission', [FolderController::class, 'grantPermission']);
     Route::delete('/folders/{folder}/revoke-permission/{user}', [FolderController::class, 'revokePermission']);
     Route::get('/folders/{folder}/permissions', [FolderController::class, 'getFolderPermissions']);
+    
+    // Credential routes
+    // IMPORTANT: Specific routes must come BEFORE apiResource
+    Route::post('/credentials/test-oauth2', [CredentialController::class, 'testOAuth2']);
+    Route::post('/credentials/{credential}/test', [CredentialController::class, 'test']);
+    Route::apiResource('credentials', CredentialController::class);
 });
 
 // Project folder management routes (for Administrator app using admin key)

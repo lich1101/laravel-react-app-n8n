@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from '../config/axios';
 import VariableInput from './VariableInput';
+import CredentialModal from './CredentialModal';
 
 const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult }) => {
     const [config, setConfig] = useState({
@@ -8,6 +9,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult })
         path: '',
         auth: 'none',
         authType: 'bearer', // bearer, basic, apiKey, digest, oauth2, custom
+        credentialId: null,
         apiKeyName: '',
         apiKeyValue: '',
         username: '',
@@ -21,10 +23,15 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult })
     const [isListening, setIsListening] = useState(false);
     const [testOutput, setTestOutput] = useState(null);
     const [testError, setTestError] = useState(null);
+    const [credentials, setCredentials] = useState([]);
+    const [showCredentialModal, setShowCredentialModal] = useState(false);
+    const [selectedCredentialType, setSelectedCredentialType] = useState('bearer');
     const pollingIntervalRef = useRef(null);
     const testRunIdRef = useRef(null);
 
     useEffect(() => {
+        fetchCredentials();
+        
         // Cleanup polling on unmount
         return () => {
             if (pollingIntervalRef.current) {
@@ -32,6 +39,23 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult })
             }
         };
     }, []);
+
+    const fetchCredentials = async (type = null) => {
+        try {
+            const params = type ? { type } : {};
+            const response = await axios.get('/credentials', { params });
+            setCredentials(Array.isArray(response.data) ? response.data : []);
+        } catch (error) {
+            console.error('Error fetching credentials:', error);
+            setCredentials([]); // Ensure it's always an array on error
+        }
+    };
+
+    const handleCredentialSaved = (credential) => {
+        fetchCredentials();
+        setConfig({ ...config, credentialId: credential.id });
+        setShowCredentialModal(false);
+    };
 
     const handleClose = async () => {
         // Stop listening if active
@@ -313,14 +337,44 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult })
                                     {/* Bearer Token */}
                                     {config.authType === 'bearer' && (
                                         <div className="mb-6">
-                                            <label className="block text-sm font-medium text-gray-300 mb-2">Bearer Token</label>
-                                            <VariableInput
-                                                type="text"
-                                                value={config.apiKeyValue}
-                                                onChange={(e) => setConfig({ ...config, apiKeyValue: e.target.value })}
-                                                placeholder="Bearer token..."
-                                                className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
-                                            />
+                                            <label className="block text-sm font-medium text-gray-300 mb-2">Bearer Token Credential</label>
+                                            <div className="flex space-x-2">
+                                                <select
+                                                    value={config.credentialId || ''}
+                                                    onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
+                                                    className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                                >
+                                                    <option value="">Select Credential...</option>
+                                                    {Array.isArray(credentials) && credentials
+                                                        .filter(cred => cred.type === 'bearer')
+                                                        .map(cred => (
+                                                            <option key={cred.id} value={cred.id}>
+                                                                {cred.name}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedCredentialType('bearer');
+                                                        setShowCredentialModal(true);
+                                                    }}
+                                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                                    title="Create new Bearer Token"
+                                                >
+                                                    + New
+                                                </button>
+                                            </div>
+                                            {!config.credentialId && (
+                                                <p className="mt-1 text-xs text-orange-400">
+                                                    ⚠️ Please select a credential or create a new one
+                                                </p>
+                                            )}
+                                            {config.credentialId && (
+                                                <p className="mt-1 text-xs text-green-400">
+                                                    ✓ Credential selected
+                                                </p>
+                                            )}
                                         </div>
                                     )}
 
@@ -405,14 +459,47 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult })
                                     {/* OAuth 2.0 */}
                                     {config.authType === 'oauth2' && (
                                         <div className="mb-6">
-                                            <label className="block text-sm font-medium text-gray-300 mb-2">OAuth Token</label>
-                                            <VariableInput
-                                                type="text"
-                                                value={config.apiKeyValue}
-                                                onChange={(e) => setConfig({ ...config, apiKeyValue: e.target.value })}
-                                                placeholder="OAuth access token"
-                                                className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
-                                            />
+                                            <label className="block text-sm font-medium text-gray-300 mb-2">OAuth2 Credential</label>
+                                            <div className="flex space-x-2">
+                                                <select
+                                                    value={config.credentialId || ''}
+                                                    onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
+                                                    className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                                >
+                                                    <option value="">Select Credential...</option>
+                                                    {Array.isArray(credentials) && credentials
+                                                        .filter(cred => cred.type === 'oauth2')
+                                                        .map(cred => (
+                                                            <option key={cred.id} value={cred.id}>
+                                                                {cred.name}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedCredentialType('oauth2');
+                                                        setShowCredentialModal(true);
+                                                    }}
+                                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                                    title="Create new OAuth2 Credential"
+                                                >
+                                                    + New
+                                                </button>
+                                            </div>
+                                            {!config.credentialId && (
+                                                <p className="mt-1 text-xs text-orange-400">
+                                                    ⚠️ Please select an OAuth2 credential or create a new one
+                                                </p>
+                                            )}
+                                            {config.credentialId && (
+                                                <p className="mt-1 text-xs text-green-400">
+                                                    ✓ OAuth2 credential selected
+                                                </p>
+                                            )}
+                                            <p className="mt-2 text-xs text-gray-500">
+                                                💡 OAuth2 credentials include Client ID, Client Secret, and redirect URL configuration
+                                            </p>
                                         </div>
                                     )}
 
@@ -505,6 +592,14 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult })
                 </div>
             </div>
         </div>
+
+            {/* Credential Modal */}
+            <CredentialModal
+                isOpen={showCredentialModal}
+                onClose={() => setShowCredentialModal(false)}
+                onSave={handleCredentialSaved}
+                credentialType={selectedCredentialType}
+            />
         </>
     );
 };
