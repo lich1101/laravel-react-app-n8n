@@ -297,6 +297,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     type="text"
                                     name="url"
                                     value={config.url}
+                                    inputData={inputData}
                                     onChange={(e) => setConfig({ ...config, url: e.target.value })}
                                     onDrop={(e) => {
                                         e.preventDefault();
