@@ -490,9 +490,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult })
                             ) : testOutput ? (
                                 <div className="space-y-2">
                                     <h4 className="text-xs font-medium text-gray-400 mb-2">Request Data:</h4>
-                                    <pre className="text-xs bg-gray-900 p-3 rounded border border-gray-800 overflow-x-auto">
-                                        {JSON.stringify(testOutput, null, 2)}
-                                    </pre>
+                                    <JsonViewer data={testOutput} />
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 text-sm">
@@ -508,6 +506,76 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult })
             </div>
         </div>
         </>
+    );
+};
+
+// JSON Viewer Component with Syntax Highlighting
+const JsonViewer = ({ data }) => {
+    const renderValue = (value, key = null, indent = 0) => {
+        const indentSpaces = '  '.repeat(indent);
+        
+        if (value === null) {
+            return <span className="text-gray-500">null</span>;
+        }
+        
+        if (typeof value === 'string') {
+            return <span className="text-green-400">"{value}"</span>;
+        }
+        
+        if (typeof value === 'number') {
+            return <span className="text-blue-400">{value}</span>;
+        }
+        
+        if (typeof value === 'boolean') {
+            return <span className="text-purple-400">{value.toString()}</span>;
+        }
+        
+        if (Array.isArray(value)) {
+            if (value.length === 0) {
+                return <span className="text-gray-400">[]</span>;
+            }
+            return (
+                <div>
+                    <span className="text-gray-400">[</span>
+                    {value.map((item, index) => (
+                        <div key={index} className="ml-4">
+                            {renderValue(item, null, indent + 1)}
+                            {index < value.length - 1 && <span className="text-gray-400">,</span>}
+                        </div>
+                    ))}
+                    <div>{indentSpaces}<span className="text-gray-400">]</span></div>
+                </div>
+            );
+        }
+        
+        if (typeof value === 'object') {
+            const entries = Object.entries(value);
+            if (entries.length === 0) {
+                return <span className="text-gray-400">{'{}'}</span>;
+            }
+            return (
+                <div>
+                    <span className="text-gray-400">{'{'}</span>
+                    {entries.map(([k, v], index) => (
+                        <div key={k} className="ml-4">
+                            <span className="text-cyan-400">"{k}"</span>
+                            <span className="text-gray-400">: </span>
+                            {renderValue(v, k, indent + 1)}
+                            {index < entries.length - 1 && <span className="text-gray-400">,</span>}
+                        </div>
+                    ))}
+                    <div>{indentSpaces}<span className="text-gray-400">{'}'}</span></div>
+                </div>
+            );
+        }
+        
+        return <span className="text-gray-300">{String(value)}</span>;
+    };
+
+    return (
+        <pre className="text-xs bg-gray-900 p-4 rounded border border-gray-700 overflow-x-auto font-mono">
+            {renderValue(data)}
+        </pre>
     );
 };
 
