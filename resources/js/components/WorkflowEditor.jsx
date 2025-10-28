@@ -248,6 +248,64 @@ function WorkflowEditor() {
         }
     };
 
+    // Export workflow to JSON
+    const handleExportWorkflow = () => {
+        const exportData = {
+            name: workflow.name,
+            description: workflow.description,
+            nodes: nodes,
+            edges: edges,
+            metadata: {
+                exportedAt: new Date().toISOString(),
+                version: '1.0',
+                workflowId: workflow.id
+            }
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${workflow.name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    // Import workflow from JSON
+    const handleImportWorkflow = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                
+                // Validate imported data
+                if (!importedData.nodes || !importedData.edges) {
+                    alert('Invalid workflow file format!');
+                    return;
+                }
+
+                // Update nodes and edges
+                setNodes(importedData.nodes);
+                setEdges(importedData.edges);
+                
+                alert(`Workflow imported successfully!\nNodes: ${importedData.nodes.length}, Connections: ${importedData.edges.length}`);
+            } catch (error) {
+                console.error('Error importing workflow:', error);
+                alert('Failed to import workflow. Please check the file format.');
+            }
+        };
+        reader.readAsText(file);
+        
+        // Reset input
+        event.target.value = '';
+    };
+
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
@@ -631,6 +689,33 @@ function WorkflowEditor() {
                                 </div>
                             )}
                         </div>
+                        
+                        {/* Export Button */}
+                        <button
+                            onClick={handleExportWorkflow}
+                            className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
+                            title="Export workflow to JSON"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                            </svg>
+                            <span>Export</span>
+                        </button>
+                        
+                        {/* Import Button */}
+                        <label className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2 cursor-pointer">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <span>Import</span>
+                            <input
+                                type="file"
+                                accept=".json"
+                                onChange={handleImportWorkflow}
+                                className="hidden"
+                            />
+                        </label>
+                        
                         <button
                             onClick={handleSave}
                             disabled={isSaving}
