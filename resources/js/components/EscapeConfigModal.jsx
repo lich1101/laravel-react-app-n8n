@@ -10,7 +10,6 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
     const [testResults, setTestResults] = useState(null);
     const [isTesting, setIsTesting] = useState(false);
-    const [pinnedOutput, setPinnedOutput] = useState(null);
     const [inputViewMode, setInputViewMode] = useState('schema');
     const [outputViewMode, setOutputViewMode] = useState('json');
     const [collapsedPaths, setCollapsedPaths] = useState(new Set());
@@ -19,37 +18,8 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         if (node?.data?.config) {
             setConfig({ ...config, ...node.data.config });
         }
-        loadPinnedOutput();
     }, [node]);
 
-    const loadPinnedOutput = async () => {
-        if (!node?.id) return;
-        
-        if (node?.data?.pinnedOutput) {
-            setPinnedOutput(node.data.pinnedOutput);
-            if (onTestResult && node?.id) {
-                onTestResult(node.id, node.data.pinnedOutput);
-            }
-            return;
-        }
-
-        const pathParts = window.location.pathname.split('/');
-        const workflowId = pathParts[pathParts.indexOf('workflows') + 1];
-        
-        if (!workflowId || workflowId === 'new') return;
-
-        try {
-            const response = await axios.get(`/workflows/${workflowId}/nodes/${node.id}/pinned-output`);
-            if (response.data.pinned_output) {
-                setPinnedOutput(response.data.pinned_output);
-                if (onTestResult && node?.id) {
-                    onTestResult(node.id, response.data.pinned_output);
-                }
-            }
-        } catch (error) {
-            console.error('Error loading pinned output:', error);
-        }
-    };
 
     const handleSave = () => {
         onSave(config);
@@ -86,56 +56,7 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         }
     };
 
-    const handlePinOutput = async () => {
-        if (!testResults || !node?.id) return;
-
-        const pathParts = window.location.pathname.split('/');
-        const workflowId = pathParts[pathParts.indexOf('workflows') + 1];
-        
-        if (!workflowId || workflowId === 'new') {
-            alert('Vui lòng lưu workflow trước khi pin output');
-            return;
-        }
-
-        try {
-            await axios.post(`/workflows/${workflowId}/nodes/${node.id}/pin-output`, {
-                output: testResults,
-                type: node.type,
-            });
-            setPinnedOutput(testResults);
-            
-            if (onTestResult && node?.id) {
-                onTestResult(node.id, testResults);
-            }
-        } catch (error) {
-            console.error('Error pinning output:', error);
-            alert('Lỗi khi pin output: ' + (error.response?.data?.message || error.message));
-        }
-    };
-
-    const handleUnpinOutput = async () => {
-        if (!node?.id) return;
-
-        const pathParts = window.location.pathname.split('/');
-        const workflowId = pathParts[pathParts.indexOf('workflows') + 1];
-        
-        if (!workflowId || workflowId === 'new') return;
-
-        try {
-            await axios.delete(`/workflows/${workflowId}/nodes/${node.id}/pin-output`);
-            setPinnedOutput(null);
-            
-            if (onTestResult && node?.id) {
-                onTestResult(node.id, null);
-            }
-        } catch (error) {
-            console.error('Error unpinning output:', error);
-            alert('Lỗi khi unpin output: ' + (error.response?.data?.message || error.message));
-        }
-    };
-
     const getDisplayOutput = () => {
-        if (pinnedOutput) return pinnedOutput;
         if (testResults) return testResults;
         if (outputData) return outputData;
         return null;
@@ -376,7 +297,7 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                         <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
-                                {inputData && inputData.length > 0 && (
+                                {inputData && Object.keys(inputData).length > 0 && (
                                     <div className="flex space-x-1">
                                         <button
                                             onClick={() => setInputViewMode('schema')}
@@ -403,20 +324,14 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                             </div>
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
-                            {inputData && inputData.length > 0 ? (
+                            {inputData && Object.keys(inputData).length > 0 ? (
                                 <div className="space-y-4">
-                                    {inputViewMode === 'schema' && inputData.map((data, index) => {
-                                        // Tìm source node theo thứ tự edge vào
-                                        const incomingEdges = allEdges?.filter(e => e.target === node?.id) || [];
-                                        const sourceEdge = incomingEdges[index];
-                                        const sourceNode = sourceEdge ? allNodes?.find(n => n.id === sourceEdge.source) : null;
-                                        const nodeName = sourceNode?.data?.customName || `input-${index}`;
-
+                                    {inputViewMode === 'schema' && Object.entries(inputData).map(([nodeName, data]) => {
                                         return (
-                                            <div key={index}>
+                                            <div key={nodeName}>
                                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
                                                     <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                                        {sourceNode?.data?.customName || `Input ${index + 1}`}
+                                                        {nodeName}
                                                     </span>
                                                     <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
                                                         {Object.keys(data || {}).length} fields
@@ -429,10 +344,10 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                         );
                                     })}
                                     
-                                    {inputViewMode === 'json' && inputData.map((data, index) => (
-                                        <div key={index}>
+                                    {inputViewMode === 'json' && Object.entries(inputData).map(([nodeName, data]) => (
+                                        <div key={nodeName}>
                                             <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                                Input {index + 1}:
+                                                {nodeName}:
                                             </div>
                                             <pre className="text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                                                 {JSON.stringify(data, null, 2)}
@@ -563,11 +478,6 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                     <h3 className="font-semibold text-gray-900 dark:text-white">OUTPUT</h3>
-                                    {pinnedOutput && (
-                                        <span className="text-xs px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded flex items-center gap-1">
-                                            📌 Pinned
-                                        </span>
-                                    )}
                                 </div>
                                 {getDisplayOutput() && (
                                     <div className="flex space-x-1">
@@ -595,19 +505,6 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
-                                {getDisplayOutput() && (
-                                    <button
-                                        onClick={pinnedOutput ? handleUnpinOutput : handlePinOutput}
-                                        className={`text-xs px-3 py-1.5 rounded font-medium transition-colors ${
-                                            pinnedOutput 
-                                                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
-                                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                                        }`}
-                                        title={pinnedOutput ? 'Unpin output' : 'Pin output for debugging'}
-                                    >
-                                        {pinnedOutput ? '📌 Unpin' : '📌 Pin'}
-                                    </button>
-                                )}
                                 {onTest && (
                                     <button
                                         onClick={handleTest}
@@ -627,12 +524,6 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 </div>
                             ) : getDisplayOutput() ? (
                                 <div className="relative">
-                                    {pinnedOutput && (
-                                        <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-800 dark:text-yellow-200">
-                                            💡 Output này đã được pin để debug. Click "Unpin" để xóa.
-                                        </div>
-                                    )}
-                                    
                                     {outputViewMode === 'schema' && (
                                         <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                                             {renderDraggableJSON(getDisplayOutput(), 'output')}

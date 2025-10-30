@@ -3,7 +3,7 @@ import axios from '../config/axios';
 import VariableInput from './VariableInput';
 import CredentialModal from './CredentialModal';
 
-const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, onRename }) => {
+const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, onRename, outputData }) => {
     const [config, setConfig] = useState({
         method: 'POST',
         path: '',
@@ -28,6 +28,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
     const [selectedCredentialType, setSelectedCredentialType] = useState('bearer');
     const [pathError, setPathError] = useState(null);
     const [isCheckingPath, setIsCheckingPath] = useState(false);
+    const [activeTab, setActiveTab] = useState('schema');
     const pollingIntervalRef = useRef(null);
     const testRunIdRef = useRef(null);
     const pathCheckTimeoutRef = useRef(null);
@@ -643,6 +644,33 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                     {/* Right Panel - Output */}
                     <div className="w-1/2 border-l border-gray-700 px-6 py-4 bg-gray-900 flex flex-col">
                         <h3 className="text-sm font-medium text-gray-400 mb-4">OUTPUT</h3>
+                        
+                        {/* Tabs */}
+                        {(testOutput || outputData) && (
+                            <div className="flex gap-2 mb-3 border-b border-gray-700">
+                                <button
+                                    onClick={() => setActiveTab('schema')}
+                                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                                        activeTab === 'schema'
+                                            ? 'text-blue-400 border-b-2 border-blue-400'
+                                            : 'text-gray-400 hover:text-gray-300'
+                                    }`}
+                                >
+                                    Schema
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('json')}
+                                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                                        activeTab === 'json'
+                                            ? 'text-blue-400 border-b-2 border-blue-400'
+                                            : 'text-gray-400 hover:text-gray-300'
+                                    }`}
+                                >
+                                    JSON
+                                </button>
+                            </div>
+                        )}
+                        
                         <div className="flex-1 bg-gray-950 rounded p-4 overflow-y-auto">
                             {isListening ? (
                                 <div className="flex flex-col items-center justify-center h-full text-center">
@@ -667,10 +695,15 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     </svg>
                                     <p className="text-red-400 font-medium">{testError}</p>
                                 </div>
-                            ) : testOutput ? (
+                            ) : (testOutput || outputData) ? (
                                 <div className="space-y-2">
-                                    <h4 className="text-xs font-medium text-gray-400 mb-2">Request Data:</h4>
-                                    <JsonViewer data={testOutput} />
+                                    {activeTab === 'schema' ? (
+                                        <JsonViewer data={testOutput || outputData} />
+                                    ) : (
+                                        <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                                            {JSON.stringify(testOutput || outputData, null, 2)}
+                                        </pre>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 text-sm">

@@ -21,7 +21,6 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
     const [credentials, setCredentials] = useState([]);
     const [showCredentialModal, setShowCredentialModal] = useState(false);
     const [selectedCredentialType, setSelectedCredentialType] = useState('bearer');
-    const [pinnedOutput, setPinnedOutput] = useState(null); // Pinned output for debugging
     const [inputViewMode, setInputViewMode] = useState('schema'); // 'schema', 'table', 'json'
     const [outputViewMode, setOutputViewMode] = useState('json'); // 'schema', 'table', 'json'
     const [collapsedPaths, setCollapsedPaths] = useState(new Set());
@@ -31,41 +30,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
             setConfig({ ...config, ...node.data.config });
         }
         fetchCredentials();
-        loadPinnedOutput();
     }, [node]);
 
-    const loadPinnedOutput = async () => {
-        if (!node?.id) return;
-        
-        // Try to load from node data first (if workflow already loaded with nodes)
-        if (node?.data?.pinnedOutput) {
-            setPinnedOutput(node.data.pinnedOutput);
-            // Make it available to downstream nodes
-            if (onTestResult && node?.id) {
-                onTestResult(node.id, node.data.pinnedOutput);
-            }
-            return;
-        }
-
-        // Fallback: fetch from API
-        const pathParts = window.location.pathname.split('/');
-        const workflowId = pathParts[pathParts.indexOf('workflows') + 1];
-        
-        if (!workflowId || workflowId === 'new') return;
-
-        try {
-            const response = await axios.get(`/workflows/${workflowId}/nodes/${node.id}/pinned-output`);
-            if (response.data.pinned_output) {
-                setPinnedOutput(response.data.pinned_output);
-                // Make it available to downstream nodes
-                if (onTestResult && node?.id) {
-                    onTestResult(node.id, response.data.pinned_output);
-                }
-            }
-        } catch (error) {
-            console.error('Error loading pinned output:', error);
-        }
-    };
 
     useEffect(() => {
         console.log('HttpRequestConfigModal - Current node ID:', node?.id);
@@ -312,62 +278,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
         }
     };
 
-    // Pin/Unpin output
-    const handlePinOutput = async () => {
-        if (!testResults || !node?.id) return;
-
-        // Extract workflow ID from URL
-        const pathParts = window.location.pathname.split('/');
-        const workflowId = pathParts[pathParts.indexOf('workflows') + 1];
-        
-        if (!workflowId || workflowId === 'new') {
-            alert('Vui lòng lưu workflow trước khi pin output');
-            return;
-        }
-
-        try {
-            await axios.post(`/workflows/${workflowId}/nodes/${node.id}/pin-output`, {
-                output: testResults,
-                type: node.type,
-            });
-            setPinnedOutput(testResults);
-            
-            // Also update the parent's nodeOutputData so downstream nodes can see it
-            if (onTestResult && node?.id) {
-                onTestResult(node.id, testResults);
-            }
-        } catch (error) {
-            console.error('Error pinning output:', error);
-            alert('Lỗi khi pin output: ' + (error.response?.data?.message || error.message));
-        }
-    };
-
-    const handleUnpinOutput = async () => {
-        if (!node?.id) return;
-
-        // Extract workflow ID from URL
-        const pathParts = window.location.pathname.split('/');
-        const workflowId = pathParts[pathParts.indexOf('workflows') + 1];
-        
-        if (!workflowId || workflowId === 'new') return;
-
-        try {
-            await axios.delete(`/workflows/${workflowId}/nodes/${node.id}/pin-output`);
-            setPinnedOutput(null);
-            
-            // Remove from parent's nodeOutputData
-            if (onTestResult && node?.id) {
-                onTestResult(node.id, null);
-            }
-        } catch (error) {
-            console.error('Error unpinning output:', error);
-            alert('Lỗi khi unpin output: ' + (error.response?.data?.message || error.message));
-        }
-    };
-
-    // Get current display output (pinned takes priority)
+    // Get current display output
     const getDisplayOutput = () => {
-        if (pinnedOutput) return pinnedOutput;
         if (testResults) return testResults;
         if (outputData) return outputData;
         return null;
@@ -430,7 +342,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                         <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
-                                {inputData && inputData.length > 0 && (
+                                {inputData && Object.keys(inputData).length > 0 && (
                                     <div className="flex space-x-1">
                                         <button
                                             onClick={() => setInputViewMode('schema')}
@@ -467,19 +379,14 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                             </div>
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
-                            {inputData && inputData.length > 0 ? (
+                            {inputData && Object.keys(inputData).length > 0 ? (
                                 <div className="space-y-4">
-                                    {inputViewMode === 'schema' && inputData.map((data, index) => {
-                                        const incomingEdges = allEdges?.filter(e => e.target === node?.id) || [];
-                                        const sourceEdge = incomingEdges[index];
-                                        const sourceNode = sourceEdge ? allNodes?.find(n => n.id === sourceEdge.source) : null;
-                                        const nodeName = sourceNode?.data?.customName || sourceNode?.data?.label || sourceNode?.type || `input-${index}`;
-                                        
+                                    {inputViewMode === 'schema' && Object.entries(inputData).map(([nodeName, data]) => {
                                         return (
-                                            <div key={index}>
+                                            <div key={nodeName}>
                                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
                                                     <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                                        {sourceNode?.data?.customName || sourceNode?.data?.label || `Input ${index + 1}`}
+                                                        {nodeName}
                                                     </span>
                                                     <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
                                                         {Object.keys(data || {}).length} fields
@@ -504,17 +411,12 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                     </tr>
                                                 </thead>
                                                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                                    {inputData.map((data, inputIndex) => {
-                                                        const incomingEdges = allEdges?.filter(e => e.target === node?.id) || [];
-                                                        const sourceEdge = incomingEdges[inputIndex];
-                                                        const sourceNode = sourceEdge ? allNodes?.find(n => n.id === sourceEdge.source) : null;
-                                                        const nodeName = sourceNode?.data?.customName || sourceNode?.data?.label || sourceNode?.type || `input-${inputIndex}`;
-                                                        
+                                                    {Object.entries(inputData).map(([nodeName, data]) => {
                                                         return Object.entries(data || {}).map(([key, value]) => {
                                                             const variablePath = `${nodeName}.${key}`;
                                                             const typeInfo = getTypeInfo(value);
                                                             return (
-                                                                <tr key={`${inputIndex}-${key}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                                <tr key={`${nodeName}-${key}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                                                                     <td className="px-3 py-2 text-sm text-gray-900 dark:text-gray-300 font-medium">{key}</td>
                                                                     <td className="px-3 py-2">
                                                                         <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
@@ -549,10 +451,10 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         </div>
                                     )}
                                     
-                                    {inputViewMode === 'json' && inputData.map((data, index) => (
-                                        <div key={index}>
+                                    {inputViewMode === 'json' && Object.entries(inputData).map(([nodeName, data]) => (
+                                        <div key={nodeName}>
                                             <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                                Input {index + 1}:
+                                                {nodeName}:
                                             </div>
                                             <pre className="text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                                                 {JSON.stringify(data, null, 2)}
@@ -963,11 +865,6 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                     <h3 className="font-semibold text-gray-900 dark:text-white">OUTPUT</h3>
-                                    {pinnedOutput && (
-                                        <span className="text-xs px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded flex items-center gap-1">
-                                            📌 Pinned
-                                        </span>
-                                    )}
                                 </div>
                                 {getDisplayOutput() && (
                                     <div className="flex space-x-1">
@@ -1005,20 +902,6 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
-                                {/* Pin/Unpin Button */}
-                                {getDisplayOutput() && (
-                                    <button
-                                        onClick={pinnedOutput ? handleUnpinOutput : handlePinOutput}
-                                        className={`text-xs px-3 py-1.5 rounded font-medium transition-colors ${
-                                            pinnedOutput 
-                                                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
-                                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                                        }`}
-                                        title={pinnedOutput ? 'Unpin output' : 'Pin output for debugging'}
-                                    >
-                                        {pinnedOutput ? '📌 Unpin' : '📌 Pin'}
-                                    </button>
-                                )}
                                 {/* Test Button */}
                                 {onTest && (
                                     <button
@@ -1039,12 +922,6 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 </div>
                             ) : getDisplayOutput() ? (
                                 <div className="relative">
-                                    {pinnedOutput && (
-                                        <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-800 dark:text-yellow-200">
-                                            💡 Output này đã được pin để debug. Click "Unpin" để xóa.
-                                        </div>
-                                    )}
-                                    
                                     {outputViewMode === 'schema' && (
                                         <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                                             {renderDraggableJSON(getDisplayOutput(), 'output')}

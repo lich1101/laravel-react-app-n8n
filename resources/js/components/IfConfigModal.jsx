@@ -380,7 +380,7 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                         <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
-                                {inputData && inputData.length > 0 && (
+                                {inputData && Object.keys(inputData).length > 0 && (
                                     <div className="flex space-x-1">
                                         <button
                                             onClick={() => setInputViewMode('schema')}
@@ -407,19 +407,14 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                             </div>
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
-                            {inputData && inputData.length > 0 ? (
+                            {inputData && Object.keys(inputData).length > 0 ? (
                                 <div className="space-y-4">
-                                    {inputViewMode === 'schema' && inputData.map((data, index) => {
-                                        const incomingEdges = allEdges?.filter(e => e.target === node?.id) || [];
-                                        const sourceEdge = incomingEdges[index];
-                                        const sourceNode = sourceEdge ? allNodes?.find(n => n.id === sourceEdge.source) : null;
-                                        const nodeName = sourceNode?.data?.customName || `input-${index}`;
-
+                                    {inputViewMode === 'schema' && Object.entries(inputData).map(([nodeName, data]) => {
                                         return (
-                                            <div key={index}>
+                                            <div key={nodeName}>
                                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
                                                     <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                                        {sourceNode?.data?.customName || `Input ${index + 1}`}
+                                                        {nodeName}
                                                     </span>
                                                     <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
                                                         {Object.keys(data || {}).length} fields
@@ -432,10 +427,10 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                         );
                                     })}
                                     
-                                    {inputViewMode === 'json' && inputData.map((data, index) => (
-                                        <div key={index}>
+                                    {inputViewMode === 'json' && Object.entries(inputData).map(([nodeName, data]) => (
+                                        <div key={nodeName}>
                                             <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                                Input {index + 1}:
+                                                {nodeName}:
                                             </div>
                                             <pre className="text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                                                 {JSON.stringify(data, null, 2)}

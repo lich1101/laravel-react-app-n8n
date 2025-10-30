@@ -24,6 +24,8 @@ import RenameNodeModal from './RenameNodeModal';
 
 // Compact node component with quick-add button
 const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [], selected }) => {
+    const isRunning = data?.isRunning || false;
+    const isCompleted = data?.isCompleted || false;
     const [showQuickAdd, setShowQuickAdd] = useState(false);
     const [quickAddHandle, setQuickAddHandle] = useState(null);
 
@@ -37,13 +39,16 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
         setShowQuickAdd(false);
     };
 
+    // Determine border color: completed > selected > default
+    const getBorderClass = () => {
+        if (isCompleted) return 'border-green-500';
+        if (selected) return 'border-blue-500';
+        return 'border-gray-600 dark:border-gray-500';
+    };
+
     return (
         <div 
-            className={`bg-gray-800 dark:bg-gray-700 border-2 rounded-lg p-3 w-20 h-20 relative flex items-center justify-center group  transition-all ${
-                selected 
-                    ? 'border-green-500' 
-                    : 'border-gray-600 dark:border-gray-500'
-            }`}
+            className={`bg-gray-800 dark:bg-gray-700 border-2 rounded-lg p-3 w-20 h-20 relative flex items-center justify-center group transition-all ${getBorderClass()}`}
             title={data.customName || data.label || nodeType}
         >
             {/* Input handle */}
@@ -56,13 +61,24 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
             )}
             
             {/* Icon SVG */}
-            <div className="w-10 h-10 flex items-center justify-center pointer-events-none">
+            <div className="w-10 h-10 flex items-center justify-center pointer-events-none relative">
                 <img 
                     src={iconPath} 
                     alt={nodeType}
-                    className="w-full h-full object-contain"
+                    className={`w-full h-full object-contain ${isRunning ? 'opacity-30' : ''}`}
                     style={{ filter: 'brightness(0) invert(1)' }}
                 />
+                {/* Loading icon overlay when running */}
+                {isRunning && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <img 
+                            src="/icons/nodes/node_active.svg" 
+                            alt="running"
+                            className="w-8 h-8 animate-spin"
+                            style={{ filter: 'brightness(0) invert(1)' }}
+                        />
+                    </div>
+                )}
             </div>
             
             {/* Node name label - Always visible */}
@@ -334,8 +350,13 @@ function WorkflowEditor() {
     const [hoveredEdge, setHoveredEdge] = useState(null);
     const [edgeMenuPosition, setEdgeMenuPosition] = useState({ x: 0, y: 0 });
     const [isSpacePressed, setIsSpacePressed] = useState(false);
+    const [isTestingWorkflow, setIsTestingWorkflow] = useState(false);
+    const [runningNodes, setRunningNodes] = useState(new Set());
+    const [completedNodes, setCompletedNodes] = useState(new Set());
+    const [testExecutionId, setTestExecutionId] = useState(null);
     const reactFlowWrapper = useRef(null);
     const [reactFlowInstance, setReactFlowInstance] = useState(null);
+    const testPollingRef = useRef(null);
 
     useEffect(() => {
         fetchWorkflow();
@@ -450,38 +471,7 @@ function WorkflowEditor() {
             const data = response.data;
             setWorkflow(data);
             
-            // Map pinned outputs from workflowNodes to nodes AND nodeOutputData
-            let nodesWithPinnedOutput = data.nodes || [];
-            const pinnedOutputs = {};
-            
-            if (data.workflow_nodes && Array.isArray(data.workflow_nodes)) {
-                nodesWithPinnedOutput = nodesWithPinnedOutput.map(node => {
-                    const workflowNode = data.workflow_nodes.find(wn => wn.node_id === node.id);
-                    if (workflowNode && workflowNode.pinned_output) {
-                        // Add pinned output to node data (for display in modal)
-                        const updatedNode = {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                pinnedOutput: workflowNode.pinned_output,
-                            }
-                        };
-                        
-                        // Also add to nodeOutputData so it's available to downstream nodes
-                        pinnedOutputs[node.id] = workflowNode.pinned_output;
-                        
-                        return updatedNode;
-                    }
-                    return node;
-                });
-                
-                // Set pinned outputs to nodeOutputData
-                if (Object.keys(pinnedOutputs).length > 0) {
-                    setNodeOutputData(pinnedOutputs);
-                }
-            }
-            
-            setNodes(nodesWithPinnedOutput);
+            setNodes(data.nodes || []);
             setEdges(data.edges || []);
         } catch (error) {
             console.error('Error fetching workflow:', error);
@@ -659,6 +649,123 @@ function WorkflowEditor() {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleTestWorkflow = async () => {
+        // Auto-save first
+        await handleSave();
+        
+        if (!workflow?.id) {
+            alert('Please save workflow first');
+            return;
+        }
+
+        // Find webhook node
+        const webhookNode = nodes.find(n => n.type === 'webhook');
+        if (!webhookNode) {
+            alert('Workflow must have a webhook node to test');
+            return;
+        }
+
+        const webhookPath = webhookNode.data?.config?.path;
+        if (!webhookPath) {
+            alert('Webhook node must have a path configured');
+            return;
+        }
+
+        // Reset states
+        setIsTestingWorkflow(true);
+        setRunningNodes(new Set());
+        setCompletedNodes(new Set());
+        setNodeOutputData({});
+        setTestExecutionId(null);
+
+        // Clear previous polling
+        if (testPollingRef.current) {
+            clearInterval(testPollingRef.current);
+        }
+
+        try {
+            // Start listening for webhook
+            const response = await axios.post(`/workflows/${workflow.id}/webhook-test-listen`, {
+                node_id: webhookNode.id,
+                path: webhookPath,
+                method: webhookNode.data?.config?.method || 'POST',
+            });
+
+            const testRunId = response.data.test_run_id;
+            setTestExecutionId(testRunId);
+
+            console.log('✅ Test workflow started, waiting for webhook:', testRunId);
+            alert(`Test started! Send a ${webhookNode.data?.config?.method || 'POST'} request to:\n\n${window.location.origin}/api/webhook-test/${webhookPath}`);
+
+            // Poll for execution status
+            testPollingRef.current = setInterval(async () => {
+                try {
+                    const statusResponse = await axios.get(`/workflows/${workflow.id}/webhook-test-status/${testRunId}`);
+                    
+                    if (statusResponse.data.status === 'received') {
+                        // Webhook received, now execute workflow
+                        clearInterval(testPollingRef.current);
+                        executeTestWorkflow(testRunId, statusResponse.data.data);
+                    } else if (statusResponse.data.status === 'timeout' || statusResponse.data.status === 'stopped') {
+                        clearInterval(testPollingRef.current);
+                        setIsTestingWorkflow(false);
+                        alert('Test timeout or stopped');
+                    }
+                } catch (error) {
+                    console.error('Error polling test status:', error);
+                    clearInterval(testPollingRef.current);
+                    setIsTestingWorkflow(false);
+                }
+            }, 1000); // Poll every second
+
+        } catch (error) {
+            console.error('Error starting test:', error);
+            alert('Error starting test: ' + (error.response?.data?.message || error.message));
+            setIsTestingWorkflow(false);
+        }
+    };
+
+    const executeTestWorkflow = async (testRunId, webhookData) => {
+        try {
+            console.log('🚀 Executing test workflow with webhook data:', webhookData);
+            
+            // Simulate execution by calling backend
+            const response = await axios.post(`/api/webhook-test/${nodes.find(n => n.type === 'webhook')?.data?.config?.path}`, webhookData);
+            
+            // Note: Backend will execute and we need to fetch execution results
+            // For now, we'll simulate node-by-node execution
+            simulateNodeExecution();
+            
+        } catch (error) {
+            console.error('Error executing test workflow:', error);
+            setIsTestingWorkflow(false);
+        }
+    };
+
+    const simulateNodeExecution = async () => {
+        // For now, just mark all nodes as completed
+        // In real implementation, we'd get execution data from backend
+        const allNodeIds = nodes.map(n => n.id);
+        
+        for (const nodeId of allNodeIds) {
+            setRunningNodes(prev => new Set([...prev, nodeId]));
+            
+            // Wait a bit
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            setRunningNodes(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(nodeId);
+                return newSet;
+            });
+            
+            setCompletedNodes(prev => new Set([...prev, nodeId]));
+        }
+        
+        setIsTestingWorkflow(false);
+        alert('Test workflow completed!');
     };
 
     const handleToggleActive = async () => {
@@ -1051,7 +1158,8 @@ function WorkflowEditor() {
         }
     };
 
-    // Get input data for a node (from all connected nodes upstream)
+    // Get input data for a node (from ALL upstream nodes)
+    // This is used for EXECUTION and VARIABLE RESOLUTION
     const getNodeInputData = (nodeId) => {
         const inputDataArray = [];
         const namedInputs = {};
@@ -1061,6 +1169,62 @@ function WorkflowEditor() {
         console.log('Getting input data for node:', nodeId);
         console.log('Available output data:', nodeOutputData);
 
+        // BFS to find ALL upstream nodes
+        while (queue.length > 0) {
+            const currentNodeId = queue.shift();
+
+            // Get all edges that connect TO this node
+            edges.forEach(edge => {
+                if (edge.target === currentNodeId) {
+                    const sourceNodeId = edge.source;
+
+                    // Skip if already processed
+                    if (visitedNodes.has(sourceNodeId)) return;
+                    visitedNodes.add(sourceNodeId);
+
+                    // Add output data if available
+                    if (nodeOutputData[sourceNodeId]) {
+                        // Only add to array if it's a DIRECT parent
+                        if (edge.target === nodeId) {
+                            inputDataArray.push(nodeOutputData[sourceNodeId]);
+                            console.log('Added output from DIRECT parent node:', sourceNodeId);
+                        }
+                        
+                        // Add by customName for ALL upstream nodes
+                        const sourceNode = nodes.find(n => n.id === sourceNodeId);
+                        if (sourceNode) {
+                            const nodeName = sourceNode.data.customName || sourceNode.data.label || sourceNode.type;
+                            namedInputs[nodeName] = nodeOutputData[sourceNodeId];
+                            console.log('Mapped upstream node name:', nodeName, '→', sourceNodeId);
+                        }
+                    }
+
+                    // Add to queue to continue traversal
+                    queue.push(sourceNodeId);
+                }
+            });
+        }
+
+        console.log('Final input data array (from DIRECT parents):', inputDataArray);
+        console.log('Named inputs (from ALL upstream):', Object.keys(namedInputs));
+        
+        // Merge named inputs into array (like backend does)
+        // Result: [output1, output2, ..., NodeName1: output1, NodeName2: output2, ...]
+        return Object.assign([], inputDataArray, namedInputs);
+    };
+
+    // Get ALL upstream nodes data for UI display in INPUT panel
+    // This shows all available node outputs, not just direct parents
+    const getAllUpstreamNodesData = (nodeId) => {
+        const namedInputs = {};
+        const visitedNodes = new Set();
+        const queue = [nodeId];
+
+        console.log('Getting ALL upstream nodes data for UI display:', nodeId);
+        console.log('Current nodeOutputData state:', nodeOutputData);
+        console.log('All edges:', edges);
+
+        // BFS to find all upstream nodes
         while (queue.length > 0) {
             const currentId = queue.shift();
 
@@ -1075,15 +1239,11 @@ function WorkflowEditor() {
 
                     // Add output data if available
                     if (nodeOutputData[sourceNodeId]) {
-                        inputDataArray.push(nodeOutputData[sourceNodeId]);
-                        console.log('Added output from node:', sourceNodeId);
-                        
-                        // Also add by customName for easy reference
                         const sourceNode = nodes.find(n => n.id === sourceNodeId);
                         if (sourceNode) {
                             const nodeName = sourceNode.data.customName || sourceNode.data.label || sourceNode.type;
                             namedInputs[nodeName] = nodeOutputData[sourceNodeId];
-                            console.log('Mapped node name:', nodeName, '→', sourceNodeId);
+                            console.log('Added upstream node for UI:', nodeName, '→', sourceNodeId);
                         }
                     }
 
@@ -1093,15 +1253,10 @@ function WorkflowEditor() {
             });
         }
 
-        // Reverse to maintain order from first to last
-        inputDataArray.reverse();
-
-        console.log('Final input data array (from all upstream nodes):', inputDataArray);
-        console.log('Named inputs:', Object.keys(namedInputs));
+        console.log('All upstream nodes for UI display:', Object.keys(namedInputs));
         
-        // Merge named inputs into array (like backend does)
-        // Result: [output1, output2, ..., NodeName1: output1, NodeName2: output2]
-        return Object.assign([], inputDataArray, namedInputs);
+        // Return only named inputs (no numeric indices needed for UI)
+        return namedInputs;
     };
 
     // Resolve variables in a string (replace {{path}} with actual values)
@@ -1117,12 +1272,17 @@ function WorkflowEditor() {
 
         // Then, replace custom syntax: {{NodeName.field}} or {{input-0.field}}
         resolved = resolved.replace(/\{\{([^}]+)\}\}/g, (fullMatch, path) => {
-            const value = getValueFromPath(path.trim(), inputData);
+            const trimmedPath = path.trim();
+            const value = getValueFromPath(trimmedPath, inputData);
             
-            console.log('Resolving variable:', { 
-                path: path.trim(), 
-                value: value !== undefined ? value : 'NOT_FOUND',
-                type: typeof value 
+            console.log('🔍 Resolving variable:', { 
+                original: fullMatch,
+                path: trimmedPath, 
+                pathParts: trimmedPath.split('.'),
+                availableKeys: Object.keys(inputData).filter(k => typeof k === 'string'),
+                value: value !== undefined ? (typeof value === 'string' ? value.substring(0, 100) : value) : 'NOT_FOUND',
+                type: typeof value,
+                willResolve: value !== undefined && value !== null
             });
 
             if (value !== undefined && value !== null) {
@@ -1130,7 +1290,11 @@ function WorkflowEditor() {
             }
             
             // If not found, keep the template as-is
-            console.warn('Variable not resolved:', fullMatch);
+            console.error('❌ Variable NOT resolved - keeping template:', {
+                fullMatch,
+                path: trimmedPath,
+                availableNodeNames: Object.keys(inputData).filter(k => typeof k === 'string' && !k.startsWith('input-'))
+            });
             return fullMatch;
         });
 
@@ -2049,6 +2213,18 @@ function WorkflowEditor() {
                         >
                             {workflow.active ? 'Deactivate' : 'Activate'}
                         </button>
+                        <button
+                            onClick={handleTestWorkflow}
+                            disabled={isTestingWorkflow || !nodes.length}
+                            className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 ${
+                                isTestingWorkflow || !nodes.length
+                                    ? 'bg-gray-400 cursor-not-allowed text-gray-600'
+                                    : 'bg-purple-600 hover:bg-purple-700 text-white'
+                            }`}
+                        >
+                            <span>🚀</span>
+                            {isTestingWorkflow ? 'Testing...' : 'Test workflow'}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -2074,6 +2250,8 @@ function WorkflowEditor() {
                                 nodeId: node.id,
                                 onQuickAdd: handleQuickAddNode,
                                 connectedHandles: connectedHandles,
+                                isRunning: runningNodes.has(node.id),
+                                isCompleted: completedNodes.has(node.id),
                             },
                         };
                     })}
@@ -2293,6 +2471,7 @@ function WorkflowEditor() {
                         onClose={() => setShowConfigModal(false)}
                         onRename={() => openRenameModal(selectedNode.id)}
                         onTestResult={handleTestResult}
+                        outputData={nodeOutputData[selectedNode.id]}
                     />
                 )}
 
@@ -2303,7 +2482,7 @@ function WorkflowEditor() {
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestHttpNode}
                         onRename={() => openRenameModal(selectedNode.id)}
-                        inputData={getNodeInputData(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
                         onTestResult={handleTestResult}
                         allEdges={edges}
@@ -2318,7 +2497,7 @@ function WorkflowEditor() {
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestPerplexityNode}
                         onRename={() => openRenameModal(selectedNode.id)}
-                        inputData={getNodeInputData(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
                         onTestResult={handleTestResult}
                         allEdges={edges}
@@ -2333,7 +2512,7 @@ function WorkflowEditor() {
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestCodeNode}
                         onRename={() => openRenameModal(selectedNode.id)}
-                        inputData={getNodeInputData(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
                         onTestResult={handleTestResult}
                         allEdges={edges}
@@ -2348,7 +2527,7 @@ function WorkflowEditor() {
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestEscapeNode}
                         onRename={() => openRenameModal(selectedNode.id)}
-                        inputData={getNodeInputData(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
                         onTestResult={handleTestResult}
                         allEdges={edges}
@@ -2363,7 +2542,7 @@ function WorkflowEditor() {
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestIfNode}
                         onRename={() => openRenameModal(selectedNode.id)}
-                        inputData={getNodeInputData(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
                         onTestResult={handleTestResult}
                         allEdges={edges}
