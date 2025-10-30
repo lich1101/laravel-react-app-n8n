@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -8,6 +8,7 @@ import ReactFlow, {
     applyEdgeChanges,
     Handle,
     Position,
+    SelectionMode,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import axios from '../config/axios';
@@ -22,7 +23,7 @@ import WorkflowHistory from './WorkflowHistory';
 import RenameNodeModal from './RenameNodeModal';
 
 // Compact node component with quick-add button
-const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [] }) => {
+const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [], selected }) => {
     const [showQuickAdd, setShowQuickAdd] = useState(false);
     const [quickAddHandle, setQuickAddHandle] = useState(null);
 
@@ -38,7 +39,11 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
 
     return (
         <div 
-            className="bg-gray-800 dark:bg-gray-700 border-2 border-gray-600 dark:border-gray-500 rounded-lg p-3 w-20 h-20 relative flex items-center justify-center group hover:shadow-xl transition-shadow"
+            className={`bg-gray-800 dark:bg-gray-700 border-2 rounded-lg p-3 w-20 h-20 relative flex items-center justify-center group  transition-all ${
+                selected 
+                    ? 'border-green-500' 
+                    : 'border-gray-600 dark:border-gray-500'
+            }`}
             title={data.customName || data.label || nodeType}
         >
             {/* Input handle */}
@@ -60,12 +65,10 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                 />
             </div>
             
-            {/* Custom name badge */}
-            {data.customName && (
-                <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-10">
-                    {data.customName}
-                </div>
-            )}
+            {/* Node name label - Always visible */}
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap pointer-events-none ">
+                {data.customName || data.label}
+            </div>
             
             {/* Output handles - Dynamic based on connection status */}
             {handles.outputs && handles.outputs.map((output, index) => {
@@ -221,6 +224,7 @@ const nodeTypes = {
             handles={{ input: false, outputs: [{ id: null }] }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
         />
     ),
     http: (props) => (
@@ -232,6 +236,7 @@ const nodeTypes = {
             handles={{ input: true, outputs: [{ id: null }] }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
         />
     ),
     perplexity: (props) => (
@@ -243,6 +248,7 @@ const nodeTypes = {
             handles={{ input: true, outputs: [{ id: null }] }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
         />
     ),
     code: (props) => (
@@ -254,6 +260,7 @@ const nodeTypes = {
             handles={{ input: true, outputs: [{ id: null }] }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
         />
     ),
     escape: (props) => (
@@ -265,6 +272,7 @@ const nodeTypes = {
             handles={{ input: true, outputs: [{ id: null }] }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
         />
     ),
     if: (props) => (
@@ -282,6 +290,7 @@ const nodeTypes = {
             }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
         />
     ),
 };
@@ -310,7 +319,9 @@ function WorkflowEditor() {
     const [saved, setSaved] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const [showNodeMenu, setShowNodeMenu] = useState(false);
+    const [showEdgeNodeMenu, setShowEdgeNodeMenu] = useState(false);
     const [selectedNode, setSelectedNode] = useState(null);
+    const [copiedNodes, setCopiedNodes] = useState([]);
     const [showNodeContextMenu, setShowNodeContextMenu] = useState(false);
     const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
     const [showConfigModal, setShowConfigModal] = useState(false);
@@ -322,10 +333,99 @@ function WorkflowEditor() {
     const [activeTab, setActiveTab] = useState('editor'); // 'editor' or 'history'
     const [hoveredEdge, setHoveredEdge] = useState(null);
     const [edgeMenuPosition, setEdgeMenuPosition] = useState({ x: 0, y: 0 });
+    const [isSpacePressed, setIsSpacePressed] = useState(false);
+    const reactFlowWrapper = useRef(null);
+    const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
     useEffect(() => {
         fetchWorkflow();
     }, [id]);
+
+    // Custom wheel handler for Cmd/Ctrl + scroll = zoom
+    useEffect(() => {
+        const handleWheel = (e) => {
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            const ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
+            
+            if (ctrlOrCmd && reactFlowInstance) {
+                e.preventDefault();
+                const zoomSpeed = 0.002;
+                const newZoom = reactFlowInstance.getZoom() - e.deltaY * zoomSpeed;
+                const clampedZoom = Math.max(0.1, Math.min(newZoom, 4));
+                reactFlowInstance.setZoom(clampedZoom);
+            }
+        };
+
+        const wrapper = reactFlowWrapper.current;
+        if (wrapper) {
+            wrapper.addEventListener('wheel', handleWheel, { passive: false });
+        }
+
+        return () => {
+            if (wrapper) {
+                wrapper.removeEventListener('wheel', handleWheel);
+            }
+        };
+    }, [reactFlowInstance]);
+
+    // Keyboard shortcuts for copy/paste/select all + space-pan
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Check if user is typing in input/textarea
+            const isInputField = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
+            if (isInputField) return;
+
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            const ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
+
+            // Copy: Cmd+C or Ctrl+C
+            if (ctrlOrCmd && e.key === 'c') {
+                e.preventDefault();
+                handleCopyNodes();
+            }
+
+            // Paste: Cmd+V or Ctrl+V
+            if (ctrlOrCmd && e.key === 'v') {
+                e.preventDefault();
+                handlePasteNodes();
+            }
+
+            // Select All: Cmd+A or Ctrl+A
+            if (ctrlOrCmd && (e.key === 'a' || e.key === 'A')) {
+                e.preventDefault();
+                handleSelectAllNodes();
+            }
+
+            // Delete: Delete or Backspace
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) {
+                e.preventDefault();
+                handleDeleteNode();
+            }
+
+            // Space: enable pan with left mouse drag
+            if (e.code === 'Space') {
+                e.preventDefault();
+                setIsSpacePressed(true);
+            }
+        };
+
+        const handleKeyUp = (e) => {
+            if (e.code === 'Space') {
+                setIsSpacePressed(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, [selectedNode, copiedNodes, nodes, edges]);
+
+    const handleSelectAllNodes = () => {
+        setNodes(nodes.map(n => ({ ...n, selected: true })));
+    };
 
     const fetchWorkflow = async () => {
         // If creating new workflow
@@ -658,6 +758,92 @@ function WorkflowEditor() {
             setHasChanges(true);
             setSaved(false);
         }
+    };
+
+    // Copy selected nodes
+    const handleCopyNodes = () => {
+        // Get all selected nodes (ReactFlow supports multi-select)
+        const selectedNodes = nodes.filter(n => n.selected);
+        
+        if (selectedNodes.length === 0 && selectedNode) {
+            // If no multi-selection, copy the currently selected node
+            setCopiedNodes([selectedNode]);
+            console.log('✂️ Copied 1 node:', selectedNode.data.customName || selectedNode.data.label);
+        } else if (selectedNodes.length > 0) {
+            setCopiedNodes(selectedNodes);
+            console.log('✂️ Copied', selectedNodes.length, 'nodes:', selectedNodes.map(n => n.data.customName || n.data.label));
+        }
+    };
+
+    // Paste copied nodes
+    const handlePasteNodes = () => {
+        if (copiedNodes.length === 0) return;
+
+        const timestamp = Date.now();
+        const offset = { x: 50, y: 50 }; // Paste offset
+        const idMap = {}; // Old ID → New ID mapping
+        const newNodes = [];
+        const newEdges = [];
+
+        // Get existing names for auto-numbering
+        const existingNames = nodes.map(n => n.data.customName || n.data.label).filter(Boolean);
+
+        // Step 1: Create new nodes with unique names
+        copiedNodes.forEach((copiedNode, index) => {
+            const oldId = copiedNode.id;
+            const newId = `${copiedNode.type}-${timestamp}-${index}`;
+            idMap[oldId] = newId;
+
+            // Generate unique name
+            const baseName = copiedNode.data.customName || copiedNode.data.label;
+            let uniqueName = baseName;
+            let counter = 1;
+            
+            while (existingNames.includes(uniqueName) || newNodes.some(n => (n.data.customName || n.data.label) === uniqueName)) {
+                uniqueName = `${baseName} ${counter}`;
+                counter++;
+            }
+
+            const newNode = {
+                ...copiedNode,
+                id: newId,
+                position: {
+                    x: copiedNode.position.x + offset.x,
+                    y: copiedNode.position.y + offset.y,
+                },
+                data: {
+                    ...copiedNode.data,
+                    customName: uniqueName,
+                    nodeId: newId,
+                },
+                selected: false, // Deselect after paste
+            };
+
+            newNodes.push(newNode);
+            existingNames.push(uniqueName);
+        });
+
+        // Step 2: Copy edges that connect ONLY between copied nodes
+        const copiedNodeIds = copiedNodes.map(n => n.id);
+        edges.forEach(edge => {
+            if (copiedNodeIds.includes(edge.source) && copiedNodeIds.includes(edge.target)) {
+                const newEdge = {
+                    ...edge,
+                    id: `edge-${timestamp}-${newEdges.length}`,
+                    source: idMap[edge.source],
+                    target: idMap[edge.target],
+                };
+                newEdges.push(newEdge);
+            }
+        });
+
+        // Step 3: Add to canvas
+        setNodes([...nodes, ...newNodes]);
+        setEdges([...edges, ...newEdges]);
+        setHasChanges(true);
+        setSaved(false);
+
+        console.log(`📋 Pasted ${newNodes.length} nodes and ${newEdges.length} connections`);
     };
 
     const handleConfigureNode = () => {
@@ -1775,37 +1961,37 @@ function WorkflowEditor() {
                             {showNodeMenu && (
                                 <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 shadow-lg rounded-md py-1 z-10">
                                     <button
-                                        onClick={() => addNode('webhook', 'Webhook')}
+                                        onClick={() => { addNode('webhook', 'Webhook'); setShowNodeMenu(false); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
                                         Webhook
                                     </button>
                                     <button
-                                        onClick={() => addNode('http', 'HTTP Request')}
+                                        onClick={() => { addNode('http', 'HTTP Request'); setShowNodeMenu(false); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
                                         HTTP Request
                                     </button>
                                     <button
-                                        onClick={() => addNode('perplexity', 'Perplexity AI')}
+                                        onClick={() => { addNode('perplexity', 'Perplexity AI'); setShowNodeMenu(false); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
                                         Perplexity AI
                                     </button>
                                     <button
-                                        onClick={() => addNode('code', 'Code')}
+                                        onClick={() => { addNode('code', 'Code'); setShowNodeMenu(false); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
                                         Code
                                     </button>
                                     <button
-                                        onClick={() => addNode('escape', 'Escape & Set')}
+                                        onClick={() => { addNode('escape', 'Escape & Set'); setShowNodeMenu(false); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
                                         Escape & Set
                                     </button>
                                     <button
-                                        onClick={() => addNode('if', 'If')}
+                                        onClick={() => { addNode('if', 'If'); setShowNodeMenu(false); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
                                         If
@@ -1868,10 +2054,11 @@ function WorkflowEditor() {
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative" ref={reactFlowWrapper}>
                 {activeTab === 'editor' ? (
                     <>
                         <ReactFlow
+                    onInit={setReactFlowInstance}
                     nodes={nodes.map(node => {
                         // Find which handles are connected
                         const connectedHandles = edges
@@ -1938,6 +2125,16 @@ function WorkflowEditor() {
                     nodeTypes={nodeTypes}
                     fitView
                     connectionLineStyle={{ stroke: '#6b7280', strokeWidth: 1.5 }}
+                    selectionOnDrag={true}
+                    selectNodesOnDrag={true}
+                    selectionMode={SelectionMode.Partial}
+                    panOnDrag={isSpacePressed ? [0, 1, 2] : false}
+                    panOnScroll={true}
+                    panOnScrollMode="free"
+                    zoomOnScroll={false}
+                    zoomOnPinch={true}
+                    zoomOnDoubleClick={false}
+                    preventScrolling={true}
                     defaultEdgeOptions={{
                         style: { stroke: '#6b7280', strokeWidth: 1.5, opacity: 0.5 },
                         interactionWidth: 20,
@@ -1970,7 +2167,7 @@ function WorkflowEditor() {
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    setShowNodeMenu(!showNodeMenu);
+                                    setShowEdgeNodeMenu(!showEdgeNodeMenu);
                                 }}
                                 className="w-8 h-8 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-md flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900 shadow-lg transition-colors"
                                 title="Add node between"
@@ -1979,18 +2176,18 @@ function WorkflowEditor() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                 </svg>
                             </button>
-                            {showNodeMenu && (
+                            {showEdgeNodeMenu && (
                                 <div 
                                     className="absolute left-0 top-full mt-2 bg-white dark:bg-gray-800 shadow-xl rounded-lg py-1 z-[100] min-w-[160px] border border-gray-300 dark:border-gray-600"
                                     onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'http'); setShowNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🌐 HTTP Request</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'perplexity'); setShowNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Perplexity AI</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'code'); setShowNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">💻 Code</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'escape'); setShowNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'if'); setShowNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'http'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🌐 HTTP Request</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'perplexity'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Perplexity AI</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'code'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">💻 Code</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'escape'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'if'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
                                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                                    <button onClick={() => setShowNodeMenu(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
+                                    <button onClick={() => setShowEdgeNodeMenu(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
                                 </div>
                             )}
                         </div>
@@ -2062,6 +2259,18 @@ function WorkflowEditor() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                             <span>Rename Node</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                handleCopyNodes();
+                                setShowNodeContextMenu(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-gray-700 flex items-center space-x-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            <span>Copy Node</span>
                         </button>
                         <button
                             onClick={handleDeleteNode}

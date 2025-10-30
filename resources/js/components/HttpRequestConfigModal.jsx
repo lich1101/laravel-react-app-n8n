@@ -24,6 +24,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
     const [pinnedOutput, setPinnedOutput] = useState(null); // Pinned output for debugging
     const [inputViewMode, setInputViewMode] = useState('schema'); // 'schema', 'table', 'json'
     const [outputViewMode, setOutputViewMode] = useState('json'); // 'schema', 'table', 'json'
+    const [collapsedPaths, setCollapsedPaths] = useState(new Set());
 
     useEffect(() => {
         if (node?.data?.config) {
@@ -96,6 +97,18 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
     };
 
     // Render draggable JSON - n8n style
+    const toggleCollapse = (path) => {
+        setCollapsedPaths(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(path)) {
+                newSet.delete(path);
+            } else {
+                newSet.add(path);
+            }
+            return newSet;
+        });
+    };
+
     const renderDraggableJSON = (obj, prefix = '', indent = 0) => {
         if (obj === null || obj === undefined) {
             return (
@@ -107,25 +120,34 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
         if (Array.isArray(obj)) {
             const typeInfo = getTypeInfo(obj);
+            const isCollapsed = collapsedPaths.has(prefix);
             return (
                 <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div 
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        onClick={() => toggleCollapse(prefix)}
+                    >
+                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {isCollapsed ? '▶' : '▼'}
+                        </span>
                         <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">{obj.length} items</span>
                     </div>
-                    <div className="ml-4 space-y-1">
-                        {obj.map((item, index) => {
-                            const itemPath = `${prefix}[${index}]`;
-                            return (
-                                <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
-                                    {renderDraggableJSON(item, itemPath, indent + 1)}
-                                </div>
-                            );
-                        })}
-                    </div>
+                    {!isCollapsed && (
+                        <div className="ml-4 space-y-1">
+                            {obj.map((item, index) => {
+                                const itemPath = `${prefix}[${index}]`;
+                                return (
+                                    <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
+                                        {renderDraggableJSON(item, itemPath, indent + 1)}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -139,11 +161,19 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                         const isPrimitive = typeof value !== 'object' || value === null;
                         const variablePath = prefix ? `${prefix}.${key}` : key;
                         const typeInfo = getTypeInfo(value);
+                        const isCollapsed = collapsedPaths.has(variablePath);
 
                         return (
                             <div key={key} className="group">
                                 <div className="flex items-start gap-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 -mx-2">
-                                    {/* Key name - draggable */}
+                                    {!isPrimitive && (
+                                        <span 
+                                            className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer mt-1"
+                                            onClick={() => toggleCollapse(variablePath)}
+                                        >
+                                            {isCollapsed ? '▶' : '▼'}
+                                        </span>
+                                    )}
                                     <div 
                                         className="flex-1 min-w-0 cursor-move"
                                         draggable="true"
@@ -160,9 +190,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
                                                 {key}
                                             </span>
+                                            {!isPrimitive && isCollapsed && (
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`}
+                                                </span>
+                                            )}
                                         </div>
                                         
-                                        {/* Value preview for primitives */}
                                         {isPrimitive && (
                                             <div 
                                                 className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono break-all cursor-move"
@@ -180,7 +214,6 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         )}
                                     </div>
 
-                                    {/* Copy button - only show on hover */}
                                     <button
                                         onClick={() => {
                                             const variable = `{{${variablePath}}}`;
@@ -194,8 +227,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     </button>
                                 </div>
 
-                                {/* Nested object/array */}
-                                {!isPrimitive && (
+                                {!isPrimitive && !isCollapsed && (
                                     <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
                                         {renderDraggableJSON(value, variablePath, indent + 1)}
                                     </div>
@@ -438,17 +470,16 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                             {inputData && inputData.length > 0 ? (
                                 <div className="space-y-4">
                                     {inputViewMode === 'schema' && inputData.map((data, index) => {
-                                        // Find source node for this input
                                         const incomingEdges = allEdges?.filter(e => e.target === node?.id) || [];
                                         const sourceEdge = incomingEdges[index];
                                         const sourceNode = sourceEdge ? allNodes?.find(n => n.id === sourceEdge.source) : null;
-                                        const nodeName = sourceNode?.data?.customName || `Input ${index + 1}`;
+                                        const nodeName = sourceNode?.data?.customName || sourceNode?.data?.label || sourceNode?.type || `input-${index}`;
                                         
                                         return (
                                             <div key={index}>
                                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
                                                     <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                                        {nodeName}
+                                                        {sourceNode?.data?.customName || sourceNode?.data?.label || `Input ${index + 1}`}
                                                     </span>
                                                     <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
                                                         {Object.keys(data || {}).length} fields
@@ -473,9 +504,14 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                     </tr>
                                                 </thead>
                                                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                                    {inputData.map((data, inputIndex) => 
-                                                        Object.entries(data || {}).map(([key, value]) => {
-                                                            const variablePath = `input-${inputIndex}.${key}`;
+                                                    {inputData.map((data, inputIndex) => {
+                                                        const incomingEdges = allEdges?.filter(e => e.target === node?.id) || [];
+                                                        const sourceEdge = incomingEdges[inputIndex];
+                                                        const sourceNode = sourceEdge ? allNodes?.find(n => n.id === sourceEdge.source) : null;
+                                                        const nodeName = sourceNode?.data?.customName || sourceNode?.data?.label || sourceNode?.type || `input-${inputIndex}`;
+                                                        
+                                                        return Object.entries(data || {}).map(([key, value]) => {
+                                                            const variablePath = `${nodeName}.${key}`;
                                                             const typeInfo = getTypeInfo(value);
                                                             return (
                                                                 <tr key={`${inputIndex}-${key}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -506,8 +542,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                                     </td>
                                                                 </tr>
                                                             );
-                                                        })
-                                                    )}
+                                                        });
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
