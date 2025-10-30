@@ -26,8 +26,11 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
     const [credentials, setCredentials] = useState([]);
     const [showCredentialModal, setShowCredentialModal] = useState(false);
     const [selectedCredentialType, setSelectedCredentialType] = useState('bearer');
+    const [pathError, setPathError] = useState(null);
+    const [isCheckingPath, setIsCheckingPath] = useState(false);
     const pollingIntervalRef = useRef(null);
     const testRunIdRef = useRef(null);
+    const pathCheckTimeoutRef = useRef(null);
 
     useEffect(() => {
         fetchCredentials();
@@ -37,8 +40,52 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
             }
+            if (pathCheckTimeoutRef.current) {
+                clearTimeout(pathCheckTimeoutRef.current);
+            }
         };
     }, []);
+
+    // Check path duplicate when path changes
+    useEffect(() => {
+        if (pathCheckTimeoutRef.current) {
+            clearTimeout(pathCheckTimeoutRef.current);
+        }
+
+        if (!config.path || config.path.trim() === '') {
+            setPathError(null);
+            return;
+        }
+
+        // Debounce path check
+        pathCheckTimeoutRef.current = setTimeout(async () => {
+            setIsCheckingPath(true);
+            try {
+                const response = await axios.post('/webhook/check-path-duplicate', {
+                    path: config.path,
+                    workflow_id: workflowId,
+                    node_id: node.id
+                });
+
+                if (response.data.duplicate) {
+                    setPathError(response.data.message);
+                } else {
+                    setPathError(null);
+                }
+            } catch (error) {
+                console.error('Error checking path duplicate:', error);
+                setPathError(null);
+            } finally {
+                setIsCheckingPath(false);
+            }
+        }, 500); // Wait 500ms after user stops typing
+
+        return () => {
+            if (pathCheckTimeoutRef.current) {
+                clearTimeout(pathCheckTimeoutRef.current);
+            }
+        };
+    }, [config.path, workflowId, node.id]);
 
     const fetchCredentials = async (type = null) => {
         try {
@@ -58,6 +105,12 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
     };
 
     const handleClose = async () => {
+        // Check if there's a path error before allowing close/save
+        if (pathError) {
+            alert('Không thể lưu: ' + pathError);
+            return;
+        }
+
         // Stop listening if active
         if (isListening || pollingIntervalRef.current) {
             // Stop polling immediately
@@ -231,7 +284,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                     font-family: monospace;
                 }
             `}</style>
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={handleClose}>
             <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="border-b border-gray-700 px-6 py-4 flex items-center justify-between">
@@ -264,7 +317,16 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                         >
                             {isListening ? 'Stop Listening' : 'Test step'}
                         </button>
-                        <button onClick={handleClose} className="text-gray-400 hover:text-white">
+                        <button 
+                            onClick={handleClose} 
+                            disabled={pathError}
+                            className={`${
+                                pathError 
+                                    ? 'text-gray-600 cursor-not-allowed' 
+                                    : 'text-gray-400 hover:text-white'
+                            }`}
+                            title={pathError ? 'Phải sửa lỗi path trước khi đóng' : 'Close'}
+                        >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -303,13 +365,33 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                             {/* Path */}
                             <div className="mb-6">
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Path</label>
-                                <VariableInput
-                                    type="text"
-                                    value={config.path}
-                                    onChange={(e) => setConfig({ ...config, path: e.target.value })}
-                                    placeholder="test"
-                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
-                                />
+                                <div className="relative">
+                                    <VariableInput
+                                        type="text"
+                                        value={config.path}
+                                        onChange={(e) => setConfig({ ...config, path: e.target.value })}
+                                        placeholder="test"
+                                        className={`w-full bg-gray-900 border rounded px-3 py-2 text-white ${
+                                            pathError ? 'border-red-500' : 'border-gray-700'
+                                        }`}
+                                    />
+                                    {isCheckingPath && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                    )}
+                                </div>
+                                {pathError && (
+                                    <p className="mt-2 text-sm text-red-400 flex items-start">
+                                        <svg className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                        <span>{pathError}</span>
+                                    </p>
+                                )}
                             </div>
 
                             {/* Authentication */}

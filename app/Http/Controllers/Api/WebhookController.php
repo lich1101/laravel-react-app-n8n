@@ -1650,6 +1650,62 @@ JS;
     }
 
     /**
+     * Check if webhook path is duplicate in active workflows
+     */
+    public function checkPathDuplicate(Request $request)
+    {
+        $path = $request->input('path');
+        $currentWorkflowId = $request->input('workflow_id');
+        $currentNodeId = $request->input('node_id');
+
+        if (empty($path)) {
+            return response()->json([
+                'duplicate' => false,
+                'message' => 'Path is empty'
+            ]);
+        }
+
+        // Find active workflows with webhook nodes matching this path
+        $duplicateNodes = WorkflowNode::where('type', 'webhook')
+            ->whereJsonContains('config->path', $path)
+            ->whereHas('workflow', function ($query) {
+                $query->where('active', true);
+            })
+            ->with(['workflow', 'workflow.user'])
+            ->get();
+
+        // Filter out the current node being edited
+        $duplicateNodes = $duplicateNodes->filter(function ($node) use ($currentWorkflowId, $currentNodeId) {
+            // If it's the same workflow and same node, it's not a duplicate
+            if ($node->workflow_id == $currentWorkflowId && $node->node_id == $currentNodeId) {
+                return false;
+            }
+            return true;
+        });
+
+        if ($duplicateNodes->isNotEmpty()) {
+            $duplicateWorkflow = $duplicateNodes->first()->workflow;
+            $owner = $duplicateWorkflow->user;
+            
+            $ownerInfo = $owner ? "{$owner->name} ({$owner->email})" : "Unknown user";
+            
+            return response()->json([
+                'duplicate' => true,
+                'message' => "Path '{$path}' đã được sử dụng trong workflow '{$duplicateWorkflow->name}' (ID: {$duplicateWorkflow->id}) của {$ownerInfo} đang active",
+                'workflow_name' => $duplicateWorkflow->name,
+                'workflow_id' => $duplicateWorkflow->id,
+                'owner_name' => $owner?->name,
+                'owner_email' => $owner?->email
+            ]);
+        }
+
+        return response()->json([
+            'duplicate' => false,
+            'message' => 'Path is available'
+        ]);
+    }
+
+    /**
      * Validate test webhook authentication
      */
     private function validateTestWebhookAuth(Request $request, $listeningData)

@@ -37,6 +37,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/workflows/{workflow}/webhook-test-listen', [WebhookController::class, 'startTestListen']);
     Route::get('/workflows/{workflow}/webhook-test-status/{testRunId}', [WebhookController::class, 'getTestStatus']);
     Route::post('/workflows/{workflow}/webhook-test-stop/{testRunId}', [WebhookController::class, 'stopTestListen']);
+    
+    // Webhook path validation
+    Route::post('/webhook/check-path-duplicate', [WebhookController::class, 'checkPathDuplicate']);
 
     // Folder routes (administrator only)
     Route::apiResource('folders', FolderController::class);
