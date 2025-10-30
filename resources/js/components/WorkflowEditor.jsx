@@ -1876,6 +1876,41 @@ function WorkflowEditor() {
             // Get input data for this node
             const inputData = getNodeInputData(selectedNode?.id || '');
             console.log('Input data for escape:', inputData);
+            console.log('Named inputs (available for variable resolution):', Object.keys(inputData).filter(k => typeof k === 'string'));
+            
+            // Check for missing upstream nodes
+            const allUpstreamNodeIds = new Set();
+            const visitedNodes = new Set();
+            const queue = [selectedNode?.id];
+            
+            while (queue.length > 0) {
+                const currentId = queue.shift();
+                edges.forEach(edge => {
+                    if (edge.target === currentId) {
+                        const sourceNodeId = edge.source;
+                        if (!visitedNodes.has(sourceNodeId)) {
+                            visitedNodes.add(sourceNodeId);
+                            allUpstreamNodeIds.add(sourceNodeId);
+                            queue.push(sourceNodeId);
+                        }
+                    }
+                });
+            }
+            
+            const missingNodes = [];
+            allUpstreamNodeIds.forEach(nodeId => {
+                if (!nodeOutputData[nodeId]) {
+                    const node = nodes.find(n => n.id === nodeId);
+                    if (node) {
+                        missingNodes.push(node.data.customName || node.data.label || node.type);
+                    }
+                }
+            });
+            
+            if (missingNodes.length > 0) {
+                console.warn('⚠️ Some upstream nodes have not been tested yet:', missingNodes);
+                console.warn('💡 Please test these nodes first to get complete variable resolution:', missingNodes.join(', '));
+            }
 
             // Escape function
             const escapeText = (text) => {
