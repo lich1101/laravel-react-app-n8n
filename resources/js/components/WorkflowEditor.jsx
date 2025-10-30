@@ -1182,21 +1182,23 @@ function WorkflowEditor() {
                     if (visitedNodes.has(sourceNodeId)) return;
                     visitedNodes.add(sourceNodeId);
 
+                    const sourceNode = nodes.find(n => n.id === sourceNodeId);
+                    const nodeName = sourceNode ? (sourceNode.data.customName || sourceNode.data.label || sourceNode.type) : sourceNodeId;
+                    
                     // Add output data if available
                     if (nodeOutputData[sourceNodeId]) {
                         // Only add to array if it's a DIRECT parent
                         if (edge.target === nodeId) {
                             inputDataArray.push(nodeOutputData[sourceNodeId]);
-                            console.log('Added output from DIRECT parent node:', sourceNodeId);
+                            console.log('✅ Added output from DIRECT parent node:', nodeName, '→', sourceNodeId);
                         }
                         
                         // Add by customName for ALL upstream nodes
-                        const sourceNode = nodes.find(n => n.id === sourceNodeId);
-                        if (sourceNode) {
-                            const nodeName = sourceNode.data.customName || sourceNode.data.label || sourceNode.type;
-                            namedInputs[nodeName] = nodeOutputData[sourceNodeId];
-                            console.log('Mapped upstream node name:', nodeName, '→', sourceNodeId);
-                        }
+                        namedInputs[nodeName] = nodeOutputData[sourceNodeId];
+                        console.log('✅ Mapped upstream node name:', nodeName, '→', sourceNodeId);
+                    } else {
+                        console.warn('⚠️ Found upstream node but NO OUTPUT DATA:', nodeName, '→', sourceNodeId);
+                        console.warn('💡 Please test this node first to make its data available for variable resolution');
                     }
 
                     // Add to queue to continue traversal
