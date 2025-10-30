@@ -49,8 +49,8 @@ class WorkflowController extends Controller
     {
         $user = auth()->user();
         
-        // Find workflow
-        $workflow = Workflow::findOrFail($id);
+        // Find workflow with workflowNodes relation
+        $workflow = Workflow::with('workflowNodes')->findOrFail($id);
         
         // Check if user has access
         if ($workflow->user_id === $user->id) {
@@ -223,5 +223,74 @@ class WorkflowController extends Controller
         $execution = $workflow->executions()->findOrFail($executionId);
 
         return response()->json($execution);
+    }
+
+    /**
+     * Pin output for a node
+     */
+    public function pinOutput(Request $request, string $workflowId, string $nodeId): JsonResponse
+    {
+        $user = auth()->user();
+        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+
+        $request->validate([
+            'output' => 'required',
+        ]);
+
+        $workflowNode = WorkflowNode::updateOrCreate(
+            [
+                'workflow_id' => $workflow->id,
+                'node_id' => $nodeId,
+            ],
+            [
+                'type' => $request->type ?? 'unknown',
+                'pinned_output' => $request->output,
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Output pinned successfully',
+            'pinned_output' => $workflowNode->pinned_output,
+        ]);
+    }
+
+    /**
+     * Unpin output for a node
+     */
+    public function unpinOutput(Request $request, string $workflowId, string $nodeId): JsonResponse
+    {
+        $user = auth()->user();
+        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+
+        $workflowNode = WorkflowNode::where('workflow_id', $workflow->id)
+            ->where('node_id', $nodeId)
+            ->first();
+
+        if ($workflowNode) {
+            $workflowNode->update(['pinned_output' => null]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Output unpinned successfully',
+        ]);
+    }
+
+    /**
+     * Get pinned output for a node
+     */
+    public function getPinnedOutput(string $workflowId, string $nodeId): JsonResponse
+    {
+        $user = auth()->user();
+        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+
+        $workflowNode = WorkflowNode::where('workflow_id', $workflow->id)
+            ->where('node_id', $nodeId)
+            ->first();
+
+        return response()->json([
+            'pinned_output' => $workflowNode?->pinned_output,
+        ]);
     }
 }

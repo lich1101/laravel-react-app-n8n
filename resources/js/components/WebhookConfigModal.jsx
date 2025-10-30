@@ -3,7 +3,7 @@ import axios from '../config/axios';
 import VariableInput from './VariableInput';
 import CredentialModal from './CredentialModal';
 
-const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult }) => {
+const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, onRename }) => {
     const [config, setConfig] = useState({
         method: 'POST',
         path: '',
@@ -235,12 +235,23 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult })
             <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="border-b border-gray-700 px-6 py-4 flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-white flex items-center space-x-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                        <span>Webhook</span>
-                    </h2>
+                    <div className="flex items-center gap-3">
+                        <span className="text-3xl">🔗</span>
+                        <h2 
+                            className="text-xl font-semibold text-white cursor-pointer hover:text-blue-400 transition-colors flex items-center gap-2"
+                            onClick={() => {
+                                if (onRename) {
+                                    onRename();
+                                }
+                            }}
+                            title="Click để đổi tên node"
+                        >
+                            {node?.data?.customName || 'Webhook'}
+                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </h2>
+                    </div>
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={isListening ? handleStopListening : handleTestStep}

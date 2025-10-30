@@ -12,10 +12,12 @@ class WorkflowNode extends Model
         'node_id',
         'type',
         'config',
+        'pinned_output',
     ];
 
     protected $casts = [
         'config' => 'array',
+        'pinned_output' => 'array',
     ];
 
     public function workflow(): BelongsTo

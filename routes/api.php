@@ -27,6 +27,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/workflows/{workflow}/nodes', [WorkflowController::class, 'saveNode']);
     Route::get('/workflows/{workflow}/executions', [WorkflowController::class, 'executions']);
     Route::get('/workflows/{workflow}/executions/{execution}', [WorkflowController::class, 'execution']);
+    
+    // Pin/Unpin node output for debugging
+    Route::post('/workflows/{workflow}/nodes/{nodeId}/pin-output', [WorkflowController::class, 'pinOutput']);
+    Route::delete('/workflows/{workflow}/nodes/{nodeId}/pin-output', [WorkflowController::class, 'unpinOutput']);
+    Route::get('/workflows/{workflow}/nodes/{nodeId}/pinned-output', [WorkflowController::class, 'getPinnedOutput']);
 
     // Webhook test routes
     Route::post('/workflows/{workflow}/webhook-test-listen', [WebhookController::class, 'startTestListen']);
