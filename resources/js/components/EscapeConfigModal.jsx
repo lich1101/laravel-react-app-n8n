@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
 
 function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
+    // Add readOnly support
+    const readOnly = false; // TODO: Get from props
     const [config, setConfig] = useState({
         fields: [
             { name: '', value: '' }

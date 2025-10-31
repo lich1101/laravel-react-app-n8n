@@ -3,7 +3,7 @@ import axios from '../config/axios';
 import VariableInput from './VariableInput';
 import CredentialModal from './CredentialModal';
 
-const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, onRename, outputData }) => {
+const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, onRename, outputData, readOnly = false }) => {
     const [config, setConfig] = useState({
         method: 'POST',
         path: '',
@@ -337,7 +337,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
 
                 <div className="flex h-[calc(90vh-80px)]">
                     {/* Left Panel - Config */}
-                    <div className="flex-1 overflow-y-auto px-6 py-4">
+                    <div className={`flex-1 overflow-y-auto px-6 py-4 ${readOnly ? 'pointer-events-none opacity-75' : ''}`}>
                         <div>
                             {/* Webhook URL */}
                             <div className="mb-6">

@@ -76,6 +76,8 @@ const OPERATORS_BY_TYPE = {
 };
 
 function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
+    // Add readOnly support
+    const readOnly = false; // TODO: Get from props
     const [config, setConfig] = useState({
         conditions: [
             {

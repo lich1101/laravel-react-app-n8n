@@ -13,9 +13,7 @@ class ProjectFolderController extends Controller
 {
     /**
      * Get folders for the authenticated user
-     * Returns:
-     * - Folders created by user (if user is admin/creator)
-     * - Folders user has been granted permission to access
+     * Returns all folders - all users can view and edit all folders
      */
     public function getFolders(): JsonResponse
     {
@@ -24,43 +22,17 @@ class ProjectFolderController extends Controller
             return response()->json(['error' => 'Unauthenticated'], 401);
         }
 
-        // Get folders based on role and permissions
-        if ($user->role === 'admin') {
-            // Admin sees all folders they created
-            $folders = Folder::where('created_by', $user->id)
-                ->with(['directWorkflows', 'permissions.user', 'creator'])
-                ->get();
-        } else {
-            // Regular users see:
-            // 1. Folders they created
-            // 2. Folders they have permission to access
-            $folderIds = \App\Models\FolderUserPermission::where('user_id', $user->id)
-                ->pluck('folder_id')
-                ->toArray();
-            
-            $folders = Folder::where(function($query) use ($user, $folderIds) {
-                $query->where('created_by', $user->id)
-                      ->orWhereIn('id', $folderIds);
-            })
-            ->with(['directWorkflows', 'permissions' => function($query) use ($user) {
-                $query->where('user_id', $user->id);
-            }, 'creator'])
-            ->get();
-        }
+        // Get all folders with their workflows
+        $folders = Folder::with(['directWorkflows', 'creator'])->get();
 
-        // Map directWorkflows to workflows and add permission info
+        // Map directWorkflows to workflows and set permissions
         $folders->each(function($folder) use ($user) {
             $folder->workflows = $folder->directWorkflows ?? [];
             
-            // Add user's permission level for this folder
-            if ($user->id === $folder->created_by || $user->role === 'admin') {
-                $folder->user_permission = 'edit'; // Creator/admin has full access
-                $folder->can_delete = true;
-            } else {
-                $permission = $folder->permissions->first();
-                $folder->user_permission = $permission ? $permission->permission : 'none';
-                $folder->can_delete = false; // Users with granted permission cannot delete
-            }
+            // All users have edit permission on all folders
+            $folder->user_permission = 'edit';
+            // Only creator and admin can delete
+            $folder->can_delete = ($user->id === $folder->created_by || $user->role === 'admin');
             
             unset($folder->directWorkflows);
         });

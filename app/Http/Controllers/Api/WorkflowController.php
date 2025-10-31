@@ -47,27 +47,10 @@ class WorkflowController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $user = auth()->user();
-        
         // Find workflow with workflowNodes relation
+        // All users can view all workflows
         $workflow = Workflow::with('workflowNodes')->findOrFail($id);
-        
-        // Check if user has access
-        if ($workflow->user_id === $user->id) {
-            // User owns this workflow
-            return response()->json($workflow);
-        }
-        
-        // Check if workflow is in a folder that user has permission to
-        if ($workflow->folder_id) {
-            $folder = \App\Models\Folder::find($workflow->folder_id);
-            if ($folder && $folder->userHasPermission($user, 'view')) {
-                return response()->json($workflow);
-            }
-        }
-        
-        // User doesn't have access
-        return response()->json(['error' => 'Unauthorized'], 403);
+        return response()->json($workflow);
     }
 
     /**
@@ -75,23 +58,8 @@ class WorkflowController extends Controller
      */
     public function update(Request $request, string $id): JsonResponse
     {
-        $user = auth()->user();
+        // All users can edit all workflows
         $workflow = Workflow::findOrFail($id);
-        
-        // Check if user has edit permission
-        $canEdit = false;
-        if ($workflow->user_id === $user->id) {
-            $canEdit = true;
-        } elseif ($workflow->folder_id) {
-            $folder = \App\Models\Folder::find($workflow->folder_id);
-            if ($folder && $folder->userHasPermission($user, 'edit')) {
-                $canEdit = true;
-            }
-        }
-        
-        if (!$canEdit) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
 
         $request->validate([
             'name' => 'sometimes|string|max:255',

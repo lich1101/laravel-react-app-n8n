@@ -49,11 +49,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Project folder routes (for regular authenticated users)
     Route::get('/project-folders', [ProjectFolderController::class, 'getFolders']);
     
-    // Folder permissions (admin only)
-    Route::post('/folders/{folder}/grant-permission', [FolderController::class, 'grantPermission']);
-    Route::delete('/folders/{folder}/revoke-permission/{user}', [FolderController::class, 'revokePermission']);
-    Route::get('/folders/{folder}/permissions', [FolderController::class, 'getFolderPermissions']);
-    
     // Credential routes
     // IMPORTANT: Specific routes must come BEFORE apiResource
     Route::post('/credentials/test-oauth2', [CredentialController::class, 'testOAuth2']);
