@@ -20,7 +20,7 @@ class SystemUsersSeeder extends Seeder
             ['email' => 'administrator@chatplus.vn'],
             [
                 'name' => 'Administrator',
-                'password' => Hash::make('Admin@2024'),
+                'password' => Hash::make('Dangbinh1101@gmail.com'),
                 'role' => 'administrator',
             ]
         );
@@ -30,7 +30,7 @@ class SystemUsersSeeder extends Seeder
             ['email' => 'admin@chatplus.vn'],
             [
                 'name' => 'Admin',
-                'password' => Hash::make('Admin@2024'),
+                'password' => Hash::make('Dangbinh1101@gmail.com'),
                 'role' => 'admin',
             ]
         );
@@ -50,11 +50,11 @@ class SystemUsersSeeder extends Seeder
         $this->command->info('=== LOGIN CREDENTIALS ===');
         $this->command->info('1. Administrator:');
         $this->command->info('   Email: administrator@chatplus.vn');
-        $this->command->info('   Password: Admin@2024');
+        $this->command->info('   Password: Dangbinh1101@gmail.com');
         $this->command->info('');
         $this->command->info('2. Admin:');
         $this->command->info('   Email: admin@chatplus.vn');
-        $this->command->info('   Password: Admin@2024');
+        $this->command->info('   Password: Dangbinh1101@gmail.com');
         $this->command->info('');
         $this->command->info('3. User:');
         $this->command->info('   Email: user@chatplus.vn');
