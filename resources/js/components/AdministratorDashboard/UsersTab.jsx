@@ -19,6 +19,10 @@ const UsersTab = () => {
     });
     const [editingUser, setEditingUser] = useState(null);
 
+    // Protected users that cannot be deleted
+    const protectedEmails = ['administrator@chatplus.vn', 'admin@chatplus.vn'];
+    const isProtectedUser = (email) => protectedEmails.includes(email);
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -96,6 +100,11 @@ const UsersTab = () => {
                 fetchData();
             } catch (error) {
                 console.error('Error deleting user:', error);
+                if (error.response?.data?.error) {
+                    alert(error.response.data.error);
+                } else {
+                    alert('Failed to delete user');
+                }
             }
         }
     };
@@ -151,13 +160,19 @@ const UsersTab = () => {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Email
+                                {editingUser && isProtectedUser(editingUser.email) && (
+                                    <span className="ml-2 text-xs text-orange-600 dark:text-orange-400">(Protected - Cannot change)</span>
+                                )}
                             </label>
                             <input
                                 type="email"
                                 required
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                disabled={editingUser && isProtectedUser(editingUser.email)}
+                                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
+                                    editingUser && isProtectedUser(editingUser.email) ? 'opacity-60 cursor-not-allowed' : ''
+                                }`}
                             />
                         </div>
                         <div>
@@ -291,12 +306,18 @@ const UsersTab = () => {
                                             Project
                                         </button>
                                     )}
-                                    <button
-                                        onClick={() => handleDelete(user.id)}
-                                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                    >
-                                        Delete
-                                    </button>
+                                    {!isProtectedUser(user.email) ? (
+                                        <button
+                                            onClick={() => handleDelete(user.id)}
+                                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                        >
+                                            Delete
+                                        </button>
+                                    ) : (
+                                        <span className="text-gray-400 dark:text-gray-600 cursor-not-allowed" title="Protected system user">
+                                            🔒 Protected
+                                        </span>
+                                    )}
                                 </td>
                             </tr>
                         ))}

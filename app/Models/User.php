@@ -68,4 +68,26 @@ class User extends Authenticatable
     {
         return $this->role === 'administrator';
     }
+
+    /**
+     * Check if this user is a protected system user (cannot be deleted)
+     */
+    public function isProtectedUser(): bool
+    {
+        return in_array($this->email, [
+            'administrator@chatplus.vn',
+            'admin@chatplus.vn',
+        ]);
+    }
+
+    /**
+     * Get the list of protected user emails
+     */
+    public static function getProtectedEmails(): array
+    {
+        return [
+            'administrator@chatplus.vn',
+            'admin@chatplus.vn',
+        ];
+    }
 }

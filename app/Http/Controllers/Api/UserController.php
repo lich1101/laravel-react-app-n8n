@@ -66,16 +66,29 @@ class UserController extends Controller
         $this->checkAdmin();
         $user = User::findOrFail($id);
 
+        // Prevent changing email of protected users (administrator and admin)
+        if ($user->isProtectedUser() && $request->email !== $user->email) {
+            return response()->json([
+                'error' => 'Cannot change email of protected system users (Administrator and Admin)'
+            ], 403);
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $id,
             'password' => 'nullable|string|min:6',
+            'role' => 'sometimes|in:user,admin,administrator',
         ]);
 
         $updateData = [
             'name' => $request->name,
             'email' => $request->email,
         ];
+
+        // Allow updating role if provided
+        if ($request->has('role')) {
+            $updateData['role'] = $request->role;
+        }
 
         // Only update password if provided
         if ($request->filled('password')) {
@@ -94,6 +107,14 @@ class UserController extends Controller
     {
         $this->checkAdmin();
         $user = User::findOrFail($id);
+
+        // Prevent deletion of protected users (administrator and admin)
+        if ($user->isProtectedUser()) {
+            return response()->json([
+                'error' => 'Cannot delete protected system users (Administrator and Admin)'
+            ], 403);
+        }
+
         $user->delete();
 
         return response()->json(['message' => 'User deleted successfully']);
