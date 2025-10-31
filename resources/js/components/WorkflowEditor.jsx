@@ -732,7 +732,7 @@ function WorkflowEditor() {
             console.log('🚀 Executing test workflow with webhook data:', webhookData);
             
             // Simulate execution by calling backend
-            const response = await axios.post(`/api/webhook-test/${nodes.find(n => n.type === 'webhook')?.data?.config?.path}`, webhookData);
+            const response = await axios.post(`/webhook-test/${nodes.find(n => n.type === 'webhook')?.data?.config?.path}`, webhookData);
             
             // Note: Backend will execute and we need to fetch execution results
             // For now, we'll simulate node-by-node execution
