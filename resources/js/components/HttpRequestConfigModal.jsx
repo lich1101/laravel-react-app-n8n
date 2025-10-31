@@ -3,7 +3,7 @@ import VariableInput from './VariableInput';
 import CredentialModal from './CredentialModal';
 import axios from '../config/axios';
 
-function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
+function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
         method: 'GET',
         url: '',
@@ -13,6 +13,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
         headers: [],
         bodyType: 'json',
         bodyContent: '',
+        timeout: 30, // Timeout in seconds (default 30s)
     });
 
     const [testResults, setTestResults] = useState(null);
@@ -313,7 +314,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                         <h2 
                             className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2"
                             onClick={() => {
-                                if (onRename) {
+                                if (onRename && !readOnly) {
                                     onRename(); // Trigger parent's rename modal
                                 }
                             }}
@@ -488,7 +489,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 Settings
                             </button>
                         </div>
-                        <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                        <div className={`flex-1 p-4 overflow-y-auto space-y-4 ${readOnly ? 'pointer-events-none opacity-75' : ''}`}>
                             {/* Method */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -497,7 +498,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 <select
                                     value={config.method}
                                     onChange={(e) => setConfig({ ...config, method: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    disabled={readOnly}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <option value="GET">GET</option>
                                     <option value="POST">POST</option>
@@ -805,6 +807,25 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 )}
                             </div>
 
+                            {/* Timeout */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Timeout (seconds)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="300"
+                                    value={config.timeout || 30}
+                                    onChange={(e) => setConfig({ ...config, timeout: parseInt(e.target.value) || 30 })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    placeholder="30"
+                                />
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Maximum time to wait for response (1-300 seconds). Default: 30s
+                                </p>
+                            </div>
+
                             {/* Body */}
                             {['POST', 'PUT', 'PATCH'].includes(config.method) && (
                                 <div>
@@ -902,8 +923,14 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
+                                {/* Read-only indicator */}
+                                {readOnly && (
+                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded font-medium">
+                                        📖 Viewing execution history (Read-only)
+                                    </span>
+                                )}
                                 {/* Test Button */}
-                                {onTest && (
+                                {onTest && !readOnly && (
                                     <button
                                         onClick={handleTest}
                                         disabled={isTesting || !config.url}

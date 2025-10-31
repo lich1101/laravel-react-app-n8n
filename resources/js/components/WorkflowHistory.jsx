@@ -3,7 +3,156 @@ import { useParams } from 'react-router-dom';
 import axios from '../config/axios';
 import ReactFlow, { Background, Controls, MiniMap, Handle, Position } from 'reactflow';
 import 'reactflow/dist/style.css';
-import NodeViewModal from './NodeViewModal';
+import WebhookConfigModal from './WebhookConfigModal';
+import HttpRequestConfigModal from './HttpRequestConfigModal';
+import PerplexityConfigModal from './PerplexityConfigModal';
+import CodeConfigModal from './CodeConfigModal';
+import EscapeConfigModal from './EscapeConfigModal';
+import IfConfigModal from './IfConfigModal';
+
+// Compact node component (giống hệt Editor nhưng READ-ONLY)
+const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
+    const isCompleted = data?.isCompleted || false;
+    const connectedHandles = data?.connectedHandles || [];
+
+    return (
+        <div 
+            className={`bg-gray-800 dark:bg-gray-700 border-2 rounded-lg p-3 w-20 h-20 relative flex items-center justify-center group transition-all ${
+                isCompleted ? 'border-green-500' : 'border-gray-600 dark:border-gray-500'
+            }`}
+            title={data.customName || data.label || nodeType}
+        >
+            {/* Input handle */}
+            {handles.input && (
+                <Handle 
+                    type="target" 
+                    position={Position.Left} 
+                    className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-600"
+                />
+            )}
+            
+            {/* Icon SVG */}
+            <div className="w-10 h-10 flex items-center justify-center pointer-events-none relative">
+                <img 
+                    src={iconPath} 
+                    alt={nodeType}
+                    className="w-full h-full object-contain"
+                    style={{ filter: 'brightness(0) invert(1)' }}
+                />
+            </div>
+            
+            {/* Node name label */}
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap pointer-events-none">
+                {data.customName || data.label}
+            </div>
+            
+            {/* Output handles */}
+            {handles.outputs && handles.outputs.map((output, index) => {
+                const topPercent = handles.outputs.length === 1 ? 50 : 30 + (index * 40);
+                const handleKey = output.id || 'default';
+                
+                return (
+                    <React.Fragment key={handleKey}>
+                        <Handle 
+                            type="source" 
+                            position={Position.Right} 
+                            id={output.id}
+                            className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-gray-600 ${
+                                output.color === 'green' ? '!bg-green-400' :
+                                output.color === 'red' ? '!bg-red-400' :
+                                '!bg-gray-400'
+                            }`}
+                            style={{ 
+                                left: 'calc(100%)',
+                                top: `${topPercent}%`,
+                            }}
+                        />
+                        {output.label && (
+                            <span 
+                                className={`absolute text-xs font-medium whitespace-nowrap pointer-events-none ${
+                                    output.color === 'green' ? 'text-green-400' :
+                                    output.color === 'red' ? 'text-red-400' :
+                                    'text-gray-400'
+                                }`}
+                                style={{ 
+                                    left: 'calc(100% + 8px)',
+                                    top: `${topPercent}%`,
+                                    transform: 'translateY(-50%)',
+                                }}
+                            >
+                                {output.label}
+                            </span>
+                        )}
+                    </React.Fragment>
+                );
+            })}
+        </div>
+    );
+};
+
+// Node types giống hệt Editor
+const nodeTypes = {
+    webhook: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="webhook"
+            iconPath="/icons/nodes/webhook.svg"
+            color="purple"
+            handles={{ input: false, outputs: [{ id: null }] }}
+        />
+    ),
+    http: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="http"
+            iconPath="/icons/nodes/http.svg"
+            color="blue"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    perplexity: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="perplexity"
+            iconPath="/icons/nodes/perplexity.svg"
+            color="indigo"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    code: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="code"
+            iconPath="/icons/nodes/code.svg"
+            color="green"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    escape: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="escape"
+            iconPath="/icons/nodes/escape.svg"
+            color="yellow"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    if: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="if"
+            iconPath="/icons/nodes/if.svg"
+            color="teal"
+            handles={{ 
+                input: true, 
+                outputs: [
+                    { id: 'true', label: 'true', color: 'green' },
+                    { id: 'false', label: 'false', color: 'red' }
+                ] 
+            }}
+        />
+    ),
+};
 
 const WorkflowHistory = () => {
     const { id: workflowId } = useParams();
@@ -15,22 +164,12 @@ const WorkflowHistory = () => {
     const [detailsLoading, setDetailsLoading] = useState(false);
     const [workflowNodes, setWorkflowNodes] = useState([]);
     const [workflowEdges, setWorkflowEdges] = useState([]);
-    const [selectedNodeForView, setSelectedNodeForView] = useState(null);
+    const [selectedNode, setSelectedNode] = useState(null);
+    const [showConfigModal, setShowConfigModal] = useState(false);
 
     useEffect(() => {
         fetchExecutions();
-        fetchWorkflow();
     }, [workflowId]);
-
-    const fetchWorkflow = async () => {
-        try {
-            const response = await axios.get(`/workflows/${workflowId}`);
-            setWorkflowNodes(response.data.nodes || []);
-            setWorkflowEdges(response.data.edges || []);
-        } catch (err) {
-            console.error('Error fetching workflow:', err);
-        }
-    };
 
     const fetchExecutions = async () => {
         try {
@@ -50,6 +189,11 @@ const WorkflowHistory = () => {
             setDetailsLoading(true);
             const response = await axios.get(`/workflows/${workflowId}/executions/${executionId}`);
             setExecutionDetails(response.data);
+            
+            // Lấy nodes và edges từ workflow_snapshot (snapshot tại thời điểm thực thi)
+            const snapshot = response.data.workflow_snapshot || {};
+            setWorkflowNodes(snapshot.nodes || []);
+            setWorkflowEdges(snapshot.edges || []);
         } catch (err) {
             console.error('Error fetching execution details:', err);
         } finally {
@@ -60,6 +204,11 @@ const WorkflowHistory = () => {
     const handleSelectExecution = (execution) => {
         setSelectedExecution(execution);
         fetchExecutionDetails(execution.id);
+    };
+
+    const handleNodeDoubleClick = (event, node) => {
+        setSelectedNode(node);
+        setShowConfigModal(true);
     };
 
     const formatDate = (dateString) => {
@@ -93,216 +242,249 @@ const WorkflowHistory = () => {
         }
     };
 
-    // Create execution display nodes with input/output data
-    const createExecutionNodes = () => {
-        if (!executionDetails || !workflowNodes.length) return [];
+    // Lấy input/output data cho modal
+    const getNodeInputData = (nodeId) => {
+        const nodeResults = executionDetails?.node_results || {};
+        return nodeResults[nodeId]?.input || {};
+    };
 
-        const nodeResults = executionDetails.node_results || {};
+    const getNodeOutputData = (nodeId) => {
+        const nodeResults = executionDetails?.node_results || {};
+        return nodeResults[nodeId]?.output || {};
+    };
 
-        return workflowNodes.map((node) => {
-            const nodeData = nodeResults[node.id] || {};
-            const inputData = nodeData.input || {};
-            const outputData = nodeData.output || nodeData;
+    // Tạo ReactFlow nodes từ snapshot
+    const createReactFlowNodes = () => {
+        if (!workflowNodes.length) return [];
 
-            // Create a custom node display
-            let nodeContent = null;
+        const nodeResults = executionDetails?.node_results || {};
+        const executionOrder = executionDetails?.execution_order || [];
 
-            if (node.type === 'webhook') {
-                nodeContent = (
-                    <div className="bg-purple-100 dark:bg-purple-900 border-2 border-purple-500 rounded-lg p-3 min-w-[250px] max-w-[350px]">
-                        <Handle type="source" position={Position.Right} className="!bg-purple-500 !w-3 !h-3" />
-                        <div className="font-semibold text-purple-700 dark:text-purple-300 mb-2">Webhook</div>
-                        {inputData && Object.keys(inputData).length > 0 && (
-                            <div className="mb-2">
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Input:</div>
-                                <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded max-h-24 overflow-y-auto">
-                                    {JSON.stringify(inputData, null, 2).substring(0, 200)}
-                                </pre>
-                            </div>
-                        )}
-                        {outputData && Object.keys(outputData).length > 0 && (
-                            <div>
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Output:</div>
-                                <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded max-h-24 overflow-y-auto">
-                                    {JSON.stringify(outputData, null, 2).substring(0, 200)}
-                                </pre>
-                            </div>
-                        )}
-                    </div>
-                );
-            } else if (node.type === 'http') {
-                nodeContent = (
-                    <div className="bg-blue-100 dark:bg-blue-900 border-2 border-blue-500 rounded-lg p-3 min-w-[250px] max-w-[350px]">
-                        <Handle type="target" position={Position.Left} className="!bg-blue-500 !w-3 !h-3" />
-                        <Handle type="source" position={Position.Right} className="!bg-blue-500 !w-3 !h-3" />
-                        <div className="font-semibold text-blue-700 dark:text-blue-300 mb-2">
-                            {node.data?.label || 'HTTP Request'}
-                        </div>
-                        {inputData && Object.keys(inputData).length > 0 && (
-                            <div className="mb-2">
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Input:</div>
-                                <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded max-h-24 overflow-y-auto">
-                                    {JSON.stringify(inputData, null, 2).substring(0, 200)}
-                                </pre>
-                            </div>
-                        )}
-                        {outputData && Object.keys(outputData).length > 0 && (
-                            <div>
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Output:</div>
-                                <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded max-h-24 overflow-y-auto">
-                                    {JSON.stringify(outputData, null, 2).substring(0, 200)}
-                                </pre>
-                            </div>
-                        )}
-                    </div>
-                );
-            } else if (node.type === 'code') {
-                nodeContent = (
-                    <div className="bg-green-100 dark:bg-green-900 border-2 border-green-500 rounded-lg p-3 min-w-[250px] max-w-[350px]">
-                        <Handle type="target" position={Position.Left} className="!bg-green-500 !w-3 !h-3" />
-                        <Handle type="source" position={Position.Right} className="!bg-green-500 !w-3 !h-3" />
-                        <div className="font-semibold text-green-700 dark:text-green-300 mb-2">Code</div>
-                        {inputData && Object.keys(inputData).length > 0 && (
-                            <div className="mb-2">
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Input:</div>
-                                <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded max-h-24 overflow-y-auto">
-                                    {JSON.stringify(inputData, null, 2).substring(0, 200)}
-                                </pre>
-                            </div>
-                        )}
-                        {outputData && Object.keys(outputData).length > 0 && (
-                            <div>
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Output:</div>
-                                <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded max-h-24 overflow-y-auto">
-                                    {JSON.stringify(outputData, null, 2).substring(0, 200)}
-                                </pre>
-                            </div>
-                        )}
-                    </div>
-                );
-            }
-
+        return workflowNodes.map(node => {
+            // Find which handles are connected
+            const connectedHandles = workflowEdges
+                .filter(e => e.source === node.id)
+                .map(e => e.sourceHandle || 'default');
+            
+            const hasExecuted = nodeResults[node.id] !== undefined;
+            
             return {
                 ...node,
-                type: 'custom',
+                sourcePosition: 'right',
+                targetPosition: 'left',
                 data: {
-                    content: nodeContent,
-                    nodeData: node,
-                    nodeResults: { input: inputData, output: outputData }
-                }
+                    ...node.data,
+                    nodeId: node.id,
+                    connectedHandles: connectedHandles,
+                    isCompleted: hasExecuted,
+                },
             };
         });
     };
 
-    const handleNodeDoubleClick = (event, node) => {
-        setSelectedNodeForView(node);
-    };
-
-    const nodeTypes = {
-        custom: ({ data }) => data.content,
-    };
-
-    if (loading) return <div className="p-4 text-gray-300">Đang tải lịch sử thực thi...</div>;
+    if (loading) return <div className="p-4 text-white">Đang tải lịch sử thực thi...</div>;
     if (error) return <div className="p-4 text-red-500">{error}</div>;
 
     return (
-        <>
-            {selectedNodeForView && (
-                <NodeViewModal
-                    node={selectedNodeForView.data.nodeData}
-                    onClose={() => setSelectedNodeForView(null)}
-                    inputData={selectedNodeForView.data.nodeResults.input}
-                    outputData={selectedNodeForView.data.nodeResults.output}
-                />
-            )}
-            <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200">
-                {/* Left Panel: Execution List */}
-                <div className="w-1/3 flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                    {/* Fixed Header */}
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-                        <h2 className="text-xl font-semibold">Lịch sử thực thi</h2>
-                    </div>
-                    {/* Scrollable Content */}
-                    <div className="flex-1 overflow-y-auto">
-                        {executions.length === 0 ? (
-                            <p className="p-4 text-gray-400">Chưa có lịch sử thực thi nào.</p>
-                        ) : (
-                            <ul>
-                                {executions.map((execution) => (
-                                    <li
-                                        key={execution.id}
-                                        className={`p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 ${
-                                            selectedExecution?.id === execution.id ? 'bg-blue-50 dark:bg-blue-900' : ''
-                                        }`}
-                                        onClick={() => handleSelectExecution(execution)}
-                                    >
-                                        <div className="flex justify-between items-center">
-                                            <span className="font-medium text-sm">{formatDate(execution.started_at)}</span>
-                                            <span className={`text-sm font-semibold ${getStatusColor(execution.status)}`}>
-                                                {execution.status.charAt(0).toUpperCase() + execution.status.slice(1)}
-                                            </span>
-                                        </div>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                            {execution.duration_ms ? `Hoàn thành trong ${execution.duration_ms}ms` : 'Đang chạy...'}
-                                        </p>
-                                        <p className="text-xs text-gray-400 mt-1">ID#{execution.id}</p>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                </div>
-
-            {/* Right Panel: Execution Canvas */}
-            <div className="w-2/3 relative bg-gray-50 dark:bg-gray-900">
-                {selectedExecution ? (
-                    <div className="absolute inset-0">
-                        <div className="absolute top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 z-10">
-                            <h2 className="text-xl font-semibold">
-                                Chi tiết thực thi #{selectedExecution.id}
-                            </h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                {formatDate(selectedExecution.started_at)} - Status:
-                                <span className={`ml-2 font-semibold ${getStatusColor(selectedExecution.status)}`}>
-                                    {selectedExecution.status}
-                                </span>
-                            </p>
+        <div className="h-full flex bg-gray-900">
+            {/* Left sidebar - Execution list */}
+            <div className="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto">
+                <div className="p-4">
+                    <h2 className="text-lg font-semibold text-white mb-4">Lịch sử thực thi</h2>
+                    {executions.length === 0 ? (
+                        <p className="text-gray-400 text-sm">Chưa có lịch sử thực thi nào.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {executions.map((execution) => (
+                                <div
+                                    key={execution.id}
+                                    onClick={() => handleSelectExecution(execution)}
+                                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                                        selectedExecution?.id === execution.id
+                                            ? 'bg-blue-600'
+                                            : 'bg-gray-700 hover:bg-gray-600'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-sm font-medium text-white">
+                                            {formatDate(execution.started_at)}
+                                        </span>
+                                        <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                                            execution.status === 'success' ? 'bg-green-500 text-white' :
+                                            execution.status === 'failed' ? 'bg-red-500 text-white' :
+                                            'bg-yellow-500 text-white'
+                                        }`}>
+                                            {execution.status === 'success' ? 'Success' : 
+                                             execution.status === 'failed' ? 'Failed' : 'Running'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-300">
+                                        Hoàn thành trong {execution.duration_ms}ms
+                                    </p>
+                                    <p className="text-xs text-gray-400">
+                                        ID#{execution.id}
+                                    </p>
+                                </div>
+                            ))}
                         </div>
-                        {detailsLoading ? (
-                            <div className="flex items-center justify-center h-full">
-                                <p className="text-gray-300">Đang tải chi tiết thực thi...</p>
+                    )}
+                </div>
+            </div>
+
+            {/* Right panel - Execution details */}
+            <div className="flex-1 flex flex-col">
+                {selectedExecution ? (
+                    detailsLoading ? (
+                        <div className="flex items-center justify-center h-full">
+                            <p className="text-gray-400">Đang tải chi tiết thực thi...</p>
+                        </div>
+                    ) : executionDetails ? (
+                        <>
+                            {/* Header */}
+                            <div className="bg-gray-800 border-b border-gray-700 px-6 py-4">
+                                <h3 className="text-lg font-semibold text-white">
+                                    Chi tiết thực thi #{selectedExecution.id}
+                                </h3>
+                                <p className="text-sm text-gray-400 mt-1">
+                                    {formatDate(executionDetails.started_at)} - Status: <span className={getStatusColor(executionDetails.status)}>{executionDetails.status}</span>
+                                </p>
                             </div>
-                        ) : executionDetails ? (
-                            <div className="absolute inset-0" style={{ paddingTop: '80px' }}>
+
+                            {/* Workflow canvas */}
+                            <div className="flex-1 relative">
                                 <ReactFlow
-                                    nodes={createExecutionNodes()}
-                                    edges={workflowEdges}
+                                    nodes={createReactFlowNodes()}
+                                    edges={workflowEdges.map(edge => ({
+                                        ...edge,
+                                        style: { 
+                                            stroke: '#10b981', 
+                                            strokeWidth: 1.5,
+                                        },
+                                        markerEnd: {
+                                            type: 'arrowclosed',
+                                            color: '#10b981',
+                                        },
+                                    }))}
                                     nodeTypes={nodeTypes}
-                                    onNodeDoubleClick={handleNodeDoubleClick}
+                                    onNodeClick={handleNodeDoubleClick}
                                     fitView
-                                    draggable={false}
-                                    nodesConnectable={false}
-                                    elementsSelectable={false}
                                     panOnDrag={true}
-                                    zoomOnPinch={true}
+                                    panOnScroll={true}
                                     zoomOnScroll={true}
-                                    className="bg-gray-50 dark:bg-gray-900"
+                                    zoomOnPinch={true}
+                                    nodesConnectable={false}
+                                    nodesDraggable={true}
+                                    elementsSelectable={true}
+                                    className="bg-gray-900"
                                 >
                                     <Background />
                                     <Controls />
                                     <MiniMap />
                                 </ReactFlow>
                             </div>
-                        ) : null}
-                    </div>
+
+                            {/* Config Modals (READ-ONLY) */}
+                            {showConfigModal && selectedNode && selectedNode.type === 'webhook' && (
+                                <WebhookConfigModal
+                                    node={selectedNode}
+                                    workflowId={workflowId}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onRename={() => {}} // No-op
+                                    onTestResult={() => {}} // No-op
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'http' && (
+                                <HttpRequestConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'perplexity' && (
+                                <PerplexityConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'code' && (
+                                <CodeConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'escape' && (
+                                <EscapeConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'if' && (
+                                <IfConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+                        </>
+                    ) : null
                 ) : (
                     <div className="flex items-center justify-center h-full">
                         <p className="text-gray-400">Chọn một lần thực thi từ danh sách bên trái để xem chi tiết.</p>
                     </div>
                 )}
             </div>
-            </div>
-        </>
+        </div>
     );
 };
 

@@ -45,12 +45,16 @@ class WebhookController extends Controller
                 }
             }
 
-            // Create execution record
+            // Create execution record với snapshot của workflow
             $execution = WorkflowExecution::create([
                 'workflow_id' => $workflow->id,
                 'trigger_type' => 'webhook',
                 'status' => 'running',
                 'input_data' => $request->all(),
+                'workflow_snapshot' => [
+                    'nodes' => $workflow->nodes ?? [],
+                    'edges' => $workflow->edges ?? [],
+                ],
                 'started_at' => now(),
             ]);
 
@@ -66,9 +70,12 @@ class WebhookController extends Controller
 
                 // Execute the workflow
                 $startTime = microtime(true);
-                $nodeResults = $this->executeWorkflow($workflow, $request);
+                $executionResult = $this->executeWorkflow($workflow, $request);
                 $endTime = microtime(true);
                 $duration = round(($endTime - $startTime) * 1000); // Convert to milliseconds
+
+                $nodeResults = $executionResult['node_results'] ?? [];
+                $executionOrder = $executionResult['execution_order'] ?? [];
 
                 // Get final output from the last node
                 $finalOutput = null;
@@ -85,6 +92,7 @@ class WebhookController extends Controller
                     'status' => 'success',
                     'output_data' => $finalOutput,
                     'node_results' => $nodeResults,
+                    'execution_order' => $executionOrder,
                     'duration_ms' => $duration,
                     'finished_at' => now(),
                 ]);
@@ -153,9 +161,11 @@ class WebhookController extends Controller
         $ifResults = [];
         // Store full execution details for each node
         $nodeResults = [];
+        // Store execution order để hiển thị đúng thứ tự trong History
+        $executionOrderList = [];
 
         // Execute each node in order
-        foreach ($executionOrder as $node) {
+        foreach ($executionOrder as $index => $node) {
             try {
                 // Get input data for this node (with If branch filtering)
                 $inputData = $this->getNodeInputData($node['id'], $edges, $nodeOutputs, $ifResults, $nodes);
@@ -187,7 +197,11 @@ class WebhookController extends Controller
                 $nodeResults[$node['id']] = [
                     'input' => $inputData,
                     'output' => $output,
+                    'execution_index' => $index, // Thứ tự thực thi
                 ];
+                
+                // Lưu thứ tự thực thi
+                $executionOrderList[] = $node['id'];
 
                 Log::info('Node executed successfully', [
                     'workflow_id' => $workflow->id,
@@ -213,11 +227,18 @@ class WebhookController extends Controller
                     'output' => [
                         'error' => $e->getMessage(),
                     ],
+                    'execution_index' => $index,
                 ];
+                
+                // Vẫn lưu vào execution order ngay cả khi lỗi
+                $executionOrderList[] = $node['id'];
             }
         }
 
-        return $nodeResults;
+        return [
+            'node_results' => $nodeResults,
+            'execution_order' => $executionOrderList,
+        ];
     }
 
     private function buildExecutionOrder($nodes, $edges)
@@ -374,13 +395,17 @@ class WebhookController extends Controller
             }
         }
 
-        // IMPORTANT: Also build a map of nodeName => output for resolving {{NodeName.field}} references
+        // IMPORTANT: Build a map of nodeName => output for resolving {{NodeName.field}} references
+        // This should include ALL upstream nodes, not just direct parents
         $namedInputs = [];
-        foreach ($parentEdges as $index => $edge) {
-            $parentId = $edge['source'];
-            if (isset($nodeOutputs[$parentId]) && isset($nodeMap[$parentId])) {
-                $nodeName = $nodeMap[$parentId];
-                $namedInputs[$nodeName] = $nodeOutputs[$parentId];
+        
+        // Get ALL upstream nodes using BFS
+        $allUpstreamIds = $this->collectAllUpstreamNodes($nodeId, $edges);
+        
+        foreach ($allUpstreamIds as $upstreamId) {
+            if (isset($nodeOutputs[$upstreamId]) && isset($nodeMap[$upstreamId])) {
+                $nodeName = $nodeMap[$upstreamId];
+                $namedInputs[$nodeName] = $nodeOutputs[$upstreamId];
             }
         }
 
@@ -388,6 +413,7 @@ class WebhookController extends Controller
             'node_id' => $nodeId,
             'parent_edges_count' => count($parentEdges),
             'input_count' => count($inputData),
+            'all_upstream_count' => count($allUpstreamIds),
             'named_inputs' => array_keys($namedInputs),
             'input_preview' => array_map(function($input) {
                 if (is_array($input)) {
@@ -399,6 +425,7 @@ class WebhookController extends Controller
 
         // Merge named inputs into inputData for backward compatibility
         // inputData now contains: [0 => output1, 1 => output2, 'NodeName' => output1, 'OtherNode' => output2]
+        // Named inputs include ALL upstream nodes for {{NodeName.field}} resolution
         return array_merge($inputData, $namedInputs);
     }
 
@@ -646,19 +673,20 @@ class WebhookController extends Controller
         if (in_array(strtoupper($config['method'] ?? 'GET'), ['POST', 'PUT', 'PATCH'])) {
             if (!empty($config['bodyContent'])) {
                 $originalBody = $config['bodyContent'];
-                $bodyContent = $this->resolveVariables($originalBody, $inputData);
 
                 Log::info('Body resolution', [
                     'original' => substr($originalBody, 0, 200),
-                    'resolved' => substr($bodyContent, 0, 200),
                     'has_variables' => strpos($originalBody, '{{') !== false,
                 ]);
 
                 if (!empty($config['bodyType']) && $config['bodyType'] === 'json') {
-                    $decoded = json_decode($bodyContent, true);
-                    $body = $decoded ? json_encode($decoded, JSON_UNESCAPED_UNICODE) : $bodyContent;
+                    // For JSON body, use special resolution that preserves JSON validity
+                    $bodyContent = $this->resolveVariablesInJSON($originalBody, $inputData);
+                    $body = $bodyContent;
                     $headers['Content-Type'] = 'application/json';
                 } else {
+                    // For non-JSON body, use normal resolution
+                    $bodyContent = $this->resolveVariables($originalBody, $inputData);
                     $body = $bodyContent;
                 }
                 
@@ -669,12 +697,28 @@ class WebhookController extends Controller
         }
 
         try {
-            // Make HTTP request
+            // Make HTTP request with timeout
             $method = strtoupper($config['method'] ?? 'GET');
+            $timeout = isset($config['timeout']) ? (int)$config['timeout'] : 30;
 
-            $response = Http::withHeaders($headers)->send($method, $url, [
-                'body' => $body,
-            ]);
+            // Set socket timeout context if needed (to override PHP default_socket_timeout = 60)
+            $originalTimeout = ini_get('default_socket_timeout');
+            if ($timeout > 60) {
+                ini_set('default_socket_timeout', $timeout);
+            }
+
+            try {
+                $response = Http::withHeaders($headers)
+                    ->timeout($timeout)
+                    ->send($method, $url, [
+                        'body' => $body,
+                    ]);
+            } finally {
+                // Restore original timeout setting
+                if ($timeout > 60) {
+                    ini_set('default_socket_timeout', $originalTimeout);
+                }
+            }
 
             $responseBody = $response->body();
             try {
@@ -1147,8 +1191,37 @@ JS;
                 $credential->data['headerName'] ?? 'Authorization' => $credential->data['headerValue'],
             ];
 
-            // Make HTTP request to Perplexity API
-            $response = Http::withHeaders($headers)->post('https://api.perplexity.ai/chat/completions', $requestBody);
+            // Get timeout from config (check both config.timeout and advancedOptions.timeout)
+            $timeout = 60; // Default
+            if (isset($config['timeout'])) {
+                $timeout = (int)$config['timeout'];
+            } elseif (!empty($config['advancedOptions']['timeout'])) {
+                $timeout = (int)$config['advancedOptions']['timeout'];
+            }
+
+            Log::info('Perplexity timeout', [
+                'config_timeout' => $config['timeout'] ?? null,
+                'advanced_timeout' => $config['advancedOptions']['timeout'] ?? null,
+                'final_timeout' => $timeout,
+            ]);
+
+            // Make HTTP request to Perplexity API with timeout
+            // Set socket timeout context to ensure it works even if PHP default_socket_timeout is limiting
+            $originalTimeout = ini_get('default_socket_timeout');
+            if ($timeout > 60) {
+                ini_set('default_socket_timeout', $timeout);
+            }
+
+            try {
+                $response = Http::withHeaders($headers)
+                    ->timeout($timeout)
+                    ->post('https://api.perplexity.ai/chat/completions', $requestBody);
+            } finally {
+                // Restore original timeout setting
+                if ($timeout > 60) {
+                    ini_set('default_socket_timeout', $originalTimeout);
+                }
+            }
 
             if (!$response->successful()) {
                 Log::error('Perplexity API Error', [
@@ -1233,6 +1306,61 @@ JS;
 
             return $value !== null ? $value : $matches[0];
         }, $template);
+    }
+
+    /**
+     * Resolve variables in JSON body with proper JSON escaping
+     */
+    private function resolveVariablesInJSON($jsonTemplate, $inputData)
+    {
+        if (!is_string($jsonTemplate)) {
+            return $jsonTemplate;
+        }
+
+        // Try to parse as JSON first
+        $decoded = json_decode($jsonTemplate, true);
+        
+        if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+            // Not valid JSON, fallback to normal resolution
+            Log::warning('Body is not valid JSON, using normal resolution');
+            return $this->resolveVariables($jsonTemplate, $inputData);
+        }
+
+        // Recursively resolve variables in the decoded structure
+        $resolved = $this->resolveVariablesInArray($decoded, $inputData);
+        
+        // Encode back to JSON with proper escaping
+        return json_encode($resolved, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Recursively resolve variables in array/object structure
+     */
+    private function resolveVariablesInArray($data, $inputData)
+    {
+        if (is_array($data)) {
+            $result = [];
+            foreach ($data as $key => $value) {
+                $result[$key] = $this->resolveVariablesInArray($value, $inputData);
+            }
+            return $result;
+        }
+        
+        if (is_string($data)) {
+            // Check if this string contains {{variable}} patterns
+            if (strpos($data, '{{') !== false) {
+                // Resolve all variables in this string
+                return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData) {
+                    $path = trim($matches[1]);
+                    $value = $this->getValueFromPath($path, $inputData);
+                    
+                    // Return the actual value (will be JSON-encoded properly when building final JSON)
+                    return $value !== null ? $value : $matches[0];
+                }, $data);
+            }
+        }
+        
+        return $data;
     }
 
     /**

@@ -3,7 +3,7 @@ import VariableInput from './VariableInput';
 import CredentialModal from './CredentialModal';
 import axios from '../config/axios';
 
-function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
+function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
         model: 'sonar',
         systemMessageEnabled: false,
@@ -12,6 +12,7 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
             { role: 'user', content: '' } // Initial user message
         ],
         credentialId: null,
+        timeout: 60, // Timeout in seconds (default 60s for AI)
         // Advanced options - dynamic
         advancedOptions: {}, // Will store selected options like { temperature: 0.8, maxTokens: 20000 }
     });
@@ -22,6 +23,7 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
         { key: 'max_tokens', label: 'Max Tokens', type: 'number', min: 1, max: 100000, step: 100, default: 20000, description: 'Giới hạn độ dài response' },
         { key: 'stream', label: 'Enable Streaming', type: 'boolean', default: false, description: 'Stream response' },
         { key: 'seed', label: 'Seed', type: 'number', min: 1, max: 999999, step: 1, default: 12345, description: 'For reproducibility' },
+        { key: 'timeout', label: 'Request Timeout (seconds)', type: 'number', min: 10, max: 300, step: 10, default: 60, description: 'Thời gian chờ tối đa cho API response (10-300 giây)' },
     ];
 
     const [testResults, setTestResults] = useState(null);
