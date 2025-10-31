@@ -28,7 +28,16 @@ class FolderController extends Controller
     public function index(): JsonResponse
     {
         $this->checkAdministrator();
-        $folders = Folder::with(['creator', 'workflows', 'projects'])->get();
+        // Use directWorkflows instead of workflows (Many-to-Many)
+        // to match with drag-drop behavior that updates folder_id
+        $folders = Folder::with(['creator', 'directWorkflows', 'projects'])->get();
+        
+        // Map directWorkflows to workflows for frontend compatibility
+        $folders->each(function($folder) {
+            $folder->workflows = $folder->directWorkflows;
+            unset($folder->directWorkflows);
+        });
+        
         return response()->json($folders);
     }
 
@@ -55,12 +64,18 @@ class FolderController extends Controller
 
         // Attach workflows if provided
         if ($request->has('workflows') && is_array($request->workflows)) {
-            foreach ($request->workflows as $index => $workflowId) {
-                $folder->workflows()->attach($workflowId, ['order' => $index]);
+            // Update workflows to belong to this folder (set folder_id)
+            if (!empty($request->workflows)) {
+                Workflow::whereIn('id', $request->workflows)->update(['folder_id' => $folder->id]);
             }
         }
 
-        $folder->load(['creator', 'workflows', 'projects']);
+        $folder->load(['creator', 'directWorkflows', 'projects']);
+        
+        // Map directWorkflows to workflows for frontend compatibility
+        $folder->workflows = $folder->directWorkflows;
+        unset($folder->directWorkflows);
+        
         return response()->json($folder, 201);
     }
 
@@ -70,7 +85,14 @@ class FolderController extends Controller
     public function show(string $id): JsonResponse
     {
         $this->checkAdministrator();
-        $folder = Folder::with(['creator', 'workflows', 'projects'])->findOrFail($id);
+        // Use directWorkflows instead of workflows (Many-to-Many)
+        // to match with drag-drop behavior that updates folder_id
+        $folder = Folder::with(['creator', 'directWorkflows', 'projects'])->findOrFail($id);
+        
+        // Map directWorkflows to workflows for frontend compatibility
+        $folder->workflows = $folder->directWorkflows;
+        unset($folder->directWorkflows);
+        
         return response()->json($folder);
     }
 
@@ -96,16 +118,24 @@ class FolderController extends Controller
 
         // Update workflows if provided
         if ($request->has('workflows')) {
-            $folder->workflows()->detach();
-            foreach ($request->workflows as $index => $workflowId) {
-                $folder->workflows()->attach($workflowId, ['order' => $index]);
+            // Remove old workflows from this folder (set folder_id to null)
+            Workflow::where('folder_id', $folder->id)->update(['folder_id' => null]);
+            
+            // Add new workflows to this folder (set folder_id)
+            if (!empty($request->workflows)) {
+                Workflow::whereIn('id', $request->workflows)->update(['folder_id' => $folder->id]);
             }
         }
 
         // Sync workflows to all projects using this folder
         $this->syncFolderToProjects($folder);
 
-        $folder->load(['creator', 'workflows', 'projects']);
+        $folder->load(['creator', 'directWorkflows', 'projects']);
+        
+        // Map directWorkflows to workflows for frontend compatibility
+        $folder->workflows = $folder->directWorkflows;
+        unset($folder->directWorkflows);
+        
         return response()->json($folder);
     }
 
@@ -126,6 +156,9 @@ class FolderController extends Controller
      */
     private function syncFolderToProjects(Folder $folder)
     {
+        // Ensure directWorkflows are loaded
+        $folder->loadMissing('directWorkflows', 'projects');
+        
         $projects = $folder->projects;
 
         foreach ($projects as $project) {
@@ -171,7 +204,8 @@ class FolderController extends Controller
 
         \Log::info("Creating folder in project domain: {$apiUrl}");
 
-        $workflowsData = $folder->workflows->map(function ($workflow) {
+        // Use directWorkflows to get workflows by folder_id
+        $workflowsData = $folder->directWorkflows->map(function ($workflow) {
             return [
                 'name' => $workflow->name,
                 'description' => $workflow->description,
@@ -207,7 +241,7 @@ class FolderController extends Controller
                     'project_id' => $project->id,
                     'project_folder_id' => $data['folder_id'] ?? $data['id'] ?? null,
                     'workflow_mappings' => array_combine(
-                        $folder->workflows->pluck('id')->toArray(),
+                        $folder->directWorkflows->pluck('id')->toArray(),
                         $data['workflow_ids'] ?? []
                     ),
                 ]);
@@ -236,7 +270,8 @@ class FolderController extends Controller
 
         \Log::info("Updating folder in project domain: {$apiUrl}");
 
-        $workflowsData = $folder->workflows->map(function ($workflow) use ($mapping) {
+        // Use directWorkflows to get workflows by folder_id
+        $workflowsData = $folder->directWorkflows->map(function ($workflow) use ($mapping) {
             $projectWorkflowId = $mapping->workflow_mappings[$workflow->id] ?? null;
 
             return [
@@ -300,13 +335,15 @@ class FolderController extends Controller
             'workflow_ids.*' => 'exists:workflows,id',
         ]);
 
-        foreach ($request->workflow_ids as $index => $workflowId) {
-            if (!$folder->workflows()->where('workflow_id', $workflowId)->exists()) {
-                $folder->workflows()->attach($workflowId, ['order' => $folder->workflows()->count() + $index]);
-            }
-        }
+        // Update workflows to belong to this folder (set folder_id)
+        Workflow::whereIn('id', $request->workflow_ids)->update(['folder_id' => $folder->id]);
 
-        $folder->load(['creator', 'workflows', 'projects']);
+        $folder->load(['creator', 'directWorkflows', 'projects']);
+        
+        // Map directWorkflows to workflows for frontend compatibility
+        $folder->workflows = $folder->directWorkflows;
+        unset($folder->directWorkflows);
+        
         return response()->json($folder);
     }
 
@@ -323,9 +360,17 @@ class FolderController extends Controller
             'workflow_ids.*' => 'exists:workflows,id',
         ]);
 
-        $folder->workflows()->detach($request->workflow_ids);
+        // Remove workflows from this folder (set folder_id to null)
+        Workflow::whereIn('id', $request->workflow_ids)
+            ->where('folder_id', $folder->id)
+            ->update(['folder_id' => null]);
 
-        $folder->load(['creator', 'workflows', 'projects']);
+        $folder->load(['creator', 'directWorkflows', 'projects']);
+        
+        // Map directWorkflows to workflows for frontend compatibility
+        $folder->workflows = $folder->directWorkflows;
+        unset($folder->directWorkflows);
+        
         return response()->json($folder);
     }
 
@@ -346,7 +391,11 @@ class FolderController extends Controller
             // First, sync the folder-project relationship
             $folder->projects()->sync($request->project_ids);
 
-            $folder->load(['creator', 'workflows', 'projects']);
+            $folder->load(['creator', 'directWorkflows', 'projects']);
+            
+            // Map directWorkflows to workflows for frontend compatibility
+            $folder->workflows = $folder->directWorkflows;
+            unset($folder->directWorkflows);
 
             // Return success immediately, sync can be done manually later
             return response()->json([
@@ -372,7 +421,11 @@ class FolderController extends Controller
         $folder = Folder::findOrFail($id);
 
         try {
-            $folder->load(['creator', 'workflows', 'projects']);
+            $folder->load(['creator', 'directWorkflows', 'projects']);
+            
+            // Map directWorkflows to workflows for frontend compatibility
+            $folder->workflows = $folder->directWorkflows;
+            unset($folder->directWorkflows);
 
             // Check if folder has any projects assigned
             if ($folder->projects->isEmpty()) {
