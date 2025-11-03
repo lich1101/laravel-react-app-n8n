@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Credential;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -403,19 +404,23 @@ class CredentialController extends Controller
 
                 $data = $request->input('data');
                 
-                // Save credential info to session (will be created after authorization)
-                $sessionId = uniqid('oauth2_', true);
-                $request->session()->put('oauth2_pending_' . $sessionId, [
+                // Save credential info to cache (will be created after authorization)
+                // Use unique ID with user_id to ensure security
+                $pendingId = uniqid('oauth2_' . $user->id . '_', true);
+                $pendingCredential = [
                     'name' => $request->input('name'),
                     'type' => 'oauth2',
                     'description' => $request->input('description'),
                     'data' => $data,
                     'user_id' => $user->id,
                     'created_at' => now()->toDateTimeString()
-                ]);
+                ];
+                
+                // Store in cache for 15 minutes (enough time for OAuth flow)
+                Cache::put('oauth2_pending_' . $pendingId, $pendingCredential, 900);
 
                 $credentialData = [
-                    'session_id' => $sessionId,
+                    'pending_id' => $pendingId,
                     'is_existing' => false
                 ];
             }
@@ -470,12 +475,12 @@ class CredentialController extends Controller
             // Check for errors from OAuth provider
             if ($error) {
                 Log::error('OAuth2 callback error', ['error' => $error]);
-                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=' . urlencode($error));
+                return redirect('/workflows?oauth_error=' . urlencode($error));
             }
 
             if (!$code || !$state) {
                 Log::error('OAuth2 callback missing code or state');
-                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=missing_parameters');
+                return redirect('/workflows?oauth_error=missing_parameters');
             }
 
             // Decode state
@@ -485,7 +490,7 @@ class CredentialController extends Controller
 
             if (!$userId) {
                 Log::error('Invalid state data', ['state' => $stateData]);
-                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=invalid_state');
+                return redirect('/workflows?oauth_error=invalid_state');
             }
 
             // Get credential data
@@ -494,7 +499,7 @@ class CredentialController extends Controller
                 $credentialId = $stateData['credential_id'] ?? null;
                 if (!$credentialId) {
                     Log::error('Missing credential_id for existing credential');
-                    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=invalid_state');
+                    return redirect('/workflows?oauth_error=invalid_state');
                 }
 
                 $credential = Credential::where('id', $credentialId)
@@ -503,22 +508,31 @@ class CredentialController extends Controller
 
                 if (!$credential) {
                     Log::error('Credential not found', ['credential_id' => $credentialId]);
-                    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=credential_not_found');
+                    return redirect('/workflows?oauth_error=credential_not_found');
                 }
 
                 $data = $credential->data;
             } else {
-                // New credential - get from session
-                $sessionId = $stateData['session_id'] ?? null;
-                if (!$sessionId) {
-                    Log::error('Missing session_id for new credential');
-                    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=invalid_state');
+                // New credential - get from cache
+                $pendingId = $stateData['pending_id'] ?? null;
+                if (!$pendingId) {
+                    Log::error('Missing pending_id for new credential');
+                    return redirect('/workflows?oauth_error=invalid_state');
                 }
 
-                $pendingCredential = $request->session()->get('oauth2_pending_' . $sessionId);
+                $pendingCredential = Cache::get('oauth2_pending_' . $pendingId);
                 if (!$pendingCredential) {
-                    Log::error('Pending credential not found in session', ['session_id' => $sessionId]);
-                    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=session_expired');
+                    Log::error('Pending credential not found in cache', ['pending_id' => $pendingId]);
+                    return redirect('/workflows?oauth_error=session_expired');
+                }
+
+                // Verify user_id matches
+                if ($pendingCredential['user_id'] != $userId) {
+                    Log::error('User ID mismatch for pending credential', [
+                        'pending_user_id' => $pendingCredential['user_id'],
+                        'state_user_id' => $userId
+                    ]);
+                    return redirect('/workflows?oauth_error=invalid_user');
                 }
 
                 $data = $pendingCredential['data'];
@@ -540,12 +554,12 @@ class CredentialController extends Controller
                     'body' => $response->body()
                 ]);
                 
-                // Clean up session if new credential
-                if (!$isExisting && isset($sessionId)) {
-                    $request->session()->forget('oauth2_pending_' . $sessionId);
+                // Clean up cache if new credential
+                if (!$isExisting && isset($pendingId)) {
+                    Cache::forget('oauth2_pending_' . $pendingId);
                 }
                 
-                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=token_exchange_failed');
+                return redirect('/workflows?oauth_error=token_exchange_failed');
             }
 
             $tokens = $response->json();
@@ -580,8 +594,8 @@ class CredentialController extends Controller
                 $credential->save();
                 $credentialId = $credential->id;
 
-                // Clean up session
-                $request->session()->forget('oauth2_pending_' . $sessionId);
+                // Clean up cache
+                Cache::forget('oauth2_pending_' . $pendingId);
 
                 Log::info('OAuth2 authorization successful - credential created', [
                     'credential_id' => $credentialId,
@@ -589,15 +603,15 @@ class CredentialController extends Controller
                 ]);
             }
 
-            // Redirect back to credentials page with success
-            return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_success=true&credential_id=' . $credentialId);
+            // Redirect back to workflows page with success (credentials tab will handle the params)
+            return redirect('/workflows?oauth_success=true&credential_id=' . $credentialId);
 
         } catch (\Exception $e) {
             Log::error('OAuth2 callback handling failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=' . urlencode($e->getMessage()));
+            return redirect('/workflows?oauth_error=' . urlencode($e->getMessage()));
         }
     }
 }

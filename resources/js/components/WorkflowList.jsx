@@ -15,6 +15,12 @@ const WorkflowList = () => {
 
     useEffect(() => {
         fetchData();
+        
+        // Auto-switch to credentials tab if OAuth callback params present
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('oauth_success') || urlParams.has('oauth_error')) {
+            setActiveTab('credentials');
+        }
     }, []);
 
     const fetchData = async () => {
