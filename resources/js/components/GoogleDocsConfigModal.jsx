@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
+import CredentialModal from './CredentialModal';
 
 function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
     const [config, setConfig] = useState({
@@ -49,6 +50,12 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
             console.error('Error fetching credentials:', error);
             setCredentials([]);
         }
+    };
+
+    const handleCredentialSaved = (credential) => {
+        fetchCredentials();
+        setConfig({ ...config, credentialId: credential.id });
+        setShowCredentialModal(false);
     };
 
     const addAction = () => {
@@ -287,6 +294,14 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                             <option key={cred.id} value={cred.id}>{cred.name}</option>
                                         ))}
                                     </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCredentialModal(true)}
+                                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                        title="Create new OAuth2 credential for Google Docs"
+                                    >
+                                        + New
+                                    </button>
                                 </div>
                                 {!config.credentialId && (
                                     <p className="mt-1 text-xs text-orange-600 dark:text-orange-400">
@@ -485,6 +500,14 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                     </div>
                 </div>
             </div>
+
+            {/* Credential Modal */}
+            <CredentialModal
+                isOpen={showCredentialModal}
+                onClose={() => setShowCredentialModal(false)}
+                onSave={handleCredentialSaved}
+                credentialType="oauth2"
+            />
         </div>
     );
 }

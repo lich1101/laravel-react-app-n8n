@@ -958,10 +958,10 @@ class WebhookController extends Controller
         $title = $this->resolveVariables($config['title'] ?? 'Untitled', $inputData);
         $folderId = $this->resolveVariables($config['folderId'] ?? '', $inputData);
 
-        // Get access token
-        $accessToken = $credential->data['access_token'] ?? null;
+        // Get access token (support both camelCase and snake_case)
+        $accessToken = $credential->data['accessToken'] ?? $credential->data['access_token'] ?? null;
         if (!$accessToken) {
-            throw new \Exception('OAuth2 access token not found');
+            throw new \Exception('OAuth2 access token not found. Please authorize this credential first by clicking "Connect" in the Credentials page.');
         }
 
         // Create document
@@ -1018,9 +1018,10 @@ class WebhookController extends Controller
             $documentId = $matches[1] ?? $documentId;
         }
 
-        $accessToken = $credential->data['access_token'] ?? null;
+        // Get access token (support both camelCase and snake_case)
+        $accessToken = $credential->data['accessToken'] ?? $credential->data['access_token'] ?? null;
         if (!$accessToken) {
-            throw new \Exception('OAuth2 access token not found');
+            throw new \Exception('OAuth2 access token not found. Please authorize this credential first by clicking "Connect" in the Credentials page.');
         }
 
         // Build requests for batch update
