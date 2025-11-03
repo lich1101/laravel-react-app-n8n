@@ -487,6 +487,9 @@ class WebhookController extends Controller
             case 'perplexity':
                 return $this->executePerplexityNode($config, $inputData);
 
+            case 'claude':
+                return $this->executeClaudeNode($config, $inputData);
+
             case 'code':
                 return $this->executeCodeNode($config, $inputData);
 
@@ -1113,6 +1116,148 @@ JS;
 
             return [
                 'error' => 'Code execution failed',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    // Public wrapper for testing Claude node
+    public function testClaudeNode($config, $inputData)
+    {
+        return $this->executeClaudeNode($config, $inputData);
+    }
+
+    // Public wrapper for testing Perplexity node
+    public function testPerplexityNode($config, $inputData)
+    {
+        return $this->executePerplexityNode($config, $inputData);
+    }
+
+    private function executeClaudeNode($config, $inputData)
+    {
+        try {
+            // Build messages array (Claude không hỗ trợ system trong messages array)
+            $messages = [];
+            
+            // Add all user/assistant messages
+            if (!empty($config['messages']) && is_array($config['messages'])) {
+                foreach ($config['messages'] as $msg) {
+                    $content = $this->resolveVariables($msg['content'] ?? '', $inputData);
+                    if (!empty($content)) {
+                        $messages[] = [
+                            'role' => $msg['role'] ?? 'user',
+                            'content' => $content
+                        ];
+                    }
+                }
+            }
+
+            // Get credential
+            $credentialId = $config['credentialId'] ?? null;
+            if (!$credentialId) {
+                throw new \Exception('Claude API credential is required');
+            }
+
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential || !isset($credential->data['headerValue'])) {
+                throw new \Exception('Invalid Claude credential configuration');
+            }
+
+            // Build request body
+            $requestBody = [
+                'model' => $config['model'] ?? 'claude-3-5-sonnet-20241022',
+                'messages' => $messages,
+                'max_tokens' => $config['max_tokens'] ?? 1024,
+                'temperature' => $config['temperature'] ?? 0.7,
+                'top_k' => $config['top_k'] ?? 40,
+                'top_p' => $config['top_p'] ?? 0.9,
+            ];
+
+            // Add system message if enabled (Claude uses separate system parameter)
+            if (!empty($config['systemMessageEnabled']) && !empty($config['systemMessage'])) {
+                $systemMessage = $this->resolveVariables($config['systemMessage'], $inputData);
+                if ($systemMessage) {
+                    $requestBody['system'] = $systemMessage;
+                }
+            }
+
+            // Add advanced options
+            if (!empty($config['advancedOptions']) && is_array($config['advancedOptions'])) {
+                foreach ($config['advancedOptions'] as $key => $value) {
+                    if ($key === 'timeout') continue;
+                    
+                    if (is_numeric($value)) {
+                        $requestBody[$key] = strpos($value, '.') !== false 
+                            ? floatval($value) 
+                            : intval($value);
+                    } else {
+                        $requestBody[$key] = $value;
+                    }
+                }
+            }
+
+            Log::info('Claude API Request', [
+                'model' => $requestBody['model'],
+                'messages_count' => count($messages),
+                'has_system' => isset($requestBody['system']),
+            ]);
+
+            // Build headers
+            $headers = [
+                'Content-Type' => 'application/json',
+                'anthropic-version' => '2023-06-01',
+                'x-api-key' => $credential->data['headerValue'],
+            ];
+
+            // Get timeout
+            $timeout = 60;
+            if (isset($config['timeout'])) {
+                $timeout = (int)$config['timeout'];
+            } elseif (!empty($config['advancedOptions']['timeout'])) {
+                $timeout = (int)$config['advancedOptions']['timeout'];
+            }
+
+            // Make HTTP request to Claude API
+            $originalTimeout = ini_get('default_socket_timeout');
+            if ($timeout > 60) {
+                ini_set('default_socket_timeout', $timeout);
+            }
+
+            try {
+                $response = Http::withHeaders($headers)
+                    ->timeout($timeout)
+                    ->post('https://api.anthropic.com/v1/messages', $requestBody);
+            } finally {
+                if ($timeout > 60) {
+                    ini_set('default_socket_timeout', $originalTimeout);
+                }
+            }
+
+            if (!$response->successful()) {
+                Log::error('Claude API Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                
+                throw new \Exception('Claude API error: ' . $response->body());
+            }
+
+            $result = $response->json();
+
+            Log::info('Claude API Response', [
+                'model' => $result['model'] ?? 'unknown',
+                'has_content' => isset($result['content']),
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error('Claude node execution failed', [
+                'error' => $e->getMessage(),
+                'config' => $config,
+            ]);
+
+            return [
+                'error' => 'Claude request failed',
                 'message' => $e->getMessage(),
             ];
         }

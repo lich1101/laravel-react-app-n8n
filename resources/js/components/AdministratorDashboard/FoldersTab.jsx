@@ -3,8 +3,10 @@ import axios from '../../config/axios';
 import { useNavigate } from 'react-router-dom';
 import FolderWorkflowView from './FolderWorkflowView';
 import SyncModal from './SyncModal';
+import CredentialsTab from '../CredentialsTab';
 
 const FoldersTab = () => {
+    const [activeSubTab, setActiveSubTab] = useState('workflows');
     const [folders, setFolders] = useState([]);
     const [workflows, setWorkflows] = useState([]);
     const [projects, setProjects] = useState([]);
@@ -254,33 +256,65 @@ const FoldersTab = () => {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Folders</h2>
-                <div className="flex space-x-2">
+            {/* Sub-tabs for Workflows and Credentials */}
+            <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+                <nav className="flex space-x-8" aria-label="Tabs">
                     <button
-                        onClick={() => setShowCreateWorkflowModal(true)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
+                        onClick={() => setActiveSubTab('workflows')}
+                        className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                            activeSubTab === 'workflows'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                        }`}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span>Create Workflow</span>
+                        📄 Workflows
                     </button>
                     <button
-                        onClick={() => {
-                            setShowEditModal(true);
-                            setEditingFolder(null);
-                            setFormData({ name: '', description: '', workflows: [] });
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
+                        onClick={() => setActiveSubTab('credentials')}
+                        className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                            activeSubTab === 'credentials'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                        }`}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span>Add Folder</span>
+                        🔐 Credentials
                     </button>
-                </div>
+                </nav>
             </div>
+
+            {/* Credentials Tab Content */}
+            {activeSubTab === 'credentials' ? (
+                <CredentialsTab />
+            ) : (
+                <>
+                    {/* Workflows Tab Content */}
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Folders</h2>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setShowCreateWorkflowModal(true)}
+                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                <span>Create Workflow</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowEditModal(true);
+                                    setEditingFolder(null);
+                                    setFormData({ name: '', description: '', workflows: [] });
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                <span>Add Folder</span>
+                            </button>
+                        </div>
+                    </div>
 
             {/* Folders Tree View */}
             <div className="space-y-2">
@@ -643,6 +677,8 @@ const FoldersTab = () => {
                         </form>
                     </div>
                 </div>
+            )}
+                </>
             )}
         </div>
     );

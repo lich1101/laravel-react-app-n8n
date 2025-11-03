@@ -193,4 +193,48 @@ class WorkflowController extends Controller
         return response()->json($execution);
     }
 
+    /**
+     * Test a node configuration (avoids CORS issues)
+     */
+    public function testNode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'nodeType' => 'required|string',
+            'config' => 'required|array',
+            'inputData' => 'sometimes|array',
+        ]);
+
+        $nodeType = $request->nodeType;
+        $config = $request->config;
+        $inputData = $request->inputData ?? [];
+
+        // Create WebhookController instance to use executeNode methods
+        $webhookController = new WebhookController();
+        
+        try {
+            $result = null;
+            
+            // Call appropriate execute method based on node type
+            switch ($nodeType) {
+                case 'claude':
+                    $result = $webhookController->testClaudeNode($config, $inputData);
+                    break;
+                case 'perplexity':
+                    $result = $webhookController->testPerplexityNode($config, $inputData);
+                    break;
+                default:
+                    return response()->json([
+                        'error' => 'Unsupported node type for testing'
+                    ], 400);
+            }
+            
+            return response()->json($result);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Test failed',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
 }

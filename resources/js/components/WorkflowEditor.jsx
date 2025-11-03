@@ -16,6 +16,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import WebhookConfigModal from './WebhookConfigModal';
 import HttpRequestConfigModal from './HttpRequestConfigModal';
 import PerplexityConfigModal from './PerplexityConfigModal';
+import ClaudeConfigModal from './ClaudeConfigModal';
 import CodeConfigModal from './CodeConfigModal';
 import EscapeConfigModal from './EscapeConfigModal';
 import IfConfigModal from './IfConfigModal';
@@ -219,6 +220,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                 >
                     <button onClick={() => handleSelectNode('http')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🌐 HTTP Request</button>
                     <button onClick={() => handleSelectNode('perplexity')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Perplexity AI</button>
+                    <button onClick={() => handleSelectNode('claude')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Claude AI</button>
                     <button onClick={() => handleSelectNode('code')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">💻 Code</button>
                     <button onClick={() => handleSelectNode('escape')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
                     <button onClick={() => handleSelectNode('if')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
@@ -261,6 +263,18 @@ const nodeTypes = {
             nodeType="perplexity"
             iconPath="/icons/nodes/perplexity.svg"
             color="indigo"
+            handles={{ input: true, outputs: [{ id: null }] }}
+            onQuickAdd={props.data.onQuickAdd}
+            connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
+        />
+    ),
+    claude: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="claude"
+            iconPath="/icons/nodes/claude.svg"
+            color="orange"
             handles={{ input: true, outputs: [{ id: null }] }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
@@ -567,6 +581,7 @@ function WorkflowEditor() {
         const labels = {
             http: 'HTTP Request',
             perplexity: 'Perplexity AI',
+            claude: 'Claude AI',
             code: 'Code',
             escape: 'Escape & Set',
             if: 'If',
@@ -842,6 +857,7 @@ function WorkflowEditor() {
             webhook: 'Webhook',
             http: 'HTTP Request',
             perplexity: 'Perplexity AI',
+            claude: 'Claude AI',
             code: 'Code',
             escape: 'Escape & Set',
             if: 'If',
@@ -1153,7 +1169,7 @@ function WorkflowEditor() {
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
-        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'code' || node.type === 'escape' || node.type === 'if') {
+        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'code' || node.type === 'escape' || node.type === 'if') {
             setShowConfigModal(true);
         }
     };
@@ -1713,6 +1729,36 @@ function WorkflowEditor() {
         }
     };
 
+    // Test Claude node (call via backend to avoid CORS)
+    const handleTestClaudeNode = async (config) => {
+        try {
+            console.log('Testing Claude with config:', config);
+
+            const inputData = getNodeInputData(selectedNode?.id || '');
+            console.log('Input data for variable resolution:', inputData);
+
+            if (!config.credentialId) {
+                throw new Error('Claude API credential is required');
+            }
+
+            // Call backend API to test node (avoids CORS)
+            const response = await axios.post('/test-node', {
+                nodeType: 'claude',
+                config: config,
+                inputData: inputData
+            });
+
+            console.log('Claude response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error testing Claude:', error);
+            return {
+                error: error.response?.data?.message || error.message || 'An error occurred',
+                details: error.toString(),
+            };
+        }
+    };
+
     // Test If node
     const handleTestIfNode = async (config) => {
         try {
@@ -2180,6 +2226,12 @@ function WorkflowEditor() {
                                         Perplexity AI
                                     </button>
                                     <button
+                                        onClick={() => { addNode('claude', 'Claude AI'); setShowNodeMenu(false); }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                        Claude AI
+                                    </button>
+                                    <button
                                         onClick={() => { addNode('code', 'Code'); setShowNodeMenu(false); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
@@ -2398,6 +2450,7 @@ function WorkflowEditor() {
                                 >
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'http'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🌐 HTTP Request</button>
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'perplexity'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Perplexity AI</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'claude'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Claude AI</button>
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'code'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">💻 Code</button>
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'escape'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'if'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
@@ -2533,6 +2586,21 @@ function WorkflowEditor() {
                         onSave={handleSaveConfig}
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestPerplexityNode}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
+                        outputData={nodeOutputData[selectedNode.id]}
+                        onTestResult={handleTestResult}
+                        allEdges={edges}
+                        allNodes={nodes}
+                    />
+                )}
+
+                {showConfigModal && selectedNode && selectedNode.type === 'claude' && (
+                    <ClaudeConfigModal
+                        node={selectedNode}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onTest={handleTestClaudeNode}
                         onRename={() => openRenameModal(selectedNode.id)}
                         inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
