@@ -222,6 +222,9 @@ class WorkflowController extends Controller
                 case 'perplexity':
                     $result = $webhookController->testPerplexityNode($config, $inputData);
                     break;
+                case 'googledocs':
+                    $result = $webhookController->testGoogleDocsNode($config, $inputData);
+                    break;
                 default:
                     return response()->json([
                         'error' => 'Unsupported node type for testing'

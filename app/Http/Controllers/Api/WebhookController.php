@@ -581,6 +581,9 @@ class WebhookController extends Controller
             case 'switch':
                 return $this->executeSwitchNode($config, $inputData);
 
+            case 'googledocs':
+                return $this->executeGoogleDocsNode($config, $inputData);
+
             default:
                 // Pass through input data
                 return $inputData[0] ?? [];
@@ -914,6 +917,175 @@ class WebhookController extends Controller
             ['\\t', '\\r', '\\n', '\\"', '\\\\'],
             $text
         )));
+    }
+
+    private function executeGoogleDocsNode($config, $inputData)
+    {
+        try {
+            $credentialId = $config['credentialId'] ?? null;
+            if (!$credentialId) {
+                throw new \Exception('Google Docs credential is required');
+            }
+
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential || $credential->type !== 'oauth2') {
+                throw new \Exception('Invalid Google Docs OAuth2 credential');
+            }
+
+            $operation = $config['operation'] ?? 'create';
+            
+            if ($operation === 'create') {
+                return $this->createGoogleDoc($config, $inputData, $credential);
+            } elseif ($operation === 'update') {
+                return $this->updateGoogleDoc($config, $inputData, $credential);
+            }
+
+            throw new \Exception('Unsupported operation: ' . $operation);
+        } catch (\Exception $e) {
+            Log::error('Google Docs node execution failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'error' => 'Google Docs request failed',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function createGoogleDoc($config, $inputData, $credential)
+    {
+        $title = $this->resolveVariables($config['title'] ?? 'Untitled', $inputData);
+        $folderId = $this->resolveVariables($config['folderId'] ?? '', $inputData);
+
+        // Get access token
+        $accessToken = $credential->data['access_token'] ?? null;
+        if (!$accessToken) {
+            throw new \Exception('OAuth2 access token not found');
+        }
+
+        // Create document
+        $response = Http::withToken($accessToken)
+            ->post('https://docs.googleapis.com/v1/documents', [
+                'title' => $title
+            ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to create document: ' . $response->body());
+        }
+
+        $result = $response->json();
+        $documentId = $result['documentId'] ?? null;
+
+        // Move to folder if specified
+        if ($folderId && $documentId) {
+            try {
+                Http::withToken($accessToken)
+                    ->post("https://www.googleapis.com/drive/v3/files/{$documentId}", [
+                        'addParents' => $folderId,
+                    ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to move document to folder', [
+                    'error' => $e->getMessage(),
+                    'folder_id' => $folderId,
+                ]);
+            }
+        }
+
+        Log::info('Google Doc created', [
+            'document_id' => $documentId,
+            'title' => $title,
+        ]);
+
+        return [
+            'id' => $documentId,
+            'title' => $title,
+            'url' => "https://docs.google.com/document/d/{$documentId}/edit",
+            'document' => $result,
+        ];
+    }
+
+    private function updateGoogleDoc($config, $inputData, $credential)
+    {
+        $documentId = $this->resolveVariables($config['documentId'] ?? '', $inputData);
+        if (!$documentId) {
+            throw new \Exception('Document ID is required for update operation');
+        }
+
+        // Extract doc ID from URL if needed
+        if (strpos($documentId, 'docs.google.com') !== false) {
+            preg_match('/\/d\/([a-zA-Z0-9-_]+)/', $documentId, $matches);
+            $documentId = $matches[1] ?? $documentId;
+        }
+
+        $accessToken = $credential->data['access_token'] ?? null;
+        if (!$accessToken) {
+            throw new \Exception('OAuth2 access token not found');
+        }
+
+        // Build requests for batch update
+        $requests = [];
+        $actions = $config['actions'] ?? [];
+
+        foreach ($actions as $action) {
+            $text = $this->resolveVariables($action['text'] ?? '', $inputData);
+            
+            if ($action['action'] === 'insert') {
+                $location = $action['insertLocation'] ?? 'end';
+                
+                // Get document to find insert position
+                if ($location === 'end') {
+                    $docResponse = Http::withToken($accessToken)
+                        ->get("https://docs.googleapis.com/v1/documents/{$documentId}");
+                    
+                    if ($docResponse->successful()) {
+                        $doc = $docResponse->json();
+                        $endIndex = $doc['body']['content'][count($doc['body']['content']) - 1]['endIndex'] ?? 1;
+                        
+                        $requests[] = [
+                            'insertText' => [
+                                'location' => ['index' => $endIndex - 1],
+                                'text' => $text
+                            ]
+                        ];
+                    }
+                } else {
+                    $requests[] = [
+                        'insertText' => [
+                            'location' => ['index' => 1],
+                            'text' => $text
+                        ]
+                    ];
+                }
+            }
+        }
+
+        if (empty($requests)) {
+            throw new \Exception('No valid actions to perform');
+        }
+
+        // Execute batch update
+        $response = Http::withToken($accessToken)
+            ->post("https://docs.googleapis.com/v1/documents/{$documentId}:batchUpdate", [
+                'requests' => $requests
+            ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to update document: ' . $response->body());
+        }
+
+        $result = $response->json();
+
+        Log::info('Google Doc updated', [
+            'document_id' => $documentId,
+            'actions_count' => count($requests),
+        ]);
+
+        return [
+            'id' => $documentId,
+            'url' => "https://docs.google.com/document/d/{$documentId}/edit",
+            'result' => $result,
+        ];
     }
 
     private function executeSwitchNode($config, $inputData)
@@ -1283,6 +1455,12 @@ JS;
     public function testPerplexityNode($config, $inputData)
     {
         return $this->executePerplexityNode($config, $inputData);
+    }
+
+    // Public wrapper for testing Google Docs node
+    public function testGoogleDocsNode($config, $inputData)
+    {
+        return $this->executeGoogleDocsNode($config, $inputData);
     }
 
     private function executeClaudeNode($config, $inputData)

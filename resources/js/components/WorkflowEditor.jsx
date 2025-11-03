@@ -21,6 +21,7 @@ import CodeConfigModal from './CodeConfigModal';
 import EscapeConfigModal from './EscapeConfigModal';
 import IfConfigModal from './IfConfigModal';
 import SwitchConfigModal from './SwitchConfigModal';
+import GoogleDocsConfigModal from './GoogleDocsConfigModal';
 import WorkflowHistory from './WorkflowHistory';
 import RenameNodeModal from './RenameNodeModal';
 
@@ -226,6 +227,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                     <button onClick={() => handleSelectNode('escape')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
                     <button onClick={() => handleSelectNode('if')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
                     <button onClick={() => handleSelectNode('switch')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 Switch</button>
+                    <button onClick={() => handleSelectNode('googledocs')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">📄 Google Docs</button>
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                     <button onClick={() => setShowQuickAdd(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
                 </div>
@@ -356,6 +358,18 @@ const nodeTypes = {
             />
         );
     },
+    googledocs: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="googledocs"
+            iconPath="/icons/nodes/googledocs.svg"
+            color="blue"
+            handles={{ input: true, outputs: [{ id: null }] }}
+            onQuickAdd={props.data.onQuickAdd}
+            connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
+        />
+    ),
 };
 
 
@@ -619,6 +633,7 @@ function WorkflowEditor() {
             escape: 'Escape & Set',
             if: 'If',
             switch: 'Switch',
+            googledocs: 'Google Docs',
         };
 
         // Generate unique custom name
@@ -896,6 +911,7 @@ function WorkflowEditor() {
             escape: 'Escape & Set',
             if: 'If',
             switch: 'Switch',
+            googledocs: 'Google Docs',
         };
 
         addNode(nodeType, labels[nodeType], position, sourceNodeId, sourceHandle);
@@ -1204,7 +1220,7 @@ function WorkflowEditor() {
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
-        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch') {
+        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs') {
             setShowConfigModal(true);
         }
     };
@@ -1951,6 +1967,36 @@ function WorkflowEditor() {
         }
     };
 
+    // Test Google Docs node (call via backend)
+    const handleTestGoogleDocsNode = async (config) => {
+        try {
+            console.log('Testing Google Docs with config:', config);
+
+            const inputData = getNodeInputData(selectedNode?.id || '');
+            console.log('Input data for Google Docs:', inputData);
+
+            if (!config.credentialId) {
+                throw new Error('Google Docs credential is required');
+            }
+
+            // Call backend API to test node
+            const response = await axios.post('/test-node', {
+                nodeType: 'googledocs',
+                config: config,
+                inputData: inputData
+            });
+
+            console.log('Google Docs response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error testing Google Docs:', error);
+            return {
+                error: error.response?.data?.message || error.message || 'An error occurred',
+                details: error.toString(),
+            };
+        }
+    };
+
     // Test Switch node
     const handleTestSwitchNode = async (config) => {
         try {
@@ -2374,6 +2420,12 @@ function WorkflowEditor() {
                                     >
                                         Switch
                                     </button>
+                                    <button
+                                        onClick={() => { addNode('googledocs', 'Google Docs'); setShowNodeMenu(false); }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                        Google Docs
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -2580,6 +2632,7 @@ function WorkflowEditor() {
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'escape'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'if'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'switch'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 Switch</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'googledocs'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">📄 Google Docs</button>
                                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                                     <button onClick={() => setShowEdgeNodeMenu(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
                                 </div>
@@ -2787,6 +2840,21 @@ function WorkflowEditor() {
                         onSave={handleSaveConfig}
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestSwitchNode}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
+                        outputData={nodeOutputData[selectedNode.id]}
+                        onTestResult={handleTestResult}
+                        allEdges={edges}
+                        allNodes={nodes}
+                    />
+                )}
+
+                {showConfigModal && selectedNode && selectedNode.type === 'googledocs' && (
+                    <GoogleDocsConfigModal
+                        node={selectedNode}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onTest={handleTestGoogleDocsNode}
                         onRename={() => openRenameModal(selectedNode.id)}
                         inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
