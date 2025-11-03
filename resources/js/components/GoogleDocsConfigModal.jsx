@@ -161,6 +161,41 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
             return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">null</span>;
         }
 
+        // Handle arrays
+        if (Array.isArray(obj)) {
+            const typeInfo = getTypeInfo(obj);
+            const isCollapsed = collapsedPaths.has(prefix);
+            return (
+                <div className="space-y-1">
+                    <div 
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        onClick={() => toggleCollapse(prefix)}
+                    >
+                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {isCollapsed ? '▶' : '▼'}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                            {typeInfo.icon}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{obj.length} items</span>
+                    </div>
+                    {!isCollapsed && (
+                        <div className="ml-4 space-y-1">
+                            {obj.map((item, index) => {
+                                const itemPath = `${prefix}[${index}]`;
+                                return (
+                                    <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
+                                        {renderDraggableJSON(item, itemPath)}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         if (typeof obj === 'object' && !Array.isArray(obj)) {
             const keys = Object.keys(obj);
             return (

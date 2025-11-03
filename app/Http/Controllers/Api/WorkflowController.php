@@ -202,11 +202,44 @@ class WorkflowController extends Controller
             'nodeType' => 'required|string',
             'config' => 'required|array',
             'inputData' => 'sometimes|array',
+            'nodes' => 'sometimes|array', // For building namedInputs
+            'edges' => 'sometimes|array', // For building namedInputs
+            'nodeOutputs' => 'sometimes|array', // For building namedInputs
+            'nodeId' => 'sometimes|string', // Current node ID being tested
         ]);
 
         $nodeType = $request->nodeType;
         $config = $request->config;
         $inputData = $request->inputData ?? [];
+        
+        // Build namedInputs if nodes/edges/nodeOutputs are provided (from frontend)
+        // This fixes the issue where {{NodeName.field}} doesn't work in test step
+        if ($request->has('nodes') && $request->has('edges') && $request->has('nodeOutputs') && $request->has('nodeId')) {
+            $nodes = $request->nodes;
+            $edges = $request->edges;
+            $nodeOutputs = $request->nodeOutputs;
+            $nodeId = $request->nodeId;
+            
+            // Build node map: id => customName
+            $nodeMap = [];
+            foreach ($nodes as $node) {
+                $nodeMap[$node['id']] = $node['data']['customName'] ?? $node['data']['label'] ?? $node['type'];
+            }
+            
+            // Collect ALL upstream nodes using BFS
+            $namedInputs = [];
+            $allUpstreamIds = $this->collectAllUpstreamNodesForTest($nodeId, $edges);
+            
+            foreach ($allUpstreamIds as $upstreamId) {
+                if (isset($nodeOutputs[$upstreamId]) && isset($nodeMap[$upstreamId])) {
+                    $nodeName = $nodeMap[$upstreamId];
+                    $namedInputs[$nodeName] = $nodeOutputs[$upstreamId];
+                }
+            }
+            
+            // Merge namedInputs into inputData (preserve existing numeric indices)
+            $inputData = array_merge($inputData, $namedInputs);
+        }
 
         // Create WebhookController instance to use executeNode methods
         $webhookController = new WebhookController();
@@ -238,6 +271,46 @@ class WorkflowController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+    
+    /**
+     * Collect all upstream nodes using BFS (for test step)
+     */
+    private function collectAllUpstreamNodesForTest($nodeId, $edges)
+    {
+        $upstream = [];
+        $visited = [];
+        $queue = [$nodeId];
+
+        while (!empty($queue)) {
+            $current = array_shift($queue);
+
+            if (isset($visited[$current])) {
+                continue;
+            }
+
+            $visited[$current] = true;
+
+            // Find all nodes that point to current node
+            $incomingNodes = collect($edges)
+                ->filter(function ($edge) use ($current) {
+                    return $edge['target'] === $current;
+                })
+                ->map(function ($edge) {
+                    return $edge['source'];
+                })
+                ->filter()
+                ->toArray();
+
+            foreach ($incomingNodes as $source) {
+                $upstream[] = $source;
+                if (!isset($visited[$source])) {
+                    $queue[] = $source;
+                }
+            }
+        }
+
+        return $upstream;
     }
 
 }

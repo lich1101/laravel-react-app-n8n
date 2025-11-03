@@ -921,6 +921,15 @@ class WebhookController extends Controller
 
     private function executeGoogleDocsNode($config, $inputData)
     {
+        // CRITICAL DEBUG: Log inputData structure  
+        Log::info('🔍 executeGoogleDocsNode START', [
+            'operation' => $config['operation'] ?? 'unknown',
+            'inputData_keys' => is_array($inputData) ? array_keys($inputData) : 'NOT ARRAY',
+            'inputData_type' => gettype($inputData),
+            'has_Google_Docs' => is_array($inputData) && isset($inputData['Google Docs']),
+            'Google_Docs_sample' => is_array($inputData) && isset($inputData['Google Docs']) ? $inputData['Google Docs'] : 'NOT FOUND',
+        ]);
+        
         try {
             $credentialId = $config['credentialId'] ?? null;
             if (!$credentialId) {
@@ -964,52 +973,77 @@ class WebhookController extends Controller
             throw new \Exception('OAuth2 access token not found. Please authorize this credential first by clicking "Connect" in the Credentials page.');
         }
 
-        // Create document
+        // Create document using Drive API (allows specifying folder from the start)
+        $metadata = [
+            'name' => $title,
+            'mimeType' => 'application/vnd.google-apps.document'
+        ];
+
+        // Add parent folder if specified
+        if ($folderId) {
+            $metadata['parents'] = [$folderId];
+        }
+
         $response = Http::withToken($accessToken)
-            ->post('https://docs.googleapis.com/v1/documents', [
-                'title' => $title
-            ]);
+            ->post('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', $metadata);
 
         if (!$response->successful()) {
             throw new \Exception('Failed to create document: ' . $response->body());
         }
 
-        $result = $response->json();
-        $documentId = $result['documentId'] ?? null;
+        $driveFile = $response->json();
+        $documentId = $driveFile['id'] ?? null;
 
-        // Move to folder if specified
-        if ($folderId && $documentId) {
-            try {
-                Http::withToken($accessToken)
-                    ->post("https://www.googleapis.com/drive/v3/files/{$documentId}", [
-                        'addParents' => $folderId,
-                    ]);
-            } catch (\Exception $e) {
-                Log::warning('Failed to move document to folder', [
-                    'error' => $e->getMessage(),
-                    'folder_id' => $folderId,
-                ]);
-            }
+        if (!$documentId) {
+            throw new \Exception('Document ID not returned from Google Drive API');
         }
+
+        // Get the full document details from Docs API
+        $docResponse = Http::withToken($accessToken)
+            ->get("https://docs.googleapis.com/v1/documents/{$documentId}");
+
+        $result = $docResponse->successful() ? $docResponse->json() : $driveFile;
 
         Log::info('Google Doc created', [
             'document_id' => $documentId,
             'title' => $title,
+            'folder_id' => $folderId ?: 'My Drive root',
         ]);
 
         return [
             'id' => $documentId,
             'title' => $title,
             'url' => "https://docs.google.com/document/d/{$documentId}/edit",
+            'folder_id' => $folderId ?: null,
             'document' => $result,
         ];
     }
 
     private function updateGoogleDoc($config, $inputData, $credential)
     {
-        $documentId = $this->resolveVariables($config['documentId'] ?? '', $inputData);
+        $originalDocId = $config['documentId'] ?? '';
+        
+        Log::info('Update Google Doc - resolving documentId', [
+            'original_documentId' => $originalDocId,
+            'inputData_keys' => array_keys($inputData),
+            'inputData_node_names' => array_filter(array_keys($inputData), function($k) { return !is_numeric($k); }),
+        ]);
+        
+        $documentId = $this->resolveVariables($originalDocId, $inputData);
+        
+        Log::info('Document ID after resolution', [
+            'original' => $originalDocId,
+            'resolved' => $documentId,
+            'was_resolved' => $documentId !== $originalDocId,
+        ]);
+        
         if (!$documentId) {
             throw new \Exception('Document ID is required for update operation');
+        }
+        
+        // Check if still a template (not resolved)
+        if (strpos($documentId, '{{') !== false) {
+            throw new \Exception('Document ID variable not resolved: ' . $documentId . '. Make sure the Google Docs create node is connected to this update node.');
         }
 
         // Extract doc ID from URL if needed
@@ -1028,8 +1062,29 @@ class WebhookController extends Controller
         $requests = [];
         $actions = $config['actions'] ?? [];
 
-        foreach ($actions as $action) {
+        Log::info('Processing Google Docs update actions', [
+            'document_id' => $documentId,
+            'actions_count' => count($actions),
+        ]);
+
+        foreach ($actions as $index => $action) {
             $text = $this->resolveVariables($action['text'] ?? '', $inputData);
+            
+            // Unescape special characters (convert \n to actual newline, etc.)
+            // This allows users to use escape sequences in their text
+            $text = $this->unescapeText($text);
+            
+            Log::info("Action {$index} - resolved text", [
+                'original' => $action['text'] ?? '',
+                'resolved' => substr($text, 0, 200),
+                'length' => strlen($text),
+            ]);
+            
+            // Skip empty text
+            if (empty($text) || trim($text) === '') {
+                Log::warning("Action {$index} - skipping empty text");
+                continue;
+            }
             
             if ($action['action'] === 'insert') {
                 $location = $action['insertLocation'] ?? 'end';
@@ -1049,6 +1104,11 @@ class WebhookController extends Controller
                                 'text' => $text
                             ]
                         ];
+                    } else {
+                        Log::error('Failed to get document for finding end index', [
+                            'document_id' => $documentId,
+                            'error' => $docResponse->body()
+                        ]);
                     }
                 } else {
                     $requests[] = [
@@ -1062,7 +1122,7 @@ class WebhookController extends Controller
         }
 
         if (empty($requests)) {
-            throw new \Exception('No valid actions to perform');
+            throw new \Exception('No valid actions to perform. Make sure your text fields are not empty and variables are correctly resolved from upstream nodes.');
         }
 
         // Execute batch update
@@ -1087,6 +1147,25 @@ class WebhookController extends Controller
             'url' => "https://docs.google.com/document/d/{$documentId}/edit",
             'result' => $result,
         ];
+    }
+
+    /**
+     * Unescape special characters in text
+     * Converts literal \n, \t, \r to actual newline, tab, carriage return
+     */
+    private function unescapeText($text)
+    {
+        if (!is_string($text)) {
+            return $text;
+        }
+
+        // Convert escape sequences to actual characters
+        $text = str_replace('\\n', "\n", $text);  // Newline
+        $text = str_replace('\\r', "\r", $text);  // Carriage return
+        $text = str_replace('\\t', "\t", $text);  // Tab
+        $text = str_replace('\\\\', "\\", $text); // Backslash (do this last)
+        
+        return $text;
     }
 
     private function executeSwitchNode($config, $inputData)
@@ -1738,6 +1817,9 @@ JS;
 
         Log::info('Resolving template', [
             'template_preview' => substr($template, 0, 200),
+            'available_node_names' => array_filter(array_keys($inputData), function($key) {
+                return !is_numeric($key);
+            }),
             'input_data_structure' => array_map(function($item) {
                 if (is_array($item)) {
                     return '[array with ' . count($item) . ' items]';
@@ -1877,6 +1959,10 @@ JS;
     private function getValueFromPath($path, $inputData, $workflow = null)
     {
         if (empty($inputData) || !is_array($inputData)) {
+            Log::warning('getValueFromPath: inputData is empty or not array', [
+                'path' => $path,
+                'inputData_type' => gettype($inputData),
+            ]);
             return null;
         }
 
@@ -1884,9 +1970,20 @@ JS;
             'path' => $path,
             'inputData_keys' => array_keys($inputData),
             'inputData_sample' => isset($inputData[0]) ? array_keys($inputData[0] ?? []) : [],
+            'all_node_names' => array_filter(array_keys($inputData), function($key) {
+                return !is_numeric($key);
+            }),
         ]);
 
         $parts = explode('.', $path);
+
+        Log::info('🔍 Path parsing', [
+            'original_path' => $path,
+            'parts' => $parts,
+            'first_part' => $parts[0] ?? 'NONE',
+            'exists_in_inputData' => isset($parts[0]) && isset($inputData[$parts[0]]),
+            'is_numeric' => isset($parts[0]) && is_numeric($parts[0]),
+        ]);
 
         // PRIORITY 1: Try to resolve by node customName (e.g., "Webhook1.body.content")
         // Check if first part is a string key (customName) in inputData
@@ -1894,7 +1991,7 @@ JS;
             $nodeName = $parts[0];
             $value = $inputData[$nodeName];
             
-            Log::info('Found node by customName', [
+            Log::info('✅ Found node by customName', [
                 'node_name' => $nodeName,
                 'remaining_path' => array_slice($parts, 1),
             ]);

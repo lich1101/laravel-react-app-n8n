@@ -1980,10 +1980,16 @@ function WorkflowEditor() {
             }
 
             // Call backend API to test node
+            // Include nodes, edges, nodeOutputs, and nodeId so backend can build namedInputs
+            // This fixes {{NodeName.field}} variable resolution in test step
             const response = await axios.post('/test-node', {
                 nodeType: 'googledocs',
                 config: config,
-                inputData: inputData
+                inputData: inputData,
+                nodes: nodes, // All nodes for building node map
+                edges: edges, // All edges for finding upstream nodes
+                nodeOutputs: nodeOutputData, // Output data from all tested nodes
+                nodeId: selectedNode?.id || '', // Current node being tested
             });
 
             console.log('Google Docs response:', response.data);
