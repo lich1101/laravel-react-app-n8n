@@ -51,9 +51,13 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
     const fetchCredentials = async () => {
         try {
-            // Fetch credentials with type 'custom' for header auth
-            const response = await axios.get('/credentials', { params: { type: 'custom' } });
-            setCredentials(Array.isArray(response.data) ? response.data : []);
+            // Fetch all credentials (Perplexity accepts custom header or bearer token)
+            const response = await axios.get('/credentials');
+            // Filter for custom or bearer types
+            const filtered = Array.isArray(response.data) 
+                ? response.data.filter(c => c.type === 'custom' || c.type === 'bearer')
+                : [];
+            setCredentials(filtered);
         } catch (error) {
             console.error('Error fetching credentials:', error);
             setCredentials([]);
