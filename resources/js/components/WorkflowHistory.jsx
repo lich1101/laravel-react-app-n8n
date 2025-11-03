@@ -13,11 +13,13 @@ import IfConfigModal from './IfConfigModal';
 // Compact node component (giống hệt Editor nhưng READ-ONLY)
 const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
     const isCompleted = data?.isCompleted || false;
+    const hasError = data?.hasError || false;
     const connectedHandles = data?.connectedHandles || [];
 
     return (
         <div 
             className={`bg-gray-800 dark:bg-gray-700 border-2 rounded-lg p-3 w-20 h-20 relative flex items-center justify-center group transition-all ${
+                hasError ? 'border-red-500 border-4' : 
                 isCompleted ? 'border-green-500' : 'border-gray-600 dark:border-gray-500'
             }`}
             title={data.customName || data.label || nodeType}
@@ -259,6 +261,7 @@ const WorkflowHistory = () => {
 
         const nodeResults = executionDetails?.node_results || {};
         const executionOrder = executionDetails?.execution_order || [];
+        const errorNode = executionDetails?.error_node || null;
 
         return workflowNodes.map(node => {
             // Find which handles are connected
@@ -267,6 +270,7 @@ const WorkflowHistory = () => {
                 .map(e => e.sourceHandle || 'default');
             
             const hasExecuted = nodeResults[node.id] !== undefined;
+            const isErrorNode = errorNode === node.id;
             
             return {
                 ...node,
@@ -276,7 +280,8 @@ const WorkflowHistory = () => {
                     ...node.data,
                     nodeId: node.id,
                     connectedHandles: connectedHandles,
-                    isCompleted: hasExecuted,
+                    isCompleted: hasExecuted && !isErrorNode,
+                    hasError: isErrorNode,
                 },
             };
         });
@@ -311,11 +316,16 @@ const WorkflowHistory = () => {
                                         </span>
                                         <span className={`text-xs font-semibold px-2 py-1 rounded ${
                                             execution.status === 'success' ? 'bg-green-500 text-white' :
-                                            execution.status === 'failed' ? 'bg-red-500 text-white' :
+                                            execution.status === 'error' || execution.status === 'failed' ? 'bg-red-500 text-white' :
+                                            execution.status === 'running' ? 'bg-blue-500 text-white' :
+                                            execution.status === 'queued' ? 'bg-gray-500 text-white' :
                                             'bg-yellow-500 text-white'
                                         }`}>
                                             {execution.status === 'success' ? 'Success' : 
-                                             execution.status === 'failed' ? 'Failed' : 'Running'}
+                                             execution.status === 'error' || execution.status === 'failed' ? 'Error' :
+                                             execution.status === 'running' ? 'Running' :
+                                             execution.status === 'queued' ? 'Queued' :
+                                             'Unknown'}
                                         </span>
                                     </div>
                                     <p className="text-xs text-gray-300">

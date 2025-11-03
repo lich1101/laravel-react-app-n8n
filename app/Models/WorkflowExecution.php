@@ -16,6 +16,7 @@ class WorkflowExecution extends Model
         'output_data',
         'node_results',
         'execution_order',
+        'error_node',
         'error_message',
         'duration_ms',
         'started_at',

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Workflow;
 use App\Models\WorkflowNode;
 use App\Models\WorkflowExecution;
+use App\Jobs\ExecuteWorkflowJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -49,7 +50,7 @@ class WebhookController extends Controller
             $execution = WorkflowExecution::create([
                 'workflow_id' => $workflow->id,
                 'trigger_type' => 'webhook',
-                'status' => 'running',
+                'status' => 'queued',
                 'input_data' => $request->all(),
                 'workflow_snapshot' => [
                     'nodes' => $workflow->nodes ?? [],
@@ -58,80 +59,60 @@ class WebhookController extends Controller
                 'started_at' => now(),
             ]);
 
-            try {
-                // Log the webhook request
-                Log::info('Webhook triggered', [
-                    'execution_id' => $execution->id,
-                    'workflow_id' => $workflow->id,
-                    'path' => $path,
+            // Log webhook trigger
+            Log::info('Webhook triggered - dispatching to queue', [
+                'execution_id' => $execution->id,
+                'workflow_id' => $workflow->id,
+                'path' => $path,
+                'method' => $request->method(),
+            ]);
+
+            // Dispatch job to execute workflow asynchronously
+            ExecuteWorkflowJob::dispatch(
+                $execution,
+                $workflow,
+                [
+                    'all' => $request->all(),
+                    'headers' => $request->headers->all(),
                     'method' => $request->method(),
-                    'data' => $request->all(),
-                ]);
+                    'url' => $request->url(),
+                ]
+            );
 
-                // Execute the workflow
-                $startTime = microtime(true);
-                $executionResult = $this->executeWorkflow($workflow, $request);
-                $endTime = microtime(true);
-                $duration = round(($endTime - $startTime) * 1000); // Convert to milliseconds
-
-                $nodeResults = $executionResult['node_results'] ?? [];
-                $executionOrder = $executionResult['execution_order'] ?? [];
-
-                // Get final output from the last node
-                $finalOutput = null;
-                if (!empty($nodeResults)) {
-                    // Get the last node's output
-                    $lastNodeResult = end($nodeResults);
-                    $finalOutput = is_array($lastNodeResult) && isset($lastNodeResult['output'])
-                        ? $lastNodeResult['output']
-                        : $lastNodeResult;
-                }
-
-                // Update execution record with success
-                $execution->update([
-                    'status' => 'success',
-                    'output_data' => $finalOutput,
-                    'node_results' => $nodeResults,
-                    'execution_order' => $executionOrder,
-                    'duration_ms' => $duration,
-                    'finished_at' => now(),
-                ]);
-
-                $responses[] = [
-                    'execution_id' => $execution->id,
-                    'workflow_id' => $workflow->id,
-                    'workflow_name' => $workflow->name,
-                    'status' => 'completed',
-                    'duration_ms' => $duration,
-                ];
-            } catch (\Exception $e) {
-                // Update execution record with failure
-                $execution->update([
-                    'status' => 'failed',
-                    'error_message' => $e->getMessage(),
-                    'finished_at' => now(),
-                ]);
-
-                Log::error('Workflow execution failed', [
-                    'execution_id' => $execution->id,
-                    'workflow_id' => $workflow->id,
-                    'error' => $e->getMessage(),
-                ]);
-
-                $responses[] = [
-                    'execution_id' => $execution->id,
-                    'workflow_id' => $workflow->id,
-                    'workflow_name' => $workflow->name,
-                    'status' => 'failed',
-                    'error' => $e->getMessage(),
-                ];
-            }
+            // Return response immediately
+            $responses[] = [
+                'execution_id' => $execution->id,
+                'workflow_id' => $workflow->id,
+                'workflow_name' => $workflow->name,
+                'status' => 'queued',
+                'message' => 'Workflow execution queued successfully',
+            ];
         }
 
         return response()->json([
             'message' => 'Webhook processed successfully',
             'processed_workflows' => $responses
         ]);
+    }
+
+    // Public wrapper for Job to call
+    public function executeWorkflowPublic($workflow, $webhookRequestData)
+    {
+        // Create a mock request object from array
+        $request = Request::create(
+            $webhookRequestData['url'] ?? '/',
+            $webhookRequestData['method'] ?? 'POST',
+            $webhookRequestData['all'] ?? []
+        );
+        
+        // Set headers
+        if (isset($webhookRequestData['headers'])) {
+            foreach ($webhookRequestData['headers'] as $key => $value) {
+                $request->headers->set($key, is_array($value) ? $value[0] : $value);
+            }
+        }
+        
+        return $this->executeWorkflow($workflow, $request);
     }
 
     private function executeWorkflow($workflow, $webhookRequest)
@@ -163,6 +144,9 @@ class WebhookController extends Controller
         $nodeResults = [];
         // Store execution order để hiển thị đúng thứ tự trong History
         $executionOrderList = [];
+        // Track error
+        $errorNode = null;
+        $hasError = false;
 
         // Execute each node in order
         foreach ($executionOrder as $index => $node) {
@@ -181,6 +165,11 @@ class WebhookController extends Controller
                 // Execute the node
                 $output = $this->executeNode($node, $inputData, $webhookRequest);
 
+                // Check if output contains error
+                if (is_array($output) && isset($output['error'])) {
+                    throw new \Exception($output['error'] . (isset($output['message']) ? ': ' . $output['message'] : ''));
+                }
+
                 // If this is an If node, store the result for branch routing
                 if ($node['type'] === 'if' && isset($output['result'])) {
                     $ifResults[$node['id']] = $output['result'];
@@ -197,7 +186,8 @@ class WebhookController extends Controller
                 $nodeResults[$node['id']] = [
                     'input' => $inputData,
                     'output' => $output,
-                    'execution_index' => $index, // Thứ tự thực thi
+                    'execution_index' => $index,
+                    'status' => 'success',
                 ];
                 
                 // Lưu thứ tự thực thi
@@ -207,18 +197,20 @@ class WebhookController extends Controller
                     'workflow_id' => $workflow->id,
                     'node_id' => $node['id'],
                     'node_type' => $node['type'],
-                    'input_count' => count($inputData),
-                    'input_preview' => array_slice($inputData, 0, 2), // Preview first 2 inputs
-                    'output_preview' => is_array($output) ? array_slice($output, 0, 5) : $output,
                 ]);
             } catch (\Exception $e) {
-                Log::error('Error executing node', [
+                Log::error('Error executing node - STOPPING execution', [
                     'workflow_id' => $workflow->id,
                     'node_id' => $node['id'],
+                    'node_type' => $node['type'] ?? 'unknown',
                     'error' => $e->getMessage(),
                 ]);
 
-                // Continue with other nodes or break on error
+                // Store error node
+                $errorNode = $node['id'];
+                $hasError = true;
+
+                // Store error in results
                 $nodeOutputs[$node['id']] = [
                     'error' => $e->getMessage(),
                 ];
@@ -228,59 +220,106 @@ class WebhookController extends Controller
                         'error' => $e->getMessage(),
                     ],
                     'execution_index' => $index,
+                    'status' => 'error',
+                    'error_message' => $e->getMessage(),
                 ];
                 
-                // Vẫn lưu vào execution order ngay cả khi lỗi
+                // Lưu vào execution order
                 $executionOrderList[] = $node['id'];
+                
+                // STOP execution - không chạy các node tiếp theo
+                break;
             }
         }
 
         return [
             'node_results' => $nodeResults,
             'execution_order' => $executionOrderList,
+            'error_node' => $errorNode,
+            'has_error' => $hasError,
         ];
     }
 
     private function buildExecutionOrder($nodes, $edges)
     {
-        // Build dependency graph: node_id => [parent_node_ids]
-        $dependencies = [];
+        // Find webhook node (starting point)
+        $webhookNode = collect($nodes)->first(fn($n) => $n['type'] === 'webhook');
+        
+        if (!$webhookNode) {
+            Log::warning('No webhook node found in workflow');
+            return [];
+        }
+
+        // Build adjacency graph: node_id => [connected_node_ids]
+        $graph = [];
         $nodeMap = [];
         
         foreach ($nodes as $node) {
             $nodeMap[$node['id']] = $node;
-            $dependencies[$node['id']] = [];
+            $graph[$node['id']] = [];
         }
         
-        // Populate dependencies from edges
+        // Build graph from edges (source -> targets)
+        foreach ($edges as $edge) {
+            $sourceId = $edge['source'];
+            $targetId = $edge['target'];
+            
+            if (!isset($graph[$sourceId])) {
+                $graph[$sourceId] = [];
+            }
+            $graph[$sourceId][] = $targetId;
+        }
+
+        // Find all reachable nodes from webhook using BFS
+        $reachableNodes = [$webhookNode['id']];
+        $visited = [$webhookNode['id'] => true];
+        $queue = [$webhookNode['id']];
+        
+        while (!empty($queue)) {
+            $currentId = array_shift($queue);
+            
+            foreach ($graph[$currentId] ?? [] as $targetId) {
+                if (!isset($visited[$targetId])) {
+                    $visited[$targetId] = true;
+                    $reachableNodes[] = $targetId;
+                    $queue[] = $targetId;
+                }
+            }
+        }
+
+        Log::info('Reachable nodes from webhook', [
+            'webhook_node' => $webhookNode['id'],
+            'reachable_count' => count($reachableNodes),
+            'reachable_nodes' => $reachableNodes,
+        ]);
+
+        // Build dependency graph for reachable nodes only
+        $dependencies = [];
+        foreach ($reachableNodes as $nodeId) {
+            $dependencies[$nodeId] = [];
+        }
+        
         foreach ($edges as $edge) {
             $targetId = $edge['target'];
             $sourceId = $edge['source'];
             
-            if (!isset($dependencies[$targetId])) {
-                $dependencies[$targetId] = [];
+            // Only add dependency if both nodes are reachable
+            if (isset($dependencies[$targetId]) && isset($dependencies[$sourceId])) {
+                $dependencies[$targetId][] = $sourceId;
             }
-            
-            $dependencies[$targetId][] = $sourceId;
         }
         
-        Log::info('Dependency graph', [
-            'dependencies' => $dependencies,
-        ]);
-        
-        // Topological sort with dependency tracking
+        // Topological sort - only on reachable nodes
         $order = [];
         $completed = [];
-        $maxIterations = count($nodes) * 10; // Prevent infinite loop
+        $maxIterations = count($reachableNodes) * 10;
         $iteration = 0;
         
-        while (count($order) < count($nodes) && $iteration < $maxIterations) {
+        while (count($order) < count($reachableNodes) && $iteration < $maxIterations) {
             $iteration++;
             $addedInThisIteration = false;
             
-            foreach ($nodes as $node) {
-                $nodeId = $node['id'];
-                
+            foreach ($reachableNodes as $nodeId) {
                 // Skip if already in order
                 if (in_array($nodeId, $completed)) {
                     continue;
@@ -297,25 +336,23 @@ class WebhookController extends Controller
                 
                 // If all dependencies are met, add to order
                 if ($allDependenciesCompleted) {
-                    $order[] = $node;
+                    $order[] = $nodeMap[$nodeId];
                     $completed[] = $nodeId;
                     $addedInThisIteration = true;
                     
                     Log::info('Node ready for execution', [
                         'node_id' => $nodeId,
-                        'node_type' => $node['type'],
-                        'dependencies_met' => $dependencies[$nodeId],
+                        'node_type' => $nodeMap[$nodeId]['type'],
                         'execution_position' => count($order),
                     ]);
                 }
             }
             
             // Detect circular dependency
-            if (!$addedInThisIteration && count($order) < count($nodes)) {
-                Log::error('Circular dependency detected or unreachable nodes', [
+            if (!$addedInThisIteration && count($order) < count($reachableNodes)) {
+                Log::error('Circular dependency detected', [
                     'completed_nodes' => count($order),
-                    'total_nodes' => count($nodes),
-                    'remaining' => array_diff(array_column($nodes, 'id'), $completed),
+                    'reachable_nodes' => count($reachableNodes),
                 ]);
                 break;
             }
