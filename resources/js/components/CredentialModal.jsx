@@ -44,7 +44,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
                     accessTokenUrl: 'https://oauth2.googleapis.com/token',
                     scope: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/documents',
-                    redirectUrl: `${window.location.origin}/oauth2/callback`,
+                    redirectUrl: `${window.location.origin}/api/oauth2/callback`,
                     accessToken: '', 
                     refreshToken: '',
                     tokenType: 'Bearer',
@@ -297,7 +297,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                             </label>
                             <input
                                 type="text"
-                                value={formData.data.redirectUrl || `${window.location.origin}/oauth2/callback`}
+                                value={formData.data.redirectUrl || `${window.location.origin}/api/oauth2/callback`}
                                 readOnly
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
                             />
