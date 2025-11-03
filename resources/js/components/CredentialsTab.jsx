@@ -11,6 +11,24 @@ const CredentialsTab = () => {
 
     useEffect(() => {
         fetchCredentials();
+
+        // Check for OAuth2 callback params
+        const urlParams = new URLSearchParams(window.location.search);
+        const oauthSuccess = urlParams.get('oauth_success');
+        const oauthError = urlParams.get('oauth_error');
+        const credentialId = urlParams.get('credential_id');
+
+        if (oauthSuccess === 'true') {
+            alert('✅ OAuth2 authorization successful! Your credential is now connected and ready to use.');
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+            // Refresh credentials to show updated status
+            setTimeout(() => fetchCredentials(), 1000);
+        } else if (oauthError) {
+            alert('❌ OAuth2 authorization failed: ' + decodeURIComponent(oauthError));
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
     }, []);
 
     const fetchCredentials = async () => {
@@ -47,6 +65,20 @@ const CredentialsTab = () => {
         } catch (error) {
             console.error('Error deleting credential:', error);
             alert('Failed to delete credential');
+        }
+    };
+
+    const handleConnectOAuth2 = async (credential) => {
+        try {
+            // Get authorization URL from backend
+            const response = await axios.get(`/credentials/${credential.id}/oauth2/authorize`);
+            const authUrl = response.data.authorization_url;
+            
+            // Open authorization URL in current window
+            window.location.href = authUrl;
+        } catch (error) {
+            console.error('Error starting OAuth2 authorization:', error);
+            alert('Failed to start authorization: ' + (error.response?.data?.error || error.message));
         }
     };
 
@@ -192,6 +224,18 @@ const CredentialsTab = () => {
 
                                 {/* Actions */}
                                 <div className="flex items-center space-x-2 ml-4">
+                                    {credential.type === 'oauth2' && (
+                                        <button
+                                            onClick={() => handleConnectOAuth2(credential)}
+                                            className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded font-medium flex items-center space-x-1"
+                                            title="Connect to OAuth2 provider"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                            </svg>
+                                            <span>Connect</span>
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => handleEdit(credential)}
                                         className="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"

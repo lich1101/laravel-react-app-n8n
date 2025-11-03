@@ -43,7 +43,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                     clientSecret: '', 
                     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
                     accessTokenUrl: 'https://oauth2.googleapis.com/token',
-                    scope: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets',
+                    scope: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/documents',
                     redirectUrl: `${window.location.origin}/oauth2/callback`,
                     accessToken: '', 
                     refreshToken: '',
@@ -98,59 +98,52 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
         }
     };
 
-    const handleTestConnection = async () => {
+    const handleConnectOAuth2 = async () => {
         setTesting(true);
         setTestResult(null);
         setError('');
 
         try {
-            if (formData.type === 'oauth2') {
-                // Test OAuth2 configuration
-                if (!formData.data.clientId || !formData.data.clientSecret) {
-                    setTestResult({
-                        success: false,
-                        message: 'Please fill in Client ID and Client Secret first'
-                    });
-                    setTesting(false);
-                    return;
-                }
-
-                // Test by attempting to validate the OAuth2 config
-                // In real implementation, this would ping Google's token endpoint
-                const testResponse = await axios.post('/credentials/test-oauth2', {
-                    service: formData.data.service,
-                    clientId: formData.data.clientId,
-                    clientSecret: formData.data.clientSecret,
-                    authUrl: formData.data.authUrl,
-                    accessTokenUrl: formData.data.accessTokenUrl,
-                    scope: formData.data.scope,
-                    redirectUrl: formData.data.redirectUrl
-                });
-
+            // Validate required fields
+            if (!formData.data.clientId || !formData.data.clientSecret) {
                 setTestResult({
-                    success: true,
-                    message: testResponse.data.message || 'OAuth2 configuration is valid!',
-                    details: testResponse.data.details || null
+                    success: false,
+                    message: 'Please fill in Client ID and Client Secret first'
                 });
-            } else if (formData.type === 'bearer') {
-                // Test bearer token (could ping an endpoint)
-                setTestResult({
-                    success: true,
-                    message: 'Bearer token format is valid'
-                });
-            } else {
-                setTestResult({
-                    success: true,
-                    message: 'Configuration looks good'
-                });
+                setTesting(false);
+                return;
             }
+
+            if (!formData.name) {
+                setError('Please enter a credential name first');
+                setTesting(false);
+                return;
+            }
+
+            // Save credential first (if new) or use existing
+            let credentialId = existingCredential?.id;
+            
+            if (!credentialId) {
+                // Create new credential
+                const response = await axios.post('/credentials', formData);
+                credentialId = response.data.credential.id;
+            } else {
+                // Update existing credential
+                await axios.put(`/credentials/${credentialId}`, formData);
+            }
+
+            // Get authorization URL and redirect
+            const authResponse = await axios.get(`/credentials/${credentialId}/oauth2/authorize`);
+            const authUrl = authResponse.data.authorization_url;
+            
+            // Redirect to Google authorization
+            window.location.href = authUrl;
         } catch (err) {
-            console.error('Test connection error:', err);
+            console.error('OAuth2 connect error:', err);
             setTestResult({
                 success: false,
-                message: err.response?.data?.message || 'Connection test failed. Please check your credentials.'
+                message: err.response?.data?.error || err.response?.data?.message || 'Failed to start authorization. Please check your credentials.'
             });
-        } finally {
             setTesting(false);
         }
     };
@@ -372,14 +365,14 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                             </p>
                         </div>
 
-                        {/* Authorization Button (if tokens not present) */}
+                        {/* Authorization Instruction (if tokens not present) */}
                         {(!formData.data.accessToken || !formData.data.refreshToken) && formData.data.clientId && formData.data.clientSecret && (
-                            <div className="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded p-3">
-                                <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
-                                    🔐 After saving, you'll need to authorize this credential with {formData.data.service === 'google' ? 'Google' : 'OAuth provider'}
+                            <div className="bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded p-3">
+                                <p className="text-sm text-green-800 dark:text-green-200 mb-2">
+                                    🔐 Ready to authorize with {formData.data.service === 'google' ? 'Google' : 'OAuth provider'}!
                                 </p>
-                                <p className="text-xs text-blue-700 dark:text-blue-300">
-                                    Save this credential first, then click "Connect" to authorize.
+                                <p className="text-xs text-green-700 dark:text-green-300">
+                                    Click the green "Connect" button above to save and authorize in one step.
                                 </p>
                             </div>
                         )}
@@ -464,14 +457,14 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                         {existingCredential ? 'Edit Credential' : 'Create New Credential'}
                     </h2>
                     <div className="flex items-center space-x-2">
-                        {/* Test Connection Button (only for OAuth2) */}
+                        {/* Connect Button (only for OAuth2) */}
                         {formData.type === 'oauth2' && (
                             <button
                                 type="button"
-                                onClick={handleTestConnection}
-                                disabled={testing || !formData.data.clientId || !formData.data.clientSecret}
-                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
-                                title="Test OAuth2 connection"
+                                onClick={handleConnectOAuth2}
+                                disabled={testing || !formData.data.clientId || !formData.data.clientSecret || !formData.name}
+                                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                                title="Connect and authorize with OAuth2 provider"
                             >
                                 {testing ? (
                                     <>
@@ -479,14 +472,14 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
-                                        <span>Testing...</span>
+                                        <span>Connecting...</span>
                                     </>
                                 ) : (
                                     <>
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                         </svg>
-                                        <span>Test</span>
+                                        <span>Connect</span>
                                     </>
                                 )}
                             </button>
@@ -622,16 +615,16 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                         </p>
                     </div>
 
-                    {/* OAuth2 Test Required Message */}
-                    {formData.type === 'oauth2' && (!testResult || !testResult.success) && (
-                        <div className="bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-700 text-yellow-700 dark:text-yellow-200 px-4 py-3 rounded">
+                    {/* OAuth2 Connect Instruction */}
+                    {formData.type === 'oauth2' && (!formData.data.accessToken || !formData.data.refreshToken) && (
+                        <div className="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-200 px-4 py-3 rounded">
                             <div className="flex items-start space-x-2">
                                 <svg className="w-5 h-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <div>
-                                    <p className="font-medium">Test Required</p>
-                                    <p className="text-sm mt-1">Please test your OAuth2 connection before saving. Click the "Test" button above to verify your credentials.</p>
+                                    <p className="font-medium">Authorization Required</p>
+                                    <p className="text-sm mt-1">Click the green "Connect" button at the top to authorize with {formData.data.service === 'google' ? 'Google' : 'OAuth provider'}. This will save your credential and redirect you to authorize in one step.</p>
                                 </div>
                             </div>
                         </div>
@@ -639,19 +632,22 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
                     {/* Buttons */}
                     <div className="flex space-x-3 pt-4">
-                        <button
-                            type="submit"
-                            disabled={loading || (formData.type === 'oauth2' && (!testResult || !testResult.success))}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50"
-                        >
-                            {loading ? 'Saving...' : existingCredential ? 'Update' : 'Create'}
-                        </button>
+                        {/* For OAuth2 without tokens, hide Create/Update button (use Connect instead) */}
+                        {!(formData.type === 'oauth2' && !formData.data.accessToken) && (
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50"
+                            >
+                                {loading ? 'Saving...' : existingCredential ? 'Update' : 'Create'}
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={onClose}
                             className="flex-1 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-700 dark:text-white px-4 py-2 rounded-md font-medium"
                         >
-                            Cancel
+                            {formData.type === 'oauth2' && !formData.data.accessToken ? 'Cancel' : 'Close'}
                         </button>
                     </div>
                 </form>

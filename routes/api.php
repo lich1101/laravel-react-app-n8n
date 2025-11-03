@@ -15,6 +15,9 @@ use App\Http\Controllers\Api\CredentialController;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
+// OAuth2 callback (public - no auth required as Google redirects here)
+Route::get('/oauth2/callback', [CredentialController::class, 'handleOAuth2Callback']);
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
@@ -56,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // IMPORTANT: Specific routes must come BEFORE apiResource
     Route::post('/credentials/test-oauth2', [CredentialController::class, 'testOAuth2']);
     Route::post('/credentials/{credential}/test', [CredentialController::class, 'test']);
+    Route::get('/credentials/{credential}/oauth2/authorize', [CredentialController::class, 'startOAuth2Authorization']);
     Route::apiResource('credentials', CredentialController::class);
 });
 

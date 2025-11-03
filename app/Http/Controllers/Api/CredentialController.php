@@ -360,4 +360,148 @@ class CredentialController extends Controller
             ];
         }
     }
+
+    /**
+     * Start OAuth2 authorization flow
+     */
+    public function startOAuth2Authorization(Request $request, $credentialId)
+    {
+        try {
+            $user = Auth::user();
+            $credential = Credential::where('id', $credentialId)
+                ->where('user_id', $user->id)
+                ->firstOrFail();
+
+            if ($credential->type !== 'oauth2') {
+                return response()->json(['error' => 'Not an OAuth2 credential'], 400);
+            }
+
+            $data = $credential->data;
+            
+            // Build authorization URL
+            $params = [
+                'client_id' => $data['clientId'],
+                'redirect_uri' => url('/api/oauth2/callback'),
+                'response_type' => 'code',
+                'scope' => $data['scope'] ?? '',
+                'access_type' => 'offline', // To get refresh token
+                'prompt' => 'consent', // Force to show consent screen to get refresh token
+                'state' => base64_encode(json_encode([
+                    'credential_id' => $credentialId,
+                    'user_id' => $user->id,
+                    'timestamp' => time()
+                ]))
+            ];
+
+            $authUrl = $data['authUrl'] . '?' . http_build_query($params);
+
+            Log::info('Starting OAuth2 authorization', [
+                'credential_id' => $credentialId,
+                'user_id' => $user->id,
+                'redirect_uri' => url('/api/oauth2/callback')
+            ]);
+
+            // Return authorization URL to frontend
+            return response()->json([
+                'authorization_url' => $authUrl
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('OAuth2 authorization start failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['error' => 'Failed to start authorization: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Handle OAuth2 callback
+     */
+    public function handleOAuth2Callback(Request $request)
+    {
+        try {
+            $code = $request->input('code');
+            $state = $request->input('state');
+            $error = $request->input('error');
+
+            // Check for errors from OAuth provider
+            if ($error) {
+                Log::error('OAuth2 callback error', ['error' => $error]);
+                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=' . urlencode($error));
+            }
+
+            if (!$code || !$state) {
+                Log::error('OAuth2 callback missing code or state');
+                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=missing_parameters');
+            }
+
+            // Decode state
+            $stateData = json_decode(base64_decode($state), true);
+            $credentialId = $stateData['credential_id'] ?? null;
+            $userId = $stateData['user_id'] ?? null;
+
+            if (!$credentialId || !$userId) {
+                Log::error('Invalid state data', ['state' => $stateData]);
+                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=invalid_state');
+            }
+
+            // Get credential
+            $credential = Credential::where('id', $credentialId)
+                ->where('user_id', $userId)
+                ->first();
+
+            if (!$credential) {
+                Log::error('Credential not found', ['credential_id' => $credentialId]);
+                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=credential_not_found');
+            }
+
+            $data = $credential->data;
+
+            // Exchange authorization code for tokens
+            $response = Http::asForm()->post($data['accessTokenUrl'], [
+                'client_id' => $data['clientId'],
+                'client_secret' => $data['clientSecret'],
+                'code' => $code,
+                'grant_type' => 'authorization_code',
+                'redirect_uri' => url('/api/oauth2/callback')
+            ]);
+
+            if (!$response->successful()) {
+                Log::error('Token exchange failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
+                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=token_exchange_failed');
+            }
+
+            $tokens = $response->json();
+
+            // Update credential with tokens
+            $data['accessToken'] = $tokens['access_token'];
+            $data['refreshToken'] = $tokens['refresh_token'] ?? null;
+            $data['tokenType'] = $tokens['token_type'] ?? 'Bearer';
+            $data['expiresAt'] = isset($tokens['expires_in']) 
+                ? now()->addSeconds($tokens['expires_in'])->toDateTimeString()
+                : null;
+
+            $credential->data = $data;
+            $credential->save();
+
+            Log::info('OAuth2 authorization successful', [
+                'credential_id' => $credentialId,
+                'has_refresh_token' => !empty($data['refreshToken'])
+            ]);
+
+            // Redirect back to credentials page with success
+            return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_success=true&credential_id=' . $credentialId);
+
+        } catch (\Exception $e) {
+            Log::error('OAuth2 callback handling failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=' . urlencode($e->getMessage()));
+        }
+    }
 }
