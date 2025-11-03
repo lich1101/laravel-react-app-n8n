@@ -140,6 +140,8 @@ class WebhookController extends Controller
         $nodeOutputs = [];
         // Store If node results (true/false) for branch routing
         $ifResults = [];
+        // Store Switch node results (matched output index) for branch routing
+        $switchResults = [];
         // Store full execution details for each node
         $nodeResults = [];
         // Store execution order để hiển thị đúng thứ tự trong History
@@ -151,8 +153,8 @@ class WebhookController extends Controller
         // Execute each node in order
         foreach ($executionOrder as $index => $node) {
             try {
-                // Get input data for this node (with If branch filtering)
-                $inputData = $this->getNodeInputData($node['id'], $edges, $nodeOutputs, $ifResults, $nodes);
+                // Get input data for this node (with If/Switch branch filtering)
+                $inputData = $this->getNodeInputData($node['id'], $edges, $nodeOutputs, $ifResults, $nodes, $switchResults);
 
                 Log::info('Executing node', [
                     'workflow_id' => $workflow->id,
@@ -176,6 +178,16 @@ class WebhookController extends Controller
                     Log::info('If node result stored', [
                         'node_id' => $node['id'],
                         'result' => $output['result'] ? 'TRUE' : 'FALSE',
+                    ]);
+                }
+
+                // If this is a Switch node, store the matched output for branch routing
+                if ($node['type'] === 'switch' && isset($output['matchedOutput'])) {
+                    $switchResults[$node['id']] = $output['matchedOutput'];
+                    Log::info('Switch node result stored', [
+                        'node_id' => $node['id'],
+                        'matched_output' => $output['matchedOutput'],
+                        'output_name' => $output['outputName'] ?? 'unknown',
                     ]);
                 }
 
@@ -368,7 +380,7 @@ class WebhookController extends Controller
         return $order;
     }
 
-    private function getNodeInputData($nodeId, $edges, $nodeOutputs, $ifResults = [], $nodes = [])
+    private function getNodeInputData($nodeId, $edges, $nodeOutputs, $ifResults = [], $nodes = [], $switchResults = [])
     {
         // Get DIRECT parent edges (with sourceHandle info for If nodes)
         $parentEdges = collect($edges)
@@ -399,8 +411,38 @@ class WebhookController extends Controller
                 continue;
             }
 
+            // If parent is a Switch node, check branch routing
+            if (isset($switchResults[$parentId])) {
+                $matchedOutput = $switchResults[$parentId];
+                
+                // Determine expected handle based on matched output
+                // output0, output1, output2, ... or 'fallback'
+                $expectedHandle = $matchedOutput >= 0 ? "output{$matchedOutput}" : 'fallback';
+
+                // Only add input if sourceHandle matches the Switch result
+                if ($sourceHandle === $expectedHandle) {
+                    $output = $nodeOutputs[$parentId];
+                    $inputData[] = isset($output['output']) ? $output['output'] : $output;
+                    
+                    Log::info('Switch node branch matched', [
+                        'node_id' => $nodeId,
+                        'parent_id' => $parentId,
+                        'matched_output' => $matchedOutput,
+                        'source_handle' => $sourceHandle,
+                        'expected_handle' => $expectedHandle,
+                    ]);
+                } else {
+                    Log::info('Switch node branch skipped', [
+                        'node_id' => $nodeId,
+                        'parent_id' => $parentId,
+                        'matched_output' => $matchedOutput,
+                        'source_handle' => $sourceHandle,
+                        'expected_handle' => $expectedHandle,
+                    ]);
+                }
+            }
             // If parent is an If node, check branch routing
-            if (isset($ifResults[$parentId])) {
+            elseif (isset($ifResults[$parentId])) {
                 $ifResult = $ifResults[$parentId];
                 $expectedHandle = $ifResult ? 'true' : 'false';
 
@@ -427,7 +469,7 @@ class WebhookController extends Controller
                     ]);
                 }
             } else {
-                // Normal node (not If), just add output
+                // Normal node (not If/Switch), just add output
                 $inputData[] = $nodeOutputs[$parentId];
             }
         }
@@ -535,6 +577,9 @@ class WebhookController extends Controller
 
             case 'if':
                 return $this->executeIfNode($config, $inputData);
+
+            case 'switch':
+                return $this->executeSwitchNode($config, $inputData);
 
             default:
                 // Pass through input data
@@ -869,6 +914,76 @@ class WebhookController extends Controller
             ['\\t', '\\r', '\\n', '\\"', '\\\\'],
             $text
         )));
+    }
+
+    private function executeSwitchNode($config, $inputData)
+    {
+        try {
+            $rules = $config['rules'] ?? [];
+            
+            if (empty($rules)) {
+                return [
+                    'matchedOutput' => -1, // -1 = fallback
+                    'outputName' => $config['fallbackOutput'] ?? 'No Match',
+                    'output' => $inputData[0] ?? [],
+                ];
+            }
+
+            Log::info('Executing Switch node', [
+                'rules_count' => count($rules),
+            ]);
+
+            // Evaluate each rule in order
+            foreach ($rules as $index => $rule) {
+                $value = $this->resolveVariables($rule['value'] ?? '', $inputData);
+                $operator = $rule['operator'] ?? 'equal';
+                $value2 = !in_array($operator, ['exists', 'notExists', 'isEmpty', 'isNotEmpty'])
+                    ? $this->resolveVariables($rule['value2'] ?? '', $inputData)
+                    : null;
+
+                // Evaluate condition
+                $result = $this->evaluateSwitchCondition($value, $operator, $value2);
+
+                Log::info('Switch rule evaluated', [
+                    'rule_index' => $index,
+                    'value' => $value,
+                    'operator' => $operator,
+                    'value2' => $value2,
+                    'result' => $result,
+                ]);
+
+                // If rule matches, return this output
+                if ($result) {
+                    return [
+                        'matchedOutput' => $index,
+                        'outputName' => $rule['outputName'] ?? "Output $index",
+                        'output' => $inputData[0] ?? [],
+                    ];
+                }
+            }
+
+            // No rule matched - use fallback
+            return [
+                'matchedOutput' => -1,
+                'outputName' => $config['fallbackOutput'] ?? 'No Match',
+                'output' => $inputData[0] ?? [],
+            ];
+        } catch (\Exception $e) {
+            Log::error('Switch node execution failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'error' => 'Switch evaluation failed',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function evaluateSwitchCondition($value1, $operator, $value2)
+    {
+        // Reuse If node evaluation logic
+        return $this->evaluateCondition($value1, $operator, $value2, 'string');
     }
 
     private function executeIfNode($config, $inputData)

@@ -20,6 +20,7 @@ import ClaudeConfigModal from './ClaudeConfigModal';
 import CodeConfigModal from './CodeConfigModal';
 import EscapeConfigModal from './EscapeConfigModal';
 import IfConfigModal from './IfConfigModal';
+import SwitchConfigModal from './SwitchConfigModal';
 import WorkflowHistory from './WorkflowHistory';
 import RenameNodeModal from './RenameNodeModal';
 
@@ -224,6 +225,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                     <button onClick={() => handleSelectNode('code')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">💻 Code</button>
                     <button onClick={() => handleSelectNode('escape')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
                     <button onClick={() => handleSelectNode('if')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
+                    <button onClick={() => handleSelectNode('switch')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 Switch</button>
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                     <button onClick={() => setShowQuickAdd(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
                 </div>
@@ -323,6 +325,37 @@ const nodeTypes = {
             selected={props.selected}
         />
     ),
+    switch: (props) => {
+        // Dynamic outputs based on rules
+        const rules = props.data?.config?.rules || [];
+        const outputs = rules.map((rule, index) => ({
+            id: `output${index}`,
+            label: rule.outputName || `Output ${index + 1}`,
+            color: 'blue'
+        }));
+        // Add fallback output
+        outputs.push({
+            id: 'fallback',
+            label: props.data?.config?.fallbackOutput || 'No Match',
+            color: 'gray'
+        });
+
+        return (
+            <CompactNode 
+                {...props} 
+                nodeType="switch"
+                iconPath="/icons/nodes/switch.svg"
+                color="cyan"
+                handles={{ 
+                    input: true, 
+                    outputs: outputs
+                }}
+                onQuickAdd={props.data.onQuickAdd}
+                connectedHandles={props.data.connectedHandles || []}
+                selected={props.selected}
+            />
+        );
+    },
 };
 
 
@@ -585,6 +618,7 @@ function WorkflowEditor() {
             code: 'Code',
             escape: 'Escape & Set',
             if: 'If',
+            switch: 'Switch',
         };
 
         // Generate unique custom name
@@ -861,6 +895,7 @@ function WorkflowEditor() {
             code: 'Code',
             escape: 'Escape & Set',
             if: 'If',
+            switch: 'Switch',
         };
 
         addNode(nodeType, labels[nodeType], position, sourceNodeId, sourceHandle);
@@ -1169,7 +1204,7 @@ function WorkflowEditor() {
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
-        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'code' || node.type === 'escape' || node.type === 'if') {
+        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch') {
             setShowConfigModal(true);
         }
     };
@@ -1916,6 +1951,90 @@ function WorkflowEditor() {
         }
     };
 
+    // Test Switch node
+    const handleTestSwitchNode = async (config) => {
+        try {
+            console.log('Testing Switch node with config:', config);
+
+            const inputData = getNodeInputData(selectedNode?.id || '');
+            console.log('Input data for switch evaluation:', inputData);
+
+            const rules = config.rules || [];
+            
+            // Evaluate each rule in order
+            for (let index = 0; index < rules.length; index++) {
+                const rule = rules[index];
+                const value = resolveVariables(rule.value || '', inputData);
+                const operator = rule.operator || 'equal';
+                const value2 = !['exists', 'notExists', 'isEmpty', 'isNotEmpty'].includes(operator)
+                    ? resolveVariables(rule.value2 || '', inputData)
+                    : null;
+
+                // Evaluate condition (reuse If logic)
+                let result = false;
+                switch (operator) {
+                    case 'equal':
+                        result = value == value2;
+                        break;
+                    case 'notEqual':
+                        result = value != value2;
+                        break;
+                    case 'contains':
+                        result = String(value).includes(String(value2));
+                        break;
+                    case 'notContains':
+                        result = !String(value).includes(String(value2));
+                        break;
+                    case 'startsWith':
+                        result = String(value).startsWith(String(value2));
+                        break;
+                    case 'endsWith':
+                        result = String(value).endsWith(String(value2));
+                        break;
+                    case 'regex':
+                        result = new RegExp(value2).test(String(value));
+                        break;
+                    case 'exists':
+                        result = value !== null && value !== undefined;
+                        break;
+                    case 'notExists':
+                        result = value === null || value === undefined;
+                        break;
+                    case 'isEmpty':
+                        result = !value || value === '';
+                        break;
+                    case 'isNotEmpty':
+                        result = !!value && value !== '';
+                        break;
+                }
+
+                console.log('Switch rule evaluated:', { index, value, operator, value2, result });
+
+                // If rule matches, return this output
+                if (result) {
+                    return {
+                        matchedOutput: index,
+                        outputName: rule.outputName || `Output ${index + 1}`,
+                        output: inputData[0] || {},
+                    };
+                }
+            }
+
+            // No rule matched - use fallback
+            return {
+                matchedOutput: -1,
+                outputName: config.fallbackOutput || 'No Match',
+                output: inputData[0] || {},
+            };
+        } catch (error) {
+            console.error('Error in Switch node:', error);
+            return {
+                error: error.message || 'An error occurred',
+                details: error.toString(),
+            };
+        }
+    };
+
     // Test Escape node
     const handleTestEscapeNode = async (config) => {
         try {
@@ -2249,6 +2368,12 @@ function WorkflowEditor() {
                                     >
                                         If
                                     </button>
+                                    <button
+                                        onClick={() => { addNode('switch', 'Switch'); setShowNodeMenu(false); }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                        Switch
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -2454,6 +2579,7 @@ function WorkflowEditor() {
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'code'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">💻 Code</button>
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'escape'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
                                     <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'if'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'switch'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 Switch</button>
                                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                                     <button onClick={() => setShowEdgeNodeMenu(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
                                 </div>
@@ -2646,6 +2772,21 @@ function WorkflowEditor() {
                         onSave={handleSaveConfig}
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestIfNode}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
+                        outputData={nodeOutputData[selectedNode.id]}
+                        onTestResult={handleTestResult}
+                        allEdges={edges}
+                        allNodes={nodes}
+                    />
+                )}
+
+                {showConfigModal && selectedNode && selectedNode.type === 'switch' && (
+                    <SwitchConfigModal
+                        node={selectedNode}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onTest={handleTestSwitchNode}
                         onRename={() => openRenameModal(selectedNode.id)}
                         inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
