@@ -362,21 +362,63 @@ class CredentialController extends Controller
     }
 
     /**
-     * Start OAuth2 authorization flow
+     * Start OAuth2 authorization flow (with or without existing credential)
      */
-    public function startOAuth2Authorization(Request $request, $credentialId)
+    public function startOAuth2Authorization(Request $request, $credentialId = null)
     {
         try {
             $user = Auth::user();
-            $credential = Credential::where('id', $credentialId)
-                ->where('user_id', $user->id)
-                ->firstOrFail();
+            
+            // If credentialId provided, use existing credential
+            if ($credentialId) {
+                $credential = Credential::where('id', $credentialId)
+                    ->where('user_id', $user->id)
+                    ->firstOrFail();
 
-            if ($credential->type !== 'oauth2') {
-                return response()->json(['error' => 'Not an OAuth2 credential'], 400);
+                if ($credential->type !== 'oauth2') {
+                    return response()->json(['error' => 'Not an OAuth2 credential'], 400);
+                }
+
+                $data = $credential->data;
+                $credentialData = [
+                    'credential_id' => $credentialId,
+                    'is_existing' => true
+                ];
+            } else {
+                // New credential - validate and save to session
+                $validator = Validator::make($request->all(), [
+                    'name' => 'required|string|max:255',
+                    'description' => 'nullable|string',
+                    'data' => 'required|array',
+                    'data.clientId' => 'required|string',
+                    'data.clientSecret' => 'required|string',
+                    'data.authUrl' => 'required|string',
+                    'data.accessTokenUrl' => 'required|string',
+                    'data.scope' => 'required|string',
+                ]);
+
+                if ($validator->fails()) {
+                    return response()->json(['error' => $validator->errors()->first()], 400);
+                }
+
+                $data = $request->input('data');
+                
+                // Save credential info to session (will be created after authorization)
+                $sessionId = uniqid('oauth2_', true);
+                $request->session()->put('oauth2_pending_' . $sessionId, [
+                    'name' => $request->input('name'),
+                    'type' => 'oauth2',
+                    'description' => $request->input('description'),
+                    'data' => $data,
+                    'user_id' => $user->id,
+                    'created_at' => now()->toDateTimeString()
+                ]);
+
+                $credentialData = [
+                    'session_id' => $sessionId,
+                    'is_existing' => false
+                ];
             }
-
-            $data = $credential->data;
             
             // Build authorization URL
             $params = [
@@ -386,17 +428,17 @@ class CredentialController extends Controller
                 'scope' => $data['scope'] ?? '',
                 'access_type' => 'offline', // To get refresh token
                 'prompt' => 'consent', // Force to show consent screen to get refresh token
-                'state' => base64_encode(json_encode([
-                    'credential_id' => $credentialId,
+                'state' => base64_encode(json_encode(array_merge($credentialData, [
                     'user_id' => $user->id,
                     'timestamp' => time()
-                ]))
+                ])))
             ];
 
             $authUrl = $data['authUrl'] . '?' . http_build_query($params);
 
             Log::info('Starting OAuth2 authorization', [
                 'credential_id' => $credentialId,
+                'is_existing' => $credentialData['is_existing'],
                 'user_id' => $user->id,
                 'redirect_uri' => url('/api/oauth2/callback')
             ]);
@@ -438,25 +480,50 @@ class CredentialController extends Controller
 
             // Decode state
             $stateData = json_decode(base64_decode($state), true);
-            $credentialId = $stateData['credential_id'] ?? null;
             $userId = $stateData['user_id'] ?? null;
+            $isExisting = $stateData['is_existing'] ?? false;
 
-            if (!$credentialId || !$userId) {
+            if (!$userId) {
                 Log::error('Invalid state data', ['state' => $stateData]);
                 return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=invalid_state');
             }
 
-            // Get credential
-            $credential = Credential::where('id', $credentialId)
-                ->where('user_id', $userId)
-                ->first();
+            // Get credential data
+            if ($isExisting) {
+                // Existing credential - update with tokens
+                $credentialId = $stateData['credential_id'] ?? null;
+                if (!$credentialId) {
+                    Log::error('Missing credential_id for existing credential');
+                    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=invalid_state');
+                }
 
-            if (!$credential) {
-                Log::error('Credential not found', ['credential_id' => $credentialId]);
-                return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=credential_not_found');
+                $credential = Credential::where('id', $credentialId)
+                    ->where('user_id', $userId)
+                    ->first();
+
+                if (!$credential) {
+                    Log::error('Credential not found', ['credential_id' => $credentialId]);
+                    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=credential_not_found');
+                }
+
+                $data = $credential->data;
+            } else {
+                // New credential - get from session
+                $sessionId = $stateData['session_id'] ?? null;
+                if (!$sessionId) {
+                    Log::error('Missing session_id for new credential');
+                    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=invalid_state');
+                }
+
+                $pendingCredential = $request->session()->get('oauth2_pending_' . $sessionId);
+                if (!$pendingCredential) {
+                    Log::error('Pending credential not found in session', ['session_id' => $sessionId]);
+                    return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=session_expired');
+                }
+
+                $data = $pendingCredential['data'];
+                $credential = null; // Will be created later
             }
-
-            $data = $credential->data;
 
             // Exchange authorization code for tokens
             $response = Http::asForm()->post($data['accessTokenUrl'], [
@@ -472,12 +539,18 @@ class CredentialController extends Controller
                     'status' => $response->status(),
                     'body' => $response->body()
                 ]);
+                
+                // Clean up session if new credential
+                if (!$isExisting && isset($sessionId)) {
+                    $request->session()->forget('oauth2_pending_' . $sessionId);
+                }
+                
                 return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_error=token_exchange_failed');
             }
 
             $tokens = $response->json();
 
-            // Update credential with tokens
+            // Add tokens to data
             $data['accessToken'] = $tokens['access_token'];
             $data['refreshToken'] = $tokens['refresh_token'] ?? null;
             $data['tokenType'] = $tokens['token_type'] ?? 'Bearer';
@@ -485,13 +558,36 @@ class CredentialController extends Controller
                 ? now()->addSeconds($tokens['expires_in'])->toDateTimeString()
                 : null;
 
-            $credential->data = $data;
-            $credential->save();
+            // Save or update credential
+            if ($isExisting) {
+                // Update existing credential
+                $credential->data = $data;
+                $credential->save();
+                $credentialId = $credential->id;
 
-            Log::info('OAuth2 authorization successful', [
-                'credential_id' => $credentialId,
-                'has_refresh_token' => !empty($data['refreshToken'])
-            ]);
+                Log::info('OAuth2 authorization successful - credential updated', [
+                    'credential_id' => $credentialId,
+                    'has_refresh_token' => !empty($data['refreshToken'])
+                ]);
+            } else {
+                // Create new credential (only now, after successful authorization)
+                $credential = new Credential();
+                $credential->user_id = $userId;
+                $credential->name = $pendingCredential['name'];
+                $credential->type = 'oauth2';
+                $credential->description = $pendingCredential['description'] ?? null;
+                $credential->data = $data;
+                $credential->save();
+                $credentialId = $credential->id;
+
+                // Clean up session
+                $request->session()->forget('oauth2_pending_' . $sessionId);
+
+                Log::info('OAuth2 authorization successful - credential created', [
+                    'credential_id' => $credentialId,
+                    'has_refresh_token' => !empty($data['refreshToken'])
+                ]);
+            }
 
             // Redirect back to credentials page with success
             return redirect(env('FRONTEND_URL', 'http://localhost:3000') . '/credentials?oauth_success=true&credential_id=' . $credentialId);

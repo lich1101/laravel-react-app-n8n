@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/credentials/test-oauth2', [CredentialController::class, 'testOAuth2']);
     Route::post('/credentials/{credential}/test', [CredentialController::class, 'test']);
     Route::get('/credentials/{credential}/oauth2/authorize', [CredentialController::class, 'startOAuth2Authorization']);
+    Route::post('/credentials/oauth2/authorize', [CredentialController::class, 'startOAuth2Authorization']);
     Route::apiResource('credentials', CredentialController::class);
 });
 

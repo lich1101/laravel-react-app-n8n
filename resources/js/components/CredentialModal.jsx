@@ -120,20 +120,17 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                 return;
             }
 
-            // Save credential first (if new) or use existing
-            let credentialId = existingCredential?.id;
+            let authResponse;
             
-            if (!credentialId) {
-                // Create new credential
-                const response = await axios.post('/credentials', formData);
-                credentialId = response.data.credential.id;
+            if (existingCredential?.id) {
+                // Existing credential - just update and get auth URL
+                await axios.put(`/credentials/${existingCredential.id}`, formData);
+                authResponse = await axios.get(`/credentials/${existingCredential.id}/oauth2/authorize`);
             } else {
-                // Update existing credential
-                await axios.put(`/credentials/${credentialId}`, formData);
+                // New credential - send data to backend, it will be saved after successful authorization
+                authResponse = await axios.post('/credentials/oauth2/authorize', formData);
             }
 
-            // Get authorization URL and redirect
-            const authResponse = await axios.get(`/credentials/${credentialId}/oauth2/authorize`);
             const authUrl = authResponse.data.authorization_url;
             
             // Redirect to Google authorization
