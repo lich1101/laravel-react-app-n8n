@@ -6,7 +6,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
     const [config, setConfig] = useState({
         credentialId: null,
         resource: 'document',
-        operation: 'create', // 'create' or 'update'
+        operation: 'create', // 'create', 'update', or 'get'
         // Create fields
         folderId: '',
         title: '',
@@ -21,6 +21,8 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                 text: '',
             }
         ],
+        // Get fields
+        simplify: true, // Simplify output (extract plain text instead of full document structure)
     });
 
     const [testResults, setTestResults] = useState(null);
@@ -363,6 +365,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                 <select value={config.operation} onChange={(e) => setConfig({ ...config, operation: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                                     <option value="create">Create</option>
                                     <option value="update">Update</option>
+                                    <option value="get">Get</option>
                                 </select>
                             </div>
 
@@ -394,6 +397,42 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                             const variable = e.dataTransfer.getData('text/plain');
                                             setConfig({ ...config, title: variable });
                                         }} onDragOver={(e) => e.preventDefault()} placeholder="Document title hoặc {{variable}}" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm" />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* GET FIELDS */}
+                            {config.operation === 'get' && (
+                                <>
+                                    {/* Document ID */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Doc ID or URL *
+                                        </label>
+                                        <input type="text" value={config.documentId} onChange={(e) => setConfig({ ...config, documentId: e.target.value })} onDrop={(e) => {
+                                            e.preventDefault();
+                                            const variable = e.dataTransfer.getData('text/plain');
+                                            setConfig({ ...config, documentId: variable });
+                                        }} onDragOver={(e) => e.preventDefault()} placeholder="Document ID hoặc {{variable}}" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm" />
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            💡 Dùng {`{{NodeName.id}}`} từ Create node hoặc paste document ID/URL
+                                        </p>
+                                    </div>
+
+                                    {/* Simplify */}
+                                    <div>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={config.simplify !== false} 
+                                                onChange={(e) => setConfig({ ...config, simplify: e.target.checked })} 
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            />
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Simplify</span>
+                                        </label>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 ml-6">
+                                            💡 Simplify = trả về plain text dễ dùng. Tắt = trả về full document structure
+                                        </p>
                                     </div>
                                 </>
                             )}

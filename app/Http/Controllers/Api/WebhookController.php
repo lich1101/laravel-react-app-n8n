@@ -947,6 +947,8 @@ class WebhookController extends Controller
                 return $this->createGoogleDoc($config, $inputData, $credential);
             } elseif ($operation === 'update') {
                 return $this->updateGoogleDoc($config, $inputData, $credential);
+            } elseif ($operation === 'get') {
+                return $this->getGoogleDoc($config, $inputData, $credential);
             }
 
             throw new \Exception('Unsupported operation: ' . $operation);
@@ -1147,6 +1149,169 @@ class WebhookController extends Controller
             'url' => "https://docs.google.com/document/d/{$documentId}/edit",
             'result' => $result,
         ];
+    }
+
+    /**
+     * Get Google Doc content
+     */
+    private function getGoogleDoc($config, $inputData, $credential)
+    {
+        $originalDocId = $config['documentId'] ?? '';
+        
+        Log::info('Get Google Doc - resolving documentId', [
+            'original_documentId' => $originalDocId,
+            'inputData_keys' => array_keys($inputData),
+        ]);
+        
+        $documentId = $this->resolveVariables($originalDocId, $inputData);
+        
+        Log::info('Document ID after resolution', [
+            'original' => $originalDocId,
+            'resolved' => $documentId,
+            'was_resolved' => $documentId !== $originalDocId,
+        ]);
+        
+        if (!$documentId) {
+            throw new \Exception('Document ID is required for get operation');
+        }
+        
+        // Check if still a template (not resolved)
+        if (strpos($documentId, '{{') !== false) {
+            throw new \Exception('Document ID variable not resolved: ' . $documentId . '. Make sure the document ID is provided correctly.');
+        }
+
+        // Extract doc ID from URL if needed
+        if (strpos($documentId, 'docs.google.com') !== false) {
+            preg_match('/\/d\/([a-zA-Z0-9-_]+)/', $documentId, $matches);
+            $documentId = $matches[1] ?? $documentId;
+        }
+
+        // Get access token (support both camelCase and snake_case)
+        $accessToken = $credential->data['accessToken'] ?? $credential->data['access_token'] ?? null;
+        if (!$accessToken) {
+            throw new \Exception('OAuth2 access token not found. Please authorize this credential first by clicking "Connect" in the Credentials page.');
+        }
+
+        // Get document content from Google Docs API
+        $response = Http::withToken($accessToken)
+            ->get("https://docs.googleapis.com/v1/documents/{$documentId}");
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to get document: ' . $response->body());
+        }
+
+        $doc = $response->json();
+        
+        // Extract plain text content from document structure
+        $content = $this->extractTextFromDocument($doc);
+        
+        // Check if simplify option is enabled (default: true)
+        $simplify = $config['simplify'] ?? true;
+        
+        Log::info('Google Doc retrieved', [
+            'document_id' => $documentId,
+            'title' => $doc['title'] ?? 'Untitled',
+            'simplify' => $simplify,
+            'content_length' => strlen($content),
+        ]);
+
+        // Return simplified format if simplify is enabled
+        if ($simplify) {
+            return [
+                'id' => $documentId,
+                'title' => $doc['title'] ?? 'Untitled',
+                'url' => "https://docs.google.com/document/d/{$documentId}/edit",
+                'content' => $content,
+                'simpleText' => $content, // For backward compatibility
+            ];
+        }
+
+        // Return full document structure
+        return [
+            'id' => $documentId,
+            'title' => $doc['title'] ?? 'Untitled',
+            'url' => "https://docs.google.com/document/d/{$documentId}/edit",
+            'document' => $doc,
+            'content' => $content,
+            'simpleText' => $content,
+        ];
+    }
+
+    /**
+     * Extract plain text from Google Docs document structure
+     */
+    private function extractTextFromDocument($doc)
+    {
+        $text = '';
+        
+        if (!isset($doc['body']['content'])) {
+            return $text;
+        }
+
+        foreach ($doc['body']['content'] as $element) {
+            if (isset($element['paragraph'])) {
+                $text .= $this->extractTextFromParagraph($element['paragraph']) . "\n";
+            } elseif (isset($element['table'])) {
+                $text .= $this->extractTextFromTable($element['table']) . "\n";
+            }
+        }
+
+        return trim($text);
+    }
+
+    /**
+     * Extract text from paragraph element
+     */
+    private function extractTextFromParagraph($paragraph)
+    {
+        $text = '';
+        
+        if (!isset($paragraph['elements'])) {
+            return $text;
+        }
+
+        foreach ($paragraph['elements'] as $element) {
+            if (isset($element['textRun'])) {
+                $text .= $element['textRun']['content'] ?? '';
+            } elseif (isset($element['inlineObjectElement'])) {
+                // Skip inline objects (images, etc.)
+                continue;
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * Extract text from table element
+     */
+    private function extractTextFromTable($table)
+    {
+        $text = '';
+        
+        if (!isset($table['tableRows'])) {
+            return $text;
+        }
+
+        foreach ($table['tableRows'] as $row) {
+            $rowText = [];
+            if (isset($row['tableCells'])) {
+                foreach ($row['tableCells'] as $cell) {
+                    if (isset($cell['content'])) {
+                        $cellText = '';
+                        foreach ($cell['content'] as $element) {
+                            if (isset($element['paragraph'])) {
+                                $cellText .= $this->extractTextFromParagraph($element['paragraph']);
+                            }
+                        }
+                        $rowText[] = trim($cellText);
+                    }
+                }
+            }
+            $text .= implode(' | ', $rowText) . "\n";
+        }
+
+        return $text;
     }
 
     /**
