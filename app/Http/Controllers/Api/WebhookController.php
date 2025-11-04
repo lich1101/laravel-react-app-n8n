@@ -972,11 +972,8 @@ class WebhookController extends Controller
         $title = $this->resolveVariables($config['title'] ?? 'Untitled', $inputData);
         $folderId = $this->resolveVariables($config['folderId'] ?? '', $inputData);
 
-        // Get access token (support both camelCase and snake_case)
-        $accessToken = $credential->data['accessToken'] ?? $credential->data['access_token'] ?? null;
-        if (!$accessToken) {
-            throw new \Exception('OAuth2 access token not found. Please authorize this credential first by clicking "Connect" in the Credentials page.');
-        }
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
 
         // Create document using Drive API (allows specifying folder from the start)
         $metadata = [
@@ -1057,11 +1054,8 @@ class WebhookController extends Controller
             $documentId = $matches[1] ?? $documentId;
         }
 
-        // Get access token (support both camelCase and snake_case)
-        $accessToken = $credential->data['accessToken'] ?? $credential->data['access_token'] ?? null;
-        if (!$accessToken) {
-            throw new \Exception('OAuth2 access token not found. Please authorize this credential first by clicking "Connect" in the Credentials page.');
-        }
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
 
         // Build requests for batch update
         $requests = [];
@@ -1189,11 +1183,8 @@ class WebhookController extends Controller
             $documentId = $matches[1] ?? $documentId;
         }
 
-        // Get access token (support both camelCase and snake_case)
-        $accessToken = $credential->data['accessToken'] ?? $credential->data['access_token'] ?? null;
-        if (!$accessToken) {
-            throw new \Exception('OAuth2 access token not found. Please authorize this credential first by clicking "Connect" in the Credentials page.');
-        }
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
 
         // Get document content from Google Docs API
         $response = Http::withToken($accessToken)
@@ -2708,11 +2699,8 @@ JS;
                 return response()->json(['error' => 'Invalid OAuth2 credential'], 400);
             }
 
-            $data = $credential->data;
-            $accessToken = $data['accessToken'] ?? null;
-            if (!$accessToken) {
-                return response()->json(['error' => 'No access token available'], 400);
-            }
+            // Get valid access token (auto-refresh if expired)
+            $accessToken = $this->getValidAccessToken($credential);
 
             $spreadsheetId = $this->extractSpreadsheetId($documentUrl);
             $sheetId = $this->extractSheetId($sheetUrl);
@@ -2799,12 +2787,8 @@ JS;
         $filters = $config['filters'] ?? [];
         $combineFilters = $config['combineFilters'] ?? 'AND';
 
-        $data = $credential->data;
-        $accessToken = $data['accessToken'] ?? null;
-
-        if (!$accessToken) {
-            throw new \Exception('No access token available');
-        }
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
 
         $spreadsheetId = $this->extractSpreadsheetId($documentUrl);
         $sheetId = $this->extractSheetId($sheetUrl);
@@ -2895,12 +2879,8 @@ JS;
         $sheetUrl = $this->resolveVariables($config['sheetUrl'] ?? '', $inputData);
         $columnValues = $config['columnValues'] ?? [];
 
-        $data = $credential->data;
-        $accessToken = $data['accessToken'] ?? null;
-
-        if (!$accessToken) {
-            throw new \Exception('No access token available');
-        }
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
 
         $spreadsheetId = $this->extractSpreadsheetId($documentUrl);
         $sheetId = $this->extractSheetId($sheetUrl);
@@ -2967,12 +2947,8 @@ JS;
         $columnValues = $config['columnValues'] ?? [];
         $columnToMatch = $config['columnToMatch'] ?? 'row_number';
 
-        $data = $credential->data;
-        $accessToken = $data['accessToken'] ?? null;
-
-        if (!$accessToken) {
-            throw new \Exception('No access token available');
-        }
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
 
         $spreadsheetId = $this->extractSpreadsheetId($documentUrl);
         $sheetId = $this->extractSheetId($sheetUrl);
@@ -3131,5 +3107,58 @@ JS;
         }
 
         return 'Sheet1';
+    }
+
+    /**
+     * Get valid access token, refresh if needed
+     */
+    private function getValidAccessToken($credential)
+    {
+        $data = $credential->data;
+        $accessToken = $data['accessToken'] ?? $data['access_token'] ?? null;
+        $refreshToken = $data['refreshToken'] ?? $data['refresh_token'] ?? null;
+        $expiresAt = $data['expiresAt'] ?? $data['expires_at'] ?? null;
+
+        // Check if token is still valid
+        if ($accessToken && $expiresAt && now()->lt($expiresAt)) {
+            return $accessToken;
+        }
+
+        // Token expired or about to expire, refresh it
+        if (!$refreshToken) {
+            throw new \Exception('Access token expired and no refresh token available. Please re-authorize the credential.');
+        }
+
+        Log::info('Access token expired, refreshing...', ['credential_id' => $credential->id]);
+
+        // Refresh the token
+        $tokenUrl = $data['accessTokenUrl'] ?? 'https://oauth2.googleapis.com/token';
+        $response = Http::asForm()->post($tokenUrl, [
+            'client_id' => $data['clientId'],
+            'client_secret' => $data['clientSecret'],
+            'refresh_token' => $refreshToken,
+            'grant_type' => 'refresh_token',
+        ]);
+
+        if (!$response->successful()) {
+            Log::error('Token refresh failed', ['response' => $response->body()]);
+            throw new \Exception('Failed to refresh access token. Please re-authorize the credential.');
+        }
+
+        $tokens = $response->json();
+        $newAccessToken = $tokens['access_token'];
+        $newExpiresAt = isset($tokens['expires_in']) 
+            ? now()->addSeconds($tokens['expires_in'])->toDateTimeString()
+            : null;
+
+        // Update credential with new token
+        $data['accessToken'] = $newAccessToken;
+        $data['expiresAt'] = $newExpiresAt;
+        $credential->data = $data;
+        $credential->save();
+
+        Log::info('Access token refreshed successfully', ['credential_id' => $credential->id]);
+
+        return $newAccessToken;
     }
 }
