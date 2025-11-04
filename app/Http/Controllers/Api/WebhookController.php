@@ -587,6 +587,9 @@ class WebhookController extends Controller
             case 'googlesheets':
                 return $this->executeGoogleSheetsNode($config, $inputData);
 
+            case 'gemini':
+                return $this->executeGeminiNode($config, $inputData);
+
             default:
                 // Pass through input data
                 return $inputData[0] ?? [];
@@ -1696,6 +1699,11 @@ JS;
         return $this->executePerplexityNode($config, $inputData);
     }
 
+    public function testGeminiNode($config, $inputData)
+    {
+        return $this->executeGeminiNode($config, $inputData);
+    }
+
     // Public wrapper for testing Google Docs node
     public function testGoogleDocsNode($config, $inputData)
     {
@@ -1968,6 +1976,182 @@ JS;
 
             return [
                 'error' => 'Perplexity request failed',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function executeGeminiNode($config, $inputData)
+    {
+        try {
+            // Build messages array
+            $messages = [];
+            
+            // Add system message if enabled (Gemini supports system in messages array)
+            if (!empty($config['systemMessageEnabled']) && !empty($config['systemMessage'])) {
+                $systemMessage = $this->resolveVariables($config['systemMessage'], $inputData);
+                if ($systemMessage) {
+                    $messages[] = [
+                        'role' => 'system',
+                        'content' => $systemMessage
+                    ];
+                }
+            }
+
+            // Add all user/assistant messages
+            if (!empty($config['messages']) && is_array($config['messages'])) {
+                foreach ($config['messages'] as $msg) {
+                    $content = $this->resolveVariables($msg['content'] ?? '', $inputData);
+                    if (!empty($content)) {
+                        $messages[] = [
+                            'role' => $msg['role'] ?? 'user',
+                            'content' => $content
+                        ];
+                    }
+                }
+            }
+
+            // Get credential
+            $credentialId = $config['credentialId'] ?? null;
+            if (!$credentialId) {
+                throw new \Exception('Gemini API credential is required');
+            }
+
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential || !isset($credential->data['headerValue'])) {
+                throw new \Exception('Invalid Gemini credential configuration');
+            }
+
+            // Extract API key from header value (Bearer YOUR_API_KEY)
+            $headerValue = $credential->data['headerValue'];
+            $apiKey = $headerValue;
+            if (strpos($headerValue, 'Bearer ') === 0) {
+                $apiKey = substr($headerValue, 7);
+            }
+
+            // Build request body
+            $requestBody = [
+                'model' => $config['model'] ?? 'gemini-2.0-flash',
+                'messages' => $messages,
+                'temperature' => $config['temperature'] ?? 0.7,
+                'top_p' => $config['topP'] ?? 1,
+            ];
+
+            // Add functions if provided
+            if (!empty($config['functions']) && is_array($config['functions'])) {
+                $functions = [];
+                foreach ($config['functions'] as $func) {
+                    if (!empty($func['name'])) {
+                        $functions[] = [
+                            'name' => $func['name'],
+                            'description' => $func['description'] ?? '',
+                            'parameters' => $func['parameters'] ?? [
+                                'type' => 'object',
+                                'properties' => [],
+                                'required' => []
+                            ]
+                        ];
+                    }
+                }
+                if (!empty($functions)) {
+                    $requestBody['functions'] = $functions;
+                    
+                    // Add function_call
+                    $functionCall = $config['functionCall'] ?? 'auto';
+                    if ($functionCall === 'none') {
+                        $requestBody['function_call'] = 'none';
+                    } elseif ($functionCall !== 'auto') {
+                        // Specific function name
+                        $requestBody['function_call'] = ['name' => $functionCall];
+                    } else {
+                        $requestBody['function_call'] = 'auto';
+                    }
+                }
+            }
+
+            // Add stream option
+            if (isset($config['stream'])) {
+                $requestBody['stream'] = (bool)$config['stream'];
+            }
+
+            // Add advanced options
+            if (!empty($config['advancedOptions']) && is_array($config['advancedOptions'])) {
+                foreach ($config['advancedOptions'] as $key => $value) {
+                    if ($key === 'timeout') continue;
+                    
+                    if (is_numeric($value)) {
+                        $requestBody[$key] = strpos($value, '.') !== false 
+                            ? floatval($value) 
+                            : intval($value);
+                    } else {
+                        $requestBody[$key] = $value;
+                    }
+                }
+            }
+
+            Log::info('Gemini API Request', [
+                'model' => $requestBody['model'],
+                'messages_count' => count($messages),
+                'has_functions' => isset($requestBody['functions']),
+                'stream' => $requestBody['stream'] ?? false,
+            ]);
+
+            // Build headers
+            $headers = [
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer ' . $apiKey,
+            ];
+
+            // Get timeout
+            $timeout = 60;
+            if (isset($config['timeout'])) {
+                $timeout = (int)$config['timeout'];
+            } elseif (!empty($config['advancedOptions']['timeout'])) {
+                $timeout = (int)$config['advancedOptions']['timeout'];
+            }
+
+            // Make HTTP request to Gemini API
+            $originalTimeout = ini_get('default_socket_timeout');
+            if ($timeout > 60) {
+                ini_set('default_socket_timeout', $timeout);
+            }
+
+            try {
+                $response = Http::withHeaders($headers)
+                    ->timeout($timeout)
+                    ->post('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', $requestBody);
+            } finally {
+                if ($timeout > 60) {
+                    ini_set('default_socket_timeout', $originalTimeout);
+                }
+            }
+
+            if (!$response->successful()) {
+                Log::error('Gemini API Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                
+                throw new \Exception('Gemini API error: ' . $response->body());
+            }
+
+            $result = $response->json();
+
+            Log::info('Gemini API Response', [
+                'model' => $result['model'] ?? 'unknown',
+                'has_choices' => isset($result['choices']),
+                'choices_count' => isset($result['choices']) ? count($result['choices']) : 0,
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error('Gemini node execution failed', [
+                'error' => $e->getMessage(),
+                'config' => $config,
+            ]);
+
+            return [
+                'error' => 'Gemini request failed',
                 'message' => $e->getMessage(),
             ];
         }

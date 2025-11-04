@@ -23,6 +23,7 @@ import IfConfigModal from './IfConfigModal';
 import SwitchConfigModal from './SwitchConfigModal';
 import GoogleDocsConfigModal from './GoogleDocsConfigModal';
 import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
+import GeminiConfigModal from './GeminiConfigModal';
 import WorkflowHistory from './WorkflowHistory';
 import RenameNodeModal from './RenameNodeModal';
 
@@ -230,6 +231,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                     <button onClick={() => handleSelectNode('switch')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 Switch</button>
                     <button onClick={() => handleSelectNode('googledocs')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">📄 Google Docs</button>
                     <button onClick={() => handleSelectNode('googlesheets')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">📊 Google Sheets</button>
+                    <button onClick={() => handleSelectNode('gemini')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Gemini AI</button>
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                     <button onClick={() => setShowQuickAdd(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
                 </div>
@@ -378,6 +380,18 @@ const nodeTypes = {
             nodeType="googlesheets"
             iconPath="/icons/nodes/googlesheets.svg"
             color="green"
+            handles={{ input: true, outputs: [{ id: null }] }}
+            onQuickAdd={props.data.onQuickAdd}
+            connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
+        />
+    ),
+    gemini: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="gemini"
+            iconPath="/icons/nodes/gemini.svg"
+            color="purple"
             handles={{ input: true, outputs: [{ id: null }] }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
@@ -921,6 +935,7 @@ function WorkflowEditor() {
             http: 'HTTP Request',
             perplexity: 'Perplexity AI',
             claude: 'Claude AI',
+            gemini: 'Gemini AI',
             code: 'Code',
             escape: 'Escape & Set',
             if: 'If',
@@ -1235,7 +1250,7 @@ function WorkflowEditor() {
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
-        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
+        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'gemini' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
             setShowConfigModal(true);
         }
     };
@@ -1836,6 +1851,40 @@ function WorkflowEditor() {
             return response.data;
         } catch (error) {
             console.error('Error testing Claude:', error);
+            return {
+                error: error.response?.data?.message || error.message || 'An error occurred',
+                details: error.toString(),
+            };
+        }
+    };
+
+    // Test Gemini node (call via backend)
+    const handleTestGeminiNode = async (config) => {
+        try {
+            console.log('Testing Gemini with config:', config);
+
+            const inputData = getNodeInputData(selectedNode?.id || '');
+            console.log('Input data for variable resolution:', inputData);
+
+            if (!config.credentialId) {
+                throw new Error('Gemini API credential is required');
+            }
+
+            // Call backend API to test node
+            const response = await axios.post('/test-node', {
+                nodeType: 'gemini',
+                config: config,
+                inputData: inputData,
+                nodes: nodes,
+                edges: edges,
+                nodeOutputs: nodeOutputData,
+                nodeId: selectedNode?.id || '',
+            });
+
+            console.log('Gemini response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error testing Gemini:', error);
             return {
                 error: error.response?.data?.message || error.message || 'An error occurred',
                 details: error.toString(),
@@ -2469,6 +2518,12 @@ function WorkflowEditor() {
                                         Claude AI
                                     </button>
                                     <button
+                                        onClick={() => { addNode('gemini', 'Gemini AI'); setShowNodeMenu(false); }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                        Gemini AI
+                                    </button>
+                                    <button
                                         onClick={() => { addNode('code', 'Code'); setShowNodeMenu(false); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
@@ -2858,6 +2913,21 @@ function WorkflowEditor() {
                         onSave={handleSaveConfig}
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestClaudeNode}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
+                        outputData={nodeOutputData[selectedNode.id]}
+                        onTestResult={handleTestResult}
+                        allEdges={edges}
+                        allNodes={nodes}
+                    />
+                )}
+
+                {showConfigModal && selectedNode && selectedNode.type === 'gemini' && (
+                    <GeminiConfigModal
+                        node={selectedNode}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onTest={handleTestGeminiNode}
                         onRename={() => openRenameModal(selectedNode.id)}
                         inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
