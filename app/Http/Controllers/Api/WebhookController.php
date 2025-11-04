@@ -584,6 +584,9 @@ class WebhookController extends Controller
             case 'googledocs':
                 return $this->executeGoogleDocsNode($config, $inputData);
 
+            case 'googlesheets':
+                return $this->executeGoogleSheetsNode($config, $inputData);
+
             default:
                 // Pass through input data
                 return $inputData[0] ?? [];
@@ -1708,6 +1711,11 @@ JS;
         return $this->executeGoogleDocsNode($config, $inputData);
     }
 
+    public function testGoogleSheetsNode($config, $inputData)
+    {
+        return $this->executeGoogleSheetsNode($config, $inputData);
+    }
+
     private function executeClaudeNode($config, $inputData)
     {
         try {
@@ -2679,5 +2687,449 @@ JS;
         return response()->json([
             'message' => 'No active test listener for this path'
         ], 404);
+    }
+
+    /**
+     * Get column headers from Google Sheets
+     */
+    public function getGoogleSheetsColumns(Request $request)
+    {
+        try {
+            $credentialId = $request->input('credentialId');
+            $documentUrl = $request->input('documentUrl');
+            $sheetUrl = $request->input('sheetUrl');
+
+            if (!$credentialId || !$documentUrl) {
+                return response()->json(['error' => 'Missing required parameters'], 400);
+            }
+
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential || $credential->type !== 'oauth2') {
+                return response()->json(['error' => 'Invalid OAuth2 credential'], 400);
+            }
+
+            $data = $credential->data;
+            $accessToken = $data['accessToken'] ?? null;
+            if (!$accessToken) {
+                return response()->json(['error' => 'No access token available'], 400);
+            }
+
+            $spreadsheetId = $this->extractSpreadsheetId($documentUrl);
+            $sheetId = $this->extractSheetId($sheetUrl);
+
+            // Get sheet name from sheet ID
+            $sheetName = $this->getSheetNameById($spreadsheetId, $sheetId, $accessToken);
+
+            // Get the first row (header row) from specific sheet
+            $range = $sheetName . '!A1:ZZ1'; // Read first row up to column ZZ
+            $url = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}";
+
+            $response = Http::withToken($accessToken)->get($url);
+
+            if (!$response->successful()) {
+                Log::error('Google Sheets API error', ['response' => $response->body()]);
+                return response()->json(['error' => 'Failed to fetch sheet data', 'details' => $response->json()], 400);
+            }
+
+            $data = $response->json();
+            $values = $data['values'] ?? [];
+            
+            if (empty($values) || empty($values[0])) {
+                return response()->json(['columns' => []], 200);
+            }
+
+            // Filter out empty columns
+            $columns = array_filter($values[0], function($col) {
+                return !empty(trim($col));
+            });
+
+            return response()->json(['columns' => array_values($columns)], 200);
+        } catch (\Exception $e) {
+            Log::error('Error getting Google Sheets columns', ['error' => $e->getMessage()]);
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Execute Google Sheets node
+     */
+    private function executeGoogleSheetsNode($config, $inputData)
+    {
+        try {
+            $credentialId = $config['credentialId'] ?? null;
+            if (!$credentialId) {
+                throw new \Exception('Google Sheets credential is required');
+            }
+
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential || $credential->type !== 'oauth2') {
+                throw new \Exception('Invalid Google Sheets OAuth2 credential');
+            }
+
+            $operation = $config['operation'] ?? 'get';
+            
+            if ($operation === 'get') {
+                return $this->getGoogleSheetsRows($config, $inputData, $credential);
+            } elseif ($operation === 'append') {
+                return $this->appendGoogleSheetsRow($config, $inputData, $credential);
+            } elseif ($operation === 'update') {
+                return $this->updateGoogleSheetsRow($config, $inputData, $credential);
+            }
+
+            throw new \Exception('Unsupported operation: ' . $operation);
+        } catch (\Exception $e) {
+            Log::error('Google Sheets node execution failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'error' => 'Google Sheets request failed',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Get rows from Google Sheets
+     */
+    private function getGoogleSheetsRows($config, $inputData, $credential)
+    {
+        $documentUrl = $this->resolveVariables($config['documentUrl'] ?? '', $inputData);
+        $sheetUrl = $this->resolveVariables($config['sheetUrl'] ?? '', $inputData);
+        $filters = $config['filters'] ?? [];
+        $combineFilters = $config['combineFilters'] ?? 'AND';
+
+        $data = $credential->data;
+        $accessToken = $data['accessToken'] ?? null;
+
+        if (!$accessToken) {
+            throw new \Exception('No access token available');
+        }
+
+        $spreadsheetId = $this->extractSpreadsheetId($documentUrl);
+        $sheetId = $this->extractSheetId($sheetUrl);
+        
+        // Get sheet name from sheet ID
+        $sheetName = $this->getSheetNameById($spreadsheetId, $sheetId, $accessToken);
+        
+        // Get all data from specific sheet
+        $range = $sheetName . '!A1:ZZ10000'; // Read up to 10000 rows from specific sheet
+        $url = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}";
+
+        $response = Http::withToken($accessToken)->get($url);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to fetch sheet data: ' . $response->body());
+        }
+
+        $data = $response->json();
+        $values = $data['values'] ?? [];
+
+        if (empty($values)) {
+            return [];
+        }
+
+        // First row is headers
+        $headers = array_shift($values);
+        
+        // Convert rows to associative arrays
+        $rows = [];
+        foreach ($values as $index => $row) {
+            $rowData = ['row_number' => $index + 2]; // Row 2 is first data row (1 is header)
+            foreach ($headers as $colIndex => $header) {
+                $rowData[$header] = $row[$colIndex] ?? '';
+            }
+            $rows[] = $rowData;
+        }
+
+        // Apply filters if any
+        if (!empty($filters)) {
+            $rows = array_filter($rows, function($row) use ($filters, $combineFilters) {
+                $results = [];
+                foreach ($filters as $filter) {
+                    $column = $filter['column'] ?? '';
+                    $operator = $filter['operator'] ?? '=';
+                    $value = $filter['value'] ?? '';
+                    
+                    $cellValue = $row[$column] ?? '';
+                    
+                    $match = false;
+                    switch ($operator) {
+                        case '=':
+                            $match = $cellValue == $value;
+                            break;
+                        case '!=':
+                            $match = $cellValue != $value;
+                            break;
+                        case '>':
+                            $match = $cellValue > $value;
+                            break;
+                        case '<':
+                            $match = $cellValue < $value;
+                            break;
+                        case 'contains':
+                            $match = strpos($cellValue, $value) !== false;
+                            break;
+                    }
+                    
+                    $results[] = $match;
+                }
+                
+                if ($combineFilters === 'AND') {
+                    return !in_array(false, $results);
+                } else {
+                    return in_array(true, $results);
+                }
+            });
+        }
+
+        return array_values($rows);
+    }
+
+    /**
+     * Append a row to Google Sheets
+     */
+    private function appendGoogleSheetsRow($config, $inputData, $credential)
+    {
+        $documentUrl = $this->resolveVariables($config['documentUrl'] ?? '', $inputData);
+        $sheetUrl = $this->resolveVariables($config['sheetUrl'] ?? '', $inputData);
+        $columnValues = $config['columnValues'] ?? [];
+
+        $data = $credential->data;
+        $accessToken = $data['accessToken'] ?? null;
+
+        if (!$accessToken) {
+            throw new \Exception('No access token available');
+        }
+
+        $spreadsheetId = $this->extractSpreadsheetId($documentUrl);
+        $sheetId = $this->extractSheetId($sheetUrl);
+        
+        // Get sheet name from sheet ID
+        $sheetName = $this->getSheetNameById($spreadsheetId, $sheetId, $accessToken);
+
+        // First, get headers to know column order
+        $headerRange = $sheetName . '!A1:ZZ1';
+        $headerUrl = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$headerRange}";
+        $headerResponse = Http::withToken($accessToken)->get($headerUrl);
+
+        if (!$headerResponse->successful()) {
+            throw new \Exception('Failed to fetch headers: ' . $headerResponse->body());
+        }
+
+        $headerData = $headerResponse->json();
+        $headers = $headerData['values'][0] ?? [];
+
+        if (empty($headers)) {
+            throw new \Exception('Sheet has no headers');
+        }
+
+        // Build row values in correct order
+        $rowValues = [];
+        foreach ($headers as $header) {
+            $value = $columnValues[$header] ?? '';
+            $resolvedValue = $this->resolveVariables($value, $inputData);
+            $rowValues[] = $resolvedValue;
+        }
+
+        // Append the row
+        $range = $sheetName . '!A:ZZ'; // Append to the end of specific sheet
+        $url = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}:append";
+        
+        $response = Http::withToken($accessToken)
+            ->withQueryParameters(['valueInputOption' => 'USER_ENTERED'])
+            ->post($url, [
+                'values' => [$rowValues]
+            ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to append row: ' . $response->body());
+        }
+
+        $result = $response->json();
+        
+        // Return the appended row data
+        $appendedRow = ['row_number' => $result['updates']['updatedRows'] ?? 0];
+        foreach ($headers as $index => $header) {
+            $appendedRow[$header] = $rowValues[$index] ?? '';
+        }
+
+        return $appendedRow;
+    }
+
+    /**
+     * Update a row in Google Sheets
+     */
+    private function updateGoogleSheetsRow($config, $inputData, $credential)
+    {
+        $documentUrl = $this->resolveVariables($config['documentUrl'] ?? '', $inputData);
+        $sheetUrl = $this->resolveVariables($config['sheetUrl'] ?? '', $inputData);
+        $columnValues = $config['columnValues'] ?? [];
+        $columnToMatch = $config['columnToMatch'] ?? 'row_number';
+
+        $data = $credential->data;
+        $accessToken = $data['accessToken'] ?? null;
+
+        if (!$accessToken) {
+            throw new \Exception('No access token available');
+        }
+
+        $spreadsheetId = $this->extractSpreadsheetId($documentUrl);
+        $sheetId = $this->extractSheetId($sheetUrl);
+        
+        // Get sheet name from sheet ID
+        $sheetName = $this->getSheetNameById($spreadsheetId, $sheetId, $accessToken);
+
+        // Get all data to find the row to update
+        $range = $sheetName . '!A1:ZZ10000';
+        $url = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$range}";
+        $response = Http::withToken($accessToken)->get($url);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to fetch sheet data: ' . $response->body());
+        }
+
+        $data = $response->json();
+        $values = $data['values'] ?? [];
+
+        if (empty($values)) {
+            throw new \Exception('Sheet is empty');
+        }
+
+        $headers = array_shift($values);
+        
+        // Find the column index for matching
+        $matchColumnIndex = array_search($columnToMatch, $headers);
+        if ($matchColumnIndex === false && $columnToMatch !== 'row_number') {
+            throw new \Exception("Column '{$columnToMatch}' not found in sheet");
+        }
+
+        // Get the value to match
+        $matchValue = $this->resolveVariables($columnValues[$columnToMatch] ?? '', $inputData);
+
+        // Find the row to update
+        $rowToUpdate = null;
+        $rowIndex = null;
+        
+        if ($columnToMatch === 'row_number') {
+            // Match by row number (2-based index)
+            $rowIndex = intval($matchValue) - 2; // Convert to 0-based array index
+            if ($rowIndex >= 0 && $rowIndex < count($values)) {
+                $rowToUpdate = $values[$rowIndex];
+            }
+        } else {
+            // Match by column value
+            foreach ($values as $index => $row) {
+                if (isset($row[$matchColumnIndex]) && $row[$matchColumnIndex] == $matchValue) {
+                    $rowToUpdate = $row;
+                    $rowIndex = $index;
+                    break;
+                }
+            }
+        }
+
+        if ($rowToUpdate === null) {
+            throw new \Exception("No row found matching {$columnToMatch} = {$matchValue}");
+        }
+
+        // Build updated row values
+        $updatedRow = $rowToUpdate;
+        foreach ($headers as $colIndex => $header) {
+            if (isset($columnValues[$header]) && $header !== $columnToMatch) {
+                $value = $columnValues[$header] ?? '';
+                $resolvedValue = $this->resolveVariables($value, $inputData);
+                $updatedRow[$colIndex] = $resolvedValue;
+            }
+        }
+
+        // Pad array to match original length
+        while (count($updatedRow) < count($headers)) {
+            $updatedRow[] = '';
+        }
+
+        // Update the row
+        $actualRowNumber = $rowIndex + 2; // +2 because: +1 for 1-based, +1 for header row
+        $updateRange = $sheetName . "!A{$actualRowNumber}:ZZ{$actualRowNumber}";
+        $updateUrl = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}/values/{$updateRange}";
+        
+        $updateResponse = Http::withToken($accessToken)
+            ->withQueryParameters(['valueInputOption' => 'USER_ENTERED'])
+            ->put($updateUrl, [
+                'values' => [$updatedRow]
+            ]);
+
+        if (!$updateResponse->successful()) {
+            throw new \Exception('Failed to update row: ' . $updateResponse->body());
+        }
+
+        // Return updated row data
+        $result = ['row_number' => $actualRowNumber];
+        foreach ($headers as $index => $header) {
+            $result[$header] = $updatedRow[$index] ?? '';
+        }
+
+        return $result;
+    }
+
+    /**
+     * Extract spreadsheet ID from Google Sheets URL
+     */
+    private function extractSpreadsheetId($url)
+    {
+        // URL format: https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/...
+        if (preg_match('/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/', $url, $matches)) {
+            return $matches[1];
+        }
+        
+        // If it's already just an ID, return it
+        return $url;
+    }
+
+    /**
+     * Extract sheet ID/name from Google Sheets URL
+     */
+    private function extractSheetId($url)
+    {
+        // URL format: ...#gid={SHEET_ID} or .../edit#gid={SHEET_ID}
+        if (preg_match('/gid=([0-9]+)/', $url, $matches)) {
+            return $matches[1];
+        }
+        
+        // Default to first sheet
+        return '0';
+    }
+
+    /**
+     * Get sheet name by sheet ID from spreadsheet metadata
+     */
+    private function getSheetNameById($spreadsheetId, $sheetId, $accessToken)
+    {
+        // Get spreadsheet metadata to find sheet name
+        $metadataUrl = "https://sheets.googleapis.com/v4/spreadsheets/{$spreadsheetId}";
+        $response = Http::withToken($accessToken)->get($metadataUrl);
+
+        if (!$response->successful()) {
+            // If metadata fetch fails, default to first sheet
+            Log::warning('Failed to fetch spreadsheet metadata, using first sheet');
+            return 'Sheet1';
+        }
+
+        $metadata = $response->json();
+        $sheets = $metadata['sheets'] ?? [];
+
+        // Find sheet with matching sheetId
+        foreach ($sheets as $sheet) {
+            $properties = $sheet['properties'] ?? [];
+            if (isset($properties['sheetId']) && $properties['sheetId'] == $sheetId) {
+                return $properties['title'] ?? 'Sheet1';
+            }
+        }
+
+        // If not found, return first sheet's name
+        if (!empty($sheets)) {
+            return $sheets[0]['properties']['title'] ?? 'Sheet1';
+        }
+
+        return 'Sheet1';
     }
 }

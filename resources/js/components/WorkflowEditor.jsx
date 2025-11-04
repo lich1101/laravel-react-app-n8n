@@ -22,6 +22,7 @@ import EscapeConfigModal from './EscapeConfigModal';
 import IfConfigModal from './IfConfigModal';
 import SwitchConfigModal from './SwitchConfigModal';
 import GoogleDocsConfigModal from './GoogleDocsConfigModal';
+import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
 import WorkflowHistory from './WorkflowHistory';
 import RenameNodeModal from './RenameNodeModal';
 
@@ -228,6 +229,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                     <button onClick={() => handleSelectNode('if')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
                     <button onClick={() => handleSelectNode('switch')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 Switch</button>
                     <button onClick={() => handleSelectNode('googledocs')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">📄 Google Docs</button>
+                    <button onClick={() => handleSelectNode('googlesheets')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">📊 Google Sheets</button>
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                     <button onClick={() => setShowQuickAdd(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
                 </div>
@@ -364,6 +366,18 @@ const nodeTypes = {
             nodeType="googledocs"
             iconPath="/icons/nodes/googledocs.svg"
             color="blue"
+            handles={{ input: true, outputs: [{ id: null }] }}
+            onQuickAdd={props.data.onQuickAdd}
+            connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
+        />
+    ),
+    googlesheets: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="googlesheets"
+            iconPath="/icons/nodes/googlesheets.svg"
+            color="green"
             handles={{ input: true, outputs: [{ id: null }] }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
@@ -912,6 +926,7 @@ function WorkflowEditor() {
             if: 'If',
             switch: 'Switch',
             googledocs: 'Google Docs',
+            googlesheets: 'Google Sheets',
         };
 
         addNode(nodeType, labels[nodeType], position, sourceNodeId, sourceHandle);
@@ -1220,7 +1235,7 @@ function WorkflowEditor() {
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
-        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs') {
+        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
             setShowConfigModal(true);
         }
     };
@@ -2021,6 +2036,39 @@ function WorkflowEditor() {
         }
     };
 
+    const handleTestGoogleSheetsNode = async (config) => {
+        try {
+            console.log('Testing Google Sheets with config:', config);
+
+            const inputData = getNodeInputData(selectedNode?.id || '');
+            console.log('Input data for Google Sheets:', inputData);
+
+            if (!config.credentialId) {
+                throw new Error('Google Sheets credential is required');
+            }
+
+            // Call backend API to test node
+            const response = await axios.post('/test-node', {
+                nodeType: 'googlesheets',
+                config: config,
+                inputData: inputData,
+                nodes: nodes,
+                edges: edges,
+                nodeOutputs: nodeOutputData,
+                nodeId: selectedNode?.id || '',
+            });
+
+            console.log('Google Sheets response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error testing Google Sheets:', error);
+            return {
+                error: error.response?.data?.message || error.message || 'An error occurred',
+                details: error.toString(),
+            };
+        }
+    };
+
     // Test Switch node
     const handleTestSwitchNode = async (config) => {
         try {
@@ -2449,6 +2497,12 @@ function WorkflowEditor() {
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
                                         Google Docs
+                                    </button>
+                                    <button
+                                        onClick={() => { addNode('googlesheets', 'Google Sheets'); setShowNodeMenu(false); }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                        Google Sheets
                                     </button>
                                 </div>
                             )}
@@ -2879,6 +2933,21 @@ function WorkflowEditor() {
                         onSave={handleSaveConfig}
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestGoogleDocsNode}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
+                        outputData={nodeOutputData[selectedNode.id]}
+                        onTestResult={handleTestResult}
+                        allEdges={edges}
+                        allNodes={nodes}
+                    />
+                )}
+
+                {showConfigModal && selectedNode && selectedNode.type === 'googlesheets' && (
+                    <GoogleSheetsConfigModal
+                        node={selectedNode}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onTest={handleTestGoogleSheetsNode}
                         onRename={() => openRenameModal(selectedNode.id)}
                         inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}

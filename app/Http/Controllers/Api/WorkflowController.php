@@ -258,6 +258,9 @@ class WorkflowController extends Controller
                 case 'googledocs':
                     $result = $webhookController->testGoogleDocsNode($config, $inputData);
                     break;
+                case 'googlesheets':
+                    $result = $webhookController->testGoogleSheetsNode($config, $inputData);
+                    break;
                 default:
                     return response()->json([
                         'error' => 'Unsupported node type for testing'

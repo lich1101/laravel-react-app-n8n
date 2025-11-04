@@ -34,6 +34,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Node testing route (avoids CORS for Claude API)
     Route::post('/test-node', [WorkflowController::class, 'testNode']);
 
+    // Google Sheets routes
+    Route::post('/google-sheets/get-columns', [WebhookController::class, 'getGoogleSheetsColumns']);
+
     // Webhook test routes
     Route::post('/workflows/{workflow}/webhook-test-listen', [WebhookController::class, 'startTestListen']);
     Route::get('/workflows/{workflow}/webhook-test-status/{testRunId}', [WebhookController::class, 'getTestStatus']);
