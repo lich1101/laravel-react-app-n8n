@@ -433,10 +433,6 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
 
                                         {/* Column Values */}
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                {config.operation === 'append' ? 'Values to Send' : 'Values to Update'}
-                                            </label>
-                                            
                                             {isLoadingColumns ? (
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">
                                                     Đang tải cột...
@@ -446,28 +442,66 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                     {columnError}
                                                 </p>
                                             ) : sheetColumns.length > 0 ? (
-                                                <div className="space-y-3">
-                                                    {sheetColumns.map(col => (
-                                                        <div key={col}>
-                                                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                                                {col}
+                                                <div className="space-y-4">
+                                                    {/* For Update: Show match column first */}
+                                                    {config.operation === 'update' && (
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                                Value to Match
                                                             </label>
-                                                            <ExpandableTextarea
-                                                                value={config.columnValues[col] || ''}
-                                                                onChange={(value) => setConfig({
-                                                                    ...config,
-                                                                    columnValues: {
-                                                                        ...config.columnValues,
-                                                                        [col]: value
-                                                                    }
-                                                                })}
-                                                                placeholder={`Enter value for ${col}`}
-                                                                inputData={inputData}
-                                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                                rows={2}
-                                                            />
+                                                            <div>
+                                                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                                    {config.columnToMatch} <span className="text-blue-500">(using to match)</span>
+                                                                </label>
+                                                                <ExpandableTextarea
+                                                                    value={config.columnValues[config.columnToMatch] || ''}
+                                                                    onChange={(value) => setConfig({
+                                                                        ...config,
+                                                                        columnValues: {
+                                                                            ...config.columnValues,
+                                                                            [config.columnToMatch]: value
+                                                                        }
+                                                                    })}
+                                                                    placeholder={`Enter ${config.columnToMatch} value to find the row`}
+                                                                    inputData={inputData}
+                                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                                    rows={2}
+                                                                />
+                                                            </div>
                                                         </div>
-                                                    ))}
+                                                    )}
+
+                                                    {/* Values to Send/Update */}
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                            {config.operation === 'append' ? 'Values to Send' : 'Values to Update'}
+                                                        </label>
+                                                        <div className="space-y-3">
+                                                            {sheetColumns
+                                                                .filter(col => config.operation === 'append' || col !== config.columnToMatch)
+                                                                .map(col => (
+                                                                    <div key={col}>
+                                                                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                                            {col}
+                                                                        </label>
+                                                                        <ExpandableTextarea
+                                                                            value={config.columnValues[col] || ''}
+                                                                            onChange={(value) => setConfig({
+                                                                                ...config,
+                                                                                columnValues: {
+                                                                                    ...config.columnValues,
+                                                                                    [col]: value
+                                                                                }
+                                                                            })}
+                                                                            placeholder={`Enter value for ${col}`}
+                                                                            inputData={inputData}
+                                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                                            rows={2}
+                                                                        />
+                                                                    </div>
+                                                                ))}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">
