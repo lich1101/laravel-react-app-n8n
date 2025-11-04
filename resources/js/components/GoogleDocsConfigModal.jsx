@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
 import CredentialModal from './CredentialModal';
+import ExpandableTextarea from './ExpandableTextarea';
 
 function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
     const [config, setConfig] = useState({
@@ -288,7 +289,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                         <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                             <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
                         </div>
-                        <div className="flex-1 p-4 overflow-y-auto">
+                        <div className="flex-1 p-4 overflow-y-auto bg-white dark:bg-gray-800">
                             {inputData && Object.keys(inputData).length > 0 ? (
                                 <div className="space-y-4">
                                     {Object.entries(inputData).map(([nodeName, data]) => (
@@ -374,29 +375,27 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                 <>
                                     {/* Folder ID */}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Folder ID (optional)
-                                        </label>
-                                        <input type="text" value={config.folderId} onChange={(e) => setConfig({ ...config, folderId: e.target.value })} onDrop={(e) => {
-                                            e.preventDefault();
-                                            const variable = e.dataTransfer.getData('text/plain');
-                                            setConfig({ ...config, folderId: variable });
-                                        }} onDragOver={(e) => e.preventDefault()} placeholder="Google Drive Folder ID hoặc {{variable}}" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm" />
-                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            💡 Để trống = tạo trong My Drive root
-                                        </p>
+                                        <ExpandableTextarea
+                                            label="Folder ID (optional)"
+                                            value={config.folderId}
+                                            onChange={(value) => setConfig({ ...config, folderId: value })}
+                                            placeholder="Google Drive Folder ID hoặc {{variable}}"
+                                            inputData={inputData}
+                                            rows={1}
+                                            hint="💡 Để trống = tạo trong My Drive root"
+                                        />
                                     </div>
 
                                     {/* Title */}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Title *
-                                        </label>
-                                        <input type="text" value={config.title} onChange={(e) => setConfig({ ...config, title: e.target.value })} onDrop={(e) => {
-                                            e.preventDefault();
-                                            const variable = e.dataTransfer.getData('text/plain');
-                                            setConfig({ ...config, title: variable });
-                                        }} onDragOver={(e) => e.preventDefault()} placeholder="Document title hoặc {{variable}}" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm" />
+                                        <ExpandableTextarea
+                                            label="Title *"
+                                            value={config.title}
+                                            onChange={(value) => setConfig({ ...config, title: value })}
+                                            placeholder="Document title hoặc {{variable}}"
+                                            inputData={inputData}
+                                            rows={1}
+                                        />
                                     </div>
                                 </>
                             )}
@@ -406,17 +405,15 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                 <>
                                     {/* Document ID */}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Doc ID or URL *
-                                        </label>
-                                        <input type="text" value={config.documentId} onChange={(e) => setConfig({ ...config, documentId: e.target.value })} onDrop={(e) => {
-                                            e.preventDefault();
-                                            const variable = e.dataTransfer.getData('text/plain');
-                                            setConfig({ ...config, documentId: variable });
-                                        }} onDragOver={(e) => e.preventDefault()} placeholder="Document ID hoặc {{variable}}" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm" />
-                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            💡 Dùng {`{{NodeName.id}}`} từ Create node hoặc paste document ID/URL
-                                        </p>
+                                        <ExpandableTextarea
+                                            label="Doc ID or URL *"
+                                            value={config.documentId}
+                                            onChange={(value) => setConfig({ ...config, documentId: value })}
+                                            placeholder="Document ID hoặc {{variable}}"
+                                            inputData={inputData}
+                                            rows={1}
+                                            hint={`💡 Dùng {{NodeName.id}} từ Create node hoặc paste document ID/URL`}
+                                        />
                                     </div>
 
                                     {/* Simplify */}
@@ -442,17 +439,15 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                 <>
                                     {/* Document ID */}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Document ID or URL *
-                                        </label>
-                                        <input type="text" value={config.documentId} onChange={(e) => setConfig({ ...config, documentId: e.target.value })} onDrop={(e) => {
-                                            e.preventDefault();
-                                            const variable = e.dataTransfer.getData('text/plain');
-                                            setConfig({ ...config, documentId: variable });
-                                        }} onDragOver={(e) => e.preventDefault()} placeholder="Document ID hoặc {{variable}}" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm" />
-                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            💡 Dùng {`{{NodeName.id}}`} từ Create node
-                                        </p>
+                                        <ExpandableTextarea
+                                            label="Document ID or URL *"
+                                            value={config.documentId}
+                                            onChange={(value) => setConfig({ ...config, documentId: value })}
+                                            placeholder="Document ID hoặc {{variable}}"
+                                            inputData={inputData}
+                                            rows={1}
+                                            hint={`💡 Dùng {{NodeName.id}} từ Create node`}
+                                        />
                                     </div>
 
                                     {/* Actions */}
@@ -552,14 +547,14 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                 )}
                             </div>
                         </div>
-                        <div className="flex-1 p-4 overflow-y-auto">
+                        <div className="flex-1 p-4 overflow-y-auto bg-white dark:bg-gray-800">
                             {isTesting ? (
                                 <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
                                     <p className="text-center">Đang gọi Google Docs API...</p>
                                 </div>
                             ) : getDisplayOutput() ? (
-                                <pre className="text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                                <pre className="text-xs bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap">
                                     {JSON.stringify(getDisplayOutput(), null, 2)}
                                 </pre>
                             ) : (

@@ -14,9 +14,8 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
             { role: 'user', content: '' } // Initial user message
         ],
         credentialId: null,
-        timeout: 60, // Timeout in seconds (default 60s for AI)
         // Advanced options - dynamic
-        advancedOptions: {}, // Will store selected options like { temperature: 0.8, maxTokens: 20000 }
+        advancedOptions: {}, // Will store selected options like { temperature: 0.8, maxTokens: 20000, timeout: 60 }
     });
 
     // Available advanced options

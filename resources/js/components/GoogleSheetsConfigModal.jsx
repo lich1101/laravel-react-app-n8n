@@ -4,6 +4,189 @@ import CredentialModal from './CredentialModal';
 import ExpandableTextarea from './ExpandableTextarea';
 
 function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
+    const [collapsedPaths, setCollapsedPaths] = useState(new Set());
+
+    const truncateText = (text, maxLength = 150) => {
+        if (typeof text !== 'string') return text;
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+    };
+
+    const getTypeInfo = (value) => {
+        if (value === null) return { icon: '∅', color: 'gray', label: 'null' };
+        if (Array.isArray(value)) return { icon: '[]', color: 'purple', label: 'array' };
+        if (typeof value === 'object') return { icon: '{}', color: 'blue', label: 'object' };
+        if (typeof value === 'string') return { icon: 'Abc', color: 'green', label: 'string' };
+        if (typeof value === 'number') return { icon: '123', color: 'orange', label: 'number' };
+        if (typeof value === 'boolean') return { icon: '✓', color: 'teal', label: 'boolean' };
+        return { icon: '?', color: 'gray', label: 'unknown' };
+    };
+
+    const toggleCollapse = (path) => {
+        setCollapsedPaths(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(path)) {
+                newSet.delete(path);
+            } else {
+                newSet.add(path);
+            }
+            return newSet;
+        });
+    };
+
+    const renderDraggableJSON = (obj, prefix = '') => {
+        if (obj === null || obj === undefined) {
+            return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">null</span>;
+        }
+
+        // Handle arrays
+        if (Array.isArray(obj)) {
+            const typeInfo = getTypeInfo(obj);
+            const isCollapsed = collapsedPaths.has(prefix);
+            return (
+                <div className="space-y-1">
+                    <div 
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        onClick={() => toggleCollapse(prefix)}
+                    >
+                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {isCollapsed ? '▶' : '▼'}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                            {typeInfo.icon}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{obj.length} items</span>
+                    </div>
+                    {!isCollapsed && (
+                        <div className="ml-4 space-y-1">
+                            {obj.map((item, index) => {
+                                const itemPath = `${prefix}[${index}]`;
+                                return (
+                                    <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
+                                        {renderDraggableJSON(item, itemPath)}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Handle objects
+        if (typeof obj === 'object') {
+            const keys = Object.keys(obj);
+            const typeInfo = getTypeInfo(obj);
+            const isCollapsed = collapsedPaths.has(prefix);
+
+            if (keys.length === 0) {
+                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">empty object</span>;
+            }
+
+            return (
+                <div className="space-y-1">
+                    <div 
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        onClick={() => toggleCollapse(prefix)}
+                    >
+                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {isCollapsed ? '▶' : '▼'}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                            {typeInfo.icon}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{keys.length} keys</span>
+                    </div>
+                    {!isCollapsed && (
+                        <div className="ml-4 space-y-1">
+                            {keys.map(key => {
+                                const value = obj[key];
+                                const variablePath = prefix ? `${prefix}.${key}` : key;
+                                const isPrimitive = value === null || value === undefined || 
+                                    (typeof value !== 'object' && !Array.isArray(value));
+                                const isCollapsed = collapsedPaths.has(variablePath);
+
+                                return (
+                                    <div key={key} className="group">
+                                        <div className="flex items-center gap-2">
+                                            {!isPrimitive && (
+                                                <span 
+                                                    className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer"
+                                                    onClick={() => toggleCollapse(variablePath)}
+                                                >
+                                                    {isCollapsed ? '▶' : '▼'}
+                                                </span>
+                                            )}
+                                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{key}:</span>
+                                            {isPrimitive ? (
+                                                <div
+                                                    draggable
+                                                    onDragStart={(e) => {
+                                                        e.dataTransfer.effectAllowed = 'copy';
+                                                        e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
+                                                    }}
+                                                    className="cursor-move text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors inline-flex items-center gap-1"
+                                                >
+                                                    {typeof value === 'string' 
+                                                        ? `"${truncateText(value)}"`
+                                                        : String(value)
+                                                    }
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    draggable
+                                                    onDragStart={(e) => {
+                                                        e.dataTransfer.effectAllowed = 'copy';
+                                                    }}
+                                                    className="cursor-move text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors inline-flex items-center gap-1"
+                                                >
+                                                    {typeof value === 'string' 
+                                                        ? `"${truncateText(value)}"`
+                                                        : String(value)
+                                                    }
+                                                </div>
+                                            )}
+
+                                            <button
+                                                onClick={() => {
+                                                    const variable = `{{${variablePath}}}`;
+                                                    navigator.clipboard.writeText(variable);
+                                                    alert(`✓ Đã copy: ${variable}`);
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-opacity flex-shrink-0"
+                                                title="Copy variable"
+                                            >
+                                                📋
+                                            </button>
+                                        </div>
+
+                                        {!isPrimitive && !isCollapsed && (
+                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                                {renderDraggableJSON(value, variablePath)}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const typeInfo = getTypeInfo(obj);
+        return (
+            <div className="flex items-center gap-2">
+                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                    {typeInfo.icon}
+                </span>
+                <span className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                    {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
+                </span>
+            </div>
+        );
+    };
     const [config, setConfig] = useState({
         credentialId: null,
         resource: 'sheet',
@@ -70,11 +253,21 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
 
             if (response.data.columns && response.data.columns.length > 0) {
                 setSheetColumns(response.data.columns);
-                // Initialize columnValues with empty strings for each column
-                const initialValues = {};
+                // Preserve existing columnValues, especially for built-in fields like row_number
+                const initialValues = { ...config.columnValues };
+                // Update/initialize values for columns from sheet
                 response.data.columns.forEach(col => {
-                    initialValues[col] = config.columnValues[col] || '';
+                    if (initialValues[col] === undefined) {
+                        initialValues[col] = '';
+                    }
                 });
+                // Also preserve columnToMatch value if it's not in sheet columns (e.g., row_number)
+                if (config.columnToMatch && !response.data.columns.includes(config.columnToMatch)) {
+                    // Keep the existing value for columnToMatch
+                    if (initialValues[config.columnToMatch] === undefined) {
+                        initialValues[config.columnToMatch] = config.columnValues[config.columnToMatch] || '';
+                    }
+                }
                 setConfig({ ...config, columnValues: initialValues });
                 setColumnError('');
             } else {
@@ -165,8 +358,11 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                 </svg>
                             </div>
                             <div>
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                                    Google Sheets
+                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-2" onClick={() => { if (onRename) onRename(); }} title="Click để đổi tên node">
+                                    {node?.data?.customName || 'Google Sheets'}
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
                                 </h2>
                             </div>
                         </div>
@@ -197,14 +393,25 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                             <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                                 <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
                             </div>
-                            <div className="flex-1 p-4 overflow-y-auto">
-                                {inputData ? (
-                                    <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-3 rounded">
-                                        {JSON.stringify(inputData, null, 2)}
-                                    </pre>
+                            <div className="flex-1 p-4 overflow-y-auto bg-white dark:bg-gray-800">
+                                {inputData && Object.keys(inputData).length > 0 ? (
+                                    <div className="space-y-4">
+                                        {Object.entries(inputData).map(([nodeName, data]) => (
+                                            <div key={nodeName}>
+                                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">{nodeName}:</div>
+                                                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                                    {renderDraggableJSON(data, nodeName)}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 ) : (
-                                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                        <p>No input data available</p>
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                        <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                        </svg>
+                                        <p className="text-center text-sm">Connect this node to receive input data</p>
+                                        <p className="text-center text-xs mt-2">Kéo thả biến từ đây vào messages</p>
                                     </div>
                                 )}
                             </div>
@@ -526,9 +733,9 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                     )}
                                 </h3>
                             </div>
-                            <div className="flex-1 p-4 overflow-y-auto">
+                            <div className="flex-1 p-4 overflow-y-auto bg-white dark:bg-gray-800">
                                 {outputData ? (
-                                    <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-3 rounded whitespace-pre-wrap">
+                                    <pre className="text-xs bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-3 rounded border border-gray-200 dark:border-gray-700 whitespace-pre-wrap">
                                         {JSON.stringify(outputData, null, 2)}
                                     </pre>
                                 ) : (

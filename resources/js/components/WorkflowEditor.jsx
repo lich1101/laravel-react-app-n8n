@@ -490,20 +490,43 @@ function WorkflowEditor() {
 
             // Copy: Cmd+C or Ctrl+C
             if (ctrlOrCmd && e.key === 'c') {
-                e.preventDefault();
-                handleCopyNodes();
+                // Check if user has selected text (e.g., in input fields, labels, etc.)
+                const selection = window.getSelection();
+                const hasTextSelection = selection && selection.toString().length > 0;
+                
+                // Only copy nodes if no text is selected
+                if (!hasTextSelection) {
+                    e.preventDefault();
+                    handleCopyNodes();
+                }
+                // If text is selected, let browser handle the copy naturally (don't preventDefault)
             }
 
             // Paste: Cmd+V or Ctrl+V
             if (ctrlOrCmd && e.key === 'v') {
-                e.preventDefault();
-                handlePasteNodes();
+                // Check if user is in a field that can accept paste
+                const selection = window.getSelection();
+                const hasTextSelection = selection && selection.toString().length > 0;
+                const isEditableField = e.target.isContentEditable || ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
+                
+                // Only paste nodes if not in an editable field
+                if (!isEditableField) {
+                    e.preventDefault();
+                    handlePasteNodes();
+                }
             }
 
             // Select All: Cmd+A or Ctrl+A
             if (ctrlOrCmd && (e.key === 'a' || e.key === 'A')) {
-                e.preventDefault();
-                handleSelectAllNodes();
+                // Check if user is in an editable field
+                const isEditableField = e.target.isContentEditable || ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
+                
+                // Only select all nodes if not in an editable field
+                if (!isEditableField) {
+                    e.preventDefault();
+                    handleSelectAllNodes();
+                }
+                // If in editable field, let browser handle select all naturally
             }
 
             // Delete: Delete or Backspace

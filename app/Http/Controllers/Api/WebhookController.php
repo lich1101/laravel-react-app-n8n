@@ -47,15 +47,24 @@ class WebhookController extends Controller
             }
 
             // Create execution record với snapshot của workflow
+            // Create snapshot of workflow at execution time
+            $workflowSnapshot = [
+                'nodes' => $workflow->nodes ?? [],
+                'edges' => $workflow->edges ?? [],
+            ];
+            
+            Log::info('Creating execution with workflow snapshot', [
+                'workflow_id' => $workflow->id,
+                'nodes_count' => count($workflowSnapshot['nodes']),
+                'edges_count' => count($workflowSnapshot['edges']),
+            ]);
+            
             $execution = WorkflowExecution::create([
                 'workflow_id' => $workflow->id,
                 'trigger_type' => 'webhook',
                 'status' => 'queued',
                 'input_data' => $request->all(),
-                'workflow_snapshot' => [
-                    'nodes' => $workflow->nodes ?? [],
-                    'edges' => $workflow->edges ?? [],
-                ],
+                'workflow_snapshot' => $workflowSnapshot,
                 'started_at' => now(),
             ]);
 
@@ -67,16 +76,52 @@ class WebhookController extends Controller
                 'method' => $request->method(),
             ]);
 
+            // Parse request body - handle JSON and form data
+            $body = [];
+            $contentType = $request->header('Content-Type', '');
+            
+            // Try to get all data first (works for form data)
+            $allData = $request->all();
+            
+            // If Content-Type is JSON, parse JSON body separately
+            if (strpos($contentType, 'application/json') !== false) {
+                $rawContent = $request->getContent();
+                if (!empty($rawContent)) {
+                    $jsonBody = json_decode($rawContent, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($jsonBody)) {
+                        $body = $jsonBody;
+                        // Merge JSON body into allData
+                        $allData = array_merge($allData, $body);
+                    }
+                }
+            } else {
+                // For form data, body is already in all()
+                $body = $allData;
+            }
+            
+            // Log webhook request data
+            $webhookData = [
+                'all' => $allData,
+                'body' => $body,
+                'headers' => $request->headers->all(),
+                'method' => $request->method(),
+                'url' => $request->url(),
+            ];
+            
+            Log::info('Webhook request data before dispatch', [
+                'all_count' => count($webhookData['all']),
+                'body_count' => count($webhookData['body']),
+                'all_data' => $webhookData['all'],
+                'body_data' => $webhookData['body'],
+                'content_type' => $contentType,
+                'raw_content' => $request->getContent(),
+            ]);
+            
             // Dispatch job to execute workflow asynchronously
             ExecuteWorkflowJob::dispatch(
                 $execution,
                 $workflow,
-                [
-                    'all' => $request->all(),
-                    'headers' => $request->headers->all(),
-                    'method' => $request->method(),
-                    'url' => $request->url(),
-                ]
+                $webhookData
             );
 
             // Return response immediately
@@ -98,19 +143,56 @@ class WebhookController extends Controller
     // Public wrapper for Job to call
     public function executeWorkflowPublic($workflow, $webhookRequestData)
     {
+        Log::info('executeWorkflowPublic called', [
+            'webhook_data_keys' => array_keys($webhookRequestData),
+            'all_count' => count($webhookRequestData['all'] ?? []),
+            'body_count' => count($webhookRequestData['body'] ?? []),
+            'all_data' => $webhookRequestData['all'] ?? [],
+            'body_data' => $webhookRequestData['body'] ?? [],
+        ]);
+        
+        // Merge body into all if body exists and is different
+        $requestData = $webhookRequestData['all'] ?? [];
+        $bodyData = $webhookRequestData['body'] ?? [];
+        
+        // If body exists and is different from all, merge it
+        if (!empty($bodyData) && is_array($bodyData)) {
+            $requestData = array_merge($requestData, $bodyData);
+        }
+        
         // Create a mock request object from array
         $request = Request::create(
             $webhookRequestData['url'] ?? '/',
             $webhookRequestData['method'] ?? 'POST',
-            $webhookRequestData['all'] ?? []
+            $requestData
         );
         
-        // Set headers
+        // Set headers FIRST
         if (isset($webhookRequestData['headers'])) {
             foreach ($webhookRequestData['headers'] as $key => $value) {
-                $request->headers->set($key, is_array($value) ? $value[0] : $value);
+                $headerValue = is_array($value) ? $value[0] : $value;
+                $request->headers->set($key, $headerValue);
             }
         }
+        
+        // If Content-Type is JSON and we have body data, set JSON content
+        $contentType = $request->header('Content-Type', '');
+        if (strpos($contentType, 'application/json') !== false && !empty($bodyData)) {
+            // Set JSON content directly
+            $request->headers->set('Content-Type', 'application/json');
+            // Merge JSON body into request
+            $request->merge($bodyData);
+            // Also set as input
+            foreach ($bodyData as $key => $value) {
+                $request->request->set($key, $value);
+            }
+        }
+        
+        Log::info('Mock request created', [
+            'request_all' => $request->all(),
+            'request_input' => $request->input(),
+            'request_body' => $request->getContent(),
+        ]);
         
         return $this->executeWorkflow($workflow, $request);
     }
@@ -1791,12 +1873,28 @@ JS;
                 'x-api-key' => $credential->data['headerValue'],
             ];
 
-            // Get timeout
+            // Get timeout - prioritize advancedOptions over config
             $timeout = 60;
-            if (isset($config['timeout'])) {
-                $timeout = (int)$config['timeout'];
-            } elseif (!empty($config['advancedOptions']['timeout'])) {
-                $timeout = (int)$config['advancedOptions']['timeout'];
+            $configTimeout = isset($config['timeout']) ? (int)$config['timeout'] : null;
+            $advancedTimeout = !empty($config['advancedOptions']['timeout']) ? (int)$config['advancedOptions']['timeout'] : null;
+            
+            // Use the larger timeout value (advancedOptions takes priority if both exist)
+            if ($advancedTimeout !== null) {
+                $timeout = $advancedTimeout;
+            } elseif ($configTimeout !== null) {
+                $timeout = $configTimeout;
+            }
+
+            Log::info('Claude timeout setting', [
+                'config_timeout' => $configTimeout,
+                'advanced_timeout' => $advancedTimeout,
+                'final_timeout' => $timeout,
+            ]);
+
+            // Increase PHP execution time limit for long requests
+            $originalMaxExecutionTime = ini_get('max_execution_time');
+            if ($timeout > 60) {
+                set_time_limit($timeout + 30); // Add 30s buffer
             }
 
             // Make HTTP request to Claude API
@@ -1808,10 +1906,16 @@ JS;
             try {
                 $response = Http::withHeaders($headers)
                     ->timeout($timeout)
+                    ->withOptions([
+                        'connect_timeout' => 30,
+                        'timeout' => $timeout,
+                        'read_timeout' => $timeout,
+                    ])
                     ->post('https://api.anthropic.com/v1/messages', $requestBody);
             } finally {
                 if ($timeout > 60) {
                     ini_set('default_socket_timeout', $originalTimeout);
+                    set_time_limit($originalMaxExecutionTime);
                 }
             }
 
@@ -1918,19 +2022,29 @@ JS;
                 $credential->data['headerName'] ?? 'Authorization' => $credential->data['headerValue'],
             ];
 
-            // Get timeout from config (check both config.timeout and advancedOptions.timeout)
-            $timeout = 60; // Default
-            if (isset($config['timeout'])) {
-                $timeout = (int)$config['timeout'];
-            } elseif (!empty($config['advancedOptions']['timeout'])) {
-                $timeout = (int)$config['advancedOptions']['timeout'];
+            // Get timeout - prioritize advancedOptions over config
+            $timeout = 60;
+            $configTimeout = isset($config['timeout']) ? (int)$config['timeout'] : null;
+            $advancedTimeout = !empty($config['advancedOptions']['timeout']) ? (int)$config['advancedOptions']['timeout'] : null;
+            
+            // Use the larger timeout value (advancedOptions takes priority if both exist)
+            if ($advancedTimeout !== null) {
+                $timeout = $advancedTimeout;
+            } elseif ($configTimeout !== null) {
+                $timeout = $configTimeout;
             }
 
-            Log::info('Perplexity timeout', [
-                'config_timeout' => $config['timeout'] ?? null,
-                'advanced_timeout' => $config['advancedOptions']['timeout'] ?? null,
+            Log::info('Perplexity timeout setting', [
+                'config_timeout' => $configTimeout,
+                'advanced_timeout' => $advancedTimeout,
                 'final_timeout' => $timeout,
             ]);
+
+            // Increase PHP execution time limit for long requests
+            $originalMaxExecutionTime = ini_get('max_execution_time');
+            if ($timeout > 60) {
+                set_time_limit($timeout + 30); // Add 30s buffer
+            }
 
             // Make HTTP request to Perplexity API with timeout
             // Set socket timeout context to ensure it works even if PHP default_socket_timeout is limiting
@@ -1942,11 +2056,17 @@ JS;
             try {
                 $response = Http::withHeaders($headers)
                     ->timeout($timeout)
+                    ->withOptions([
+                        'connect_timeout' => 30,
+                        'timeout' => $timeout,
+                        'read_timeout' => $timeout,
+                    ])
                     ->post('https://api.perplexity.ai/chat/completions', $requestBody);
             } finally {
                 // Restore original timeout setting
                 if ($timeout > 60) {
                     ini_set('default_socket_timeout', $originalTimeout);
+                    set_time_limit($originalMaxExecutionTime);
                 }
             }
 
@@ -2097,12 +2217,28 @@ JS;
                 'Authorization' => 'Bearer ' . $apiKey,
             ];
 
-            // Get timeout
+            // Get timeout - prioritize advancedOptions over config
             $timeout = 60;
-            if (isset($config['timeout'])) {
-                $timeout = (int)$config['timeout'];
-            } elseif (!empty($config['advancedOptions']['timeout'])) {
-                $timeout = (int)$config['advancedOptions']['timeout'];
+            $configTimeout = isset($config['timeout']) ? (int)$config['timeout'] : null;
+            $advancedTimeout = !empty($config['advancedOptions']['timeout']) ? (int)$config['advancedOptions']['timeout'] : null;
+            
+            // Use the larger timeout value (advancedOptions takes priority if both exist)
+            if ($advancedTimeout !== null) {
+                $timeout = $advancedTimeout;
+            } elseif ($configTimeout !== null) {
+                $timeout = $configTimeout;
+            }
+
+            Log::info('Gemini timeout setting', [
+                'config_timeout' => $configTimeout,
+                'advanced_timeout' => $advancedTimeout,
+                'final_timeout' => $timeout,
+            ]);
+
+            // Increase PHP execution time limit for long requests
+            $originalMaxExecutionTime = ini_get('max_execution_time');
+            if ($timeout > 60) {
+                set_time_limit($timeout + 30); // Add 30s buffer
             }
 
             // Make HTTP request to Gemini API
@@ -2114,10 +2250,16 @@ JS;
             try {
                 $response = Http::withHeaders($headers)
                     ->timeout($timeout)
+                    ->withOptions([
+                        'connect_timeout' => 30,
+                        'timeout' => $timeout,
+                        'read_timeout' => $timeout,
+                    ])
                     ->post('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', $requestBody);
             } finally {
                 if ($timeout > 60) {
                     ini_set('default_socket_timeout', $originalTimeout);
+                    set_time_limit($originalMaxExecutionTime);
                 }
             }
 

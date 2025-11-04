@@ -6,6 +6,10 @@ import 'reactflow/dist/style.css';
 import WebhookConfigModal from './WebhookConfigModal';
 import HttpRequestConfigModal from './HttpRequestConfigModal';
 import PerplexityConfigModal from './PerplexityConfigModal';
+import ClaudeConfigModal from './ClaudeConfigModal';
+import GeminiConfigModal from './GeminiConfigModal';
+import GoogleDocsConfigModal from './GoogleDocsConfigModal';
+import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
 import CodeConfigModal from './CodeConfigModal';
 import EscapeConfigModal from './EscapeConfigModal';
 import IfConfigModal from './IfConfigModal';
@@ -154,6 +158,42 @@ const nodeTypes = {
             }}
         />
     ),
+    claude: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="claude"
+            iconPath="/icons/nodes/claude.svg"
+            color="orange"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    gemini: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="gemini"
+            iconPath="/icons/nodes/gemini.svg"
+            color="purple"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    googledocs: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="googledocs"
+            iconPath="/icons/nodes/googledocs.svg"
+            color="blue"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    googlesheets: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="googlesheets"
+            iconPath="/icons/nodes/googlesheets.svg"
+            color="green"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
 };
 
 const WorkflowHistory = () => {
@@ -173,16 +213,64 @@ const WorkflowHistory = () => {
         fetchExecutions();
     }, [workflowId]);
 
-    const fetchExecutions = async () => {
+    // Auto-refresh executions when there's a running execution
+    useEffect(() => {
+        const hasRunningExecution = executions.some(e => 
+            e.status === 'running' || e.status === 'queued'
+        );
+        
+        if (!hasRunningExecution) return;
+        
+        // Poll every 2 seconds when there's a running execution
+        const interval = setInterval(async () => {
+            try {
+                const response = await axios.get(`/workflows/${workflowId}/executions`);
+                const newExecutions = response.data.data || response.data;
+                setExecutions(newExecutions);
+                
+                // Auto-refresh selected execution details if status changed
+                if (selectedExecution && newExecutions.length > 0) {
+                    const updatedExecution = newExecutions.find(e => e.id === selectedExecution.id);
+                    if (updatedExecution && updatedExecution.status !== selectedExecution.status) {
+                        setSelectedExecution(updatedExecution);
+                        fetchExecutionDetails(updatedExecution.id);
+                    }
+                }
+            } catch (err) {
+                console.error('Error auto-refreshing executions:', err);
+            }
+        }, 2000);
+        
+        return () => clearInterval(interval);
+    }, [executions, selectedExecution, workflowId]);
+
+    const fetchExecutions = async (skipLoadingState = false) => {
         try {
-            setLoading(true);
+            if (!skipLoadingState) {
+                setLoading(true);
+            }
             const response = await axios.get(`/workflows/${workflowId}/executions`);
-            setExecutions(response.data.data || response.data);
+            const newExecutions = response.data.data || response.data;
+            setExecutions(newExecutions);
+            
+            // Auto-refresh selected execution details if it's running
+            if (selectedExecution && newExecutions.length > 0) {
+                const updatedExecution = newExecutions.find(e => e.id === selectedExecution.id);
+                if (updatedExecution && updatedExecution.status !== selectedExecution.status) {
+                    // Status changed, refresh details
+                    setSelectedExecution(updatedExecution);
+                    fetchExecutionDetails(updatedExecution.id);
+                }
+            }
         } catch (err) {
-            setError('Failed to fetch workflow executions.');
+            if (!skipLoadingState) {
+                setError('Failed to fetch workflow executions.');
+            }
             console.error('Error fetching executions:', err);
         } finally {
-            setLoading(false);
+            if (!skipLoadingState) {
+                setLoading(false);
+            }
         }
     };
 
@@ -194,8 +282,19 @@ const WorkflowHistory = () => {
             
             // Lấy nodes và edges từ workflow_snapshot (snapshot tại thời điểm thực thi)
             const snapshot = response.data.workflow_snapshot || {};
-            setWorkflowNodes(snapshot.nodes || []);
-            setWorkflowEdges(snapshot.edges || []);
+            const nodes = snapshot.nodes || [];
+            const edges = snapshot.edges || [];
+            
+            console.log('📊 Execution Details Loaded:', {
+                execution_id: executionId,
+                snapshot_nodes_count: nodes.length,
+                snapshot_edges_count: edges.length,
+                nodes: nodes,
+                edges: edges,
+            });
+            
+            setWorkflowNodes(nodes);
+            setWorkflowEdges(edges);
         } catch (err) {
             console.error('Error fetching execution details:', err);
         } finally {
@@ -473,6 +572,70 @@ const WorkflowHistory = () => {
 
                             {showConfigModal && selectedNode && selectedNode.type === 'if' && (
                                 <IfConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'claude' && (
+                                <ClaudeConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'gemini' && (
+                                <GeminiConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'googledocs' && (
+                                <GoogleDocsConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'googlesheets' && (
+                                <GoogleSheetsConfigModal
                                     node={selectedNode}
                                     onSave={() => {}} // No-op
                                     onClose={() => setShowConfigModal(false)}

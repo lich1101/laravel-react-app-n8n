@@ -24,12 +24,26 @@ function ExpandableTextarea({
     // Handle drop event
     const handleDrop = (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        
         const variable = e.dataTransfer.getData('text/plain');
-        const start = e.target.selectionStart;
-        const end = e.target.selectionEnd;
-        const currentValue = value || '';
+        if (!variable) return;
+        
+        const textarea = e.target;
+        
+        // Get cursor position - use !== undefined to handle position 0 correctly
+        const start = textarea.selectionStart !== undefined && textarea.selectionStart !== null 
+            ? textarea.selectionStart 
+            : (textarea.value ? textarea.value.length : 0);
+        const end = textarea.selectionEnd !== undefined && textarea.selectionEnd !== null 
+            ? textarea.selectionEnd 
+            : start;
+        
+        // Use textarea.value (DOM value) instead of React value prop to get the latest text
+        const currentValue = textarea.value || '';
         const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
         
+        // Immediately update value
         if (onChange) {
             onChange(newValue);
         }
@@ -37,10 +51,11 @@ function ExpandableTextarea({
         // Set cursor position after variable
         setTimeout(() => {
             if (textareaRef.current) {
-                textareaRef.current.setSelectionRange(start + variable.length, start + variable.length);
+                const newCursorPos = start + variable.length;
+                textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
                 textareaRef.current.focus();
             }
-        }, 0);
+        }, 10);
     };
 
     const handleDragOver = (e) => {
@@ -410,7 +425,30 @@ function ExpandableTextarea({
                                 </span>
                             </label>
                             <div className="flex-1">
-                                {textareaComponent}
+                                <div className="relative">
+                                    <textarea
+                                        ref={textareaRef}
+                                        value={value || ''}
+                                        onChange={(e) => {
+                                            if (onChange) {
+                                                onChange(e.target.value);
+                                            }
+                                        }}
+                                        onDrop={handleDrop}
+                                        onDragOver={handleDragOver}
+                                        onSelect={(e) => setCursorPosition(e.target.selectionStart)}
+                                        onClick={(e) => setCursorPosition(e.target.selectionStart)}
+                                        onKeyUp={(e) => setCursorPosition(e.target.selectionStart)}
+                                        placeholder={placeholder}
+                                        rows={20}
+                                        disabled={disabled}
+                                        className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm resize-none ${className}`}
+                                        style={{ 
+                                            minHeight: '500px',
+                                            whiteSpace: 'pre-wrap',
+                                        }}
+                                    />
+                                </div>
                                 {/* Show syntax preview below textarea */}
                                 <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md font-mono text-xs whitespace-pre-wrap break-words">
                                     {renderHighlightedText(value, 'template')}

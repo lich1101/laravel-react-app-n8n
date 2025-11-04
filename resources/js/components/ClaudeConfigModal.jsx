@@ -13,7 +13,6 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
             { role: 'user', content: '' }
         ],
         credentialId: null,
-        timeout: 60,
         advancedOptions: {},
     });
 
