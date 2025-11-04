@@ -14,6 +14,8 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         ],
         credentialId: null,
         timeout: 60,
+        functions: [],
+        functionCall: 'auto',
         advancedOptions: {},
     });
 
@@ -25,12 +27,7 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         { key: 'timeout', label: 'Request Timeout (seconds)', type: 'number', min: 10, max: 300, step: 10, default: 60, description: 'Thời gian chờ tối đa cho API response' },
     ];
 
-    const models = [
-        { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-        { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-        { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-        { value: 'gemini-pro', label: 'Gemini Pro' },
-    ];
+    const [selectedOption, setSelectedOption] = useState('');
 
     const [testResults, setTestResults] = useState(null);
     const [isTesting, setIsTesting] = useState(false);
@@ -39,6 +36,8 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     const [inputViewMode, setInputViewMode] = useState('schema');
     const [outputViewMode, setOutputViewMode] = useState('json');
     const [collapsedPaths, setCollapsedPaths] = useState(new Set());
+    const [models, setModels] = useState([]);
+    const [loadingModels, setLoadingModels] = useState(false);
 
     useEffect(() => {
         if (node?.data?.config) {
@@ -46,6 +45,14 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         }
         fetchCredentials();
     }, [node]);
+
+    useEffect(() => {
+        if (config.credentialId) {
+            fetchGeminiModels();
+        } else {
+            setModels([]);
+        }
+    }, [config.credentialId]);
 
     const fetchCredentials = async () => {
         try {
@@ -58,6 +65,41 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         } catch (error) {
             console.error('Error fetching credentials:', error);
             setCredentials([]);
+        }
+    };
+
+    const fetchGeminiModels = async () => {
+        setLoadingModels(true);
+        try {
+            const response = await axios.post('/gemini/get-models', {
+                credentialId: config.credentialId
+            });
+            
+            if (response.data && Array.isArray(response.data.models)) {
+                // Transform API response to dropdown format
+                const modelList = response.data.models
+                    .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+                    .map(m => ({
+                        value: m.name.replace('models/', ''),
+                        label: m.displayName || m.name.replace('models/', '')
+                    }));
+                setModels(modelList);
+                
+                // Auto-select first model if current model not in list
+                if (modelList.length > 0 && !modelList.find(m => m.value === config.model)) {
+                    setConfig({ ...config, model: modelList[0].value });
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching Gemini models:', error);
+            // Fallback to default models
+            setModels([
+                { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash Exp' },
+                { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+                { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+            ]);
+        } finally {
+            setLoadingModels(false);
         }
     };
 
@@ -94,23 +136,57 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         setConfig({ ...config, messages: newMessages });
     };
 
-    const toggleAdvancedOption = (option) => {
-        const newOptions = { ...config.advancedOptions };
-        if (newOptions[option.key] !== undefined) {
-            delete newOptions[option.key];
-        } else {
-            newOptions[option.key] = option.default;
+    const addFunction = () => {
+        const newFunctions = [...config.functions, {
+            name: '',
+            description: '',
+            parameters: {
+                type: 'object',
+                properties: {},
+                required: []
+            }
+        }];
+        setConfig({ ...config, functions: newFunctions });
+    };
+
+    const updateFunction = (index, field, value) => {
+        const newFunctions = [...config.functions];
+        if (field === 'name' || field === 'description') {
+            newFunctions[index][field] = value;
+        } else if (field === 'parameters') {
+            newFunctions[index].parameters = value;
         }
+        setConfig({ ...config, functions: newFunctions });
+    };
+
+    const deleteFunction = (index) => {
+        const newFunctions = config.functions.filter((_, i) => i !== index);
+        setConfig({ ...config, functions: newFunctions });
+    };
+
+    const handleAddOption = (optionKey) => {
+        if (!optionKey) return;
+        
+        const option = availableOptions.find(opt => opt.key === optionKey);
+        if (!option) return;
+
+        const newOptions = { ...config.advancedOptions };
+        if (newOptions[optionKey] === undefined) {
+            newOptions[optionKey] = option.default;
+            setConfig({ ...config, advancedOptions: newOptions });
+        }
+        setSelectedOption('');
+    };
+
+    const removeAdvancedOption = (key) => {
+        const newOptions = { ...config.advancedOptions };
+        delete newOptions[key];
         setConfig({ ...config, advancedOptions: newOptions });
     };
 
-    const updateAdvancedOption = (option, value) => {
+    const updateAdvancedOption = (key, value) => {
         const newOptions = { ...config.advancedOptions };
-        if (option.type === 'boolean') {
-            newOptions[option.key] = value;
-        } else {
-            newOptions[option.key] = value;
-        }
+        newOptions[key] = value;
         setConfig({ ...config, advancedOptions: newOptions });
     };
 
@@ -150,8 +226,7 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     };
 
     return (
-        <>
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[95%] h-[90%] flex flex-col">
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -254,12 +329,20 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                     <select
                                         value={config.model}
                                         onChange={(e) => setConfig({ ...config, model: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        disabled={loadingModels || models.length === 0}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
                                     >
-                                        {models.map(model => (
+                                        {loadingModels && <option>Loading models...</option>}
+                                        {!loadingModels && models.length === 0 && <option>Select credential first</option>}
+                                        {!loadingModels && models.map(model => (
                                             <option key={model.value} value={model.value}>{model.label}</option>
                                         ))}
                                     </select>
+                                    {loadingModels && (
+                                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                            🔄 Đang tải danh sách models từ Gemini API...
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* System Message */}
@@ -268,15 +351,18 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                             System Message
                                         </label>
-                                        <label className="flex items-center space-x-2 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={config.systemMessageEnabled}
-                                                onChange={(e) => setConfig({ ...config, systemMessageEnabled: e.target.checked })}
-                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        <button
+                                            onClick={() => setConfig({ ...config, systemMessageEnabled: !config.systemMessageEnabled })}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                                                config.systemMessageEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+                                            }`}
+                                        >
+                                            <span
+                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                    config.systemMessageEnabled ? 'translate-x-6' : 'translate-x-1'
+                                                }`}
                                             />
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">Enable</span>
-                                        </label>
+                                        </button>
                                     </div>
                                     {config.systemMessageEnabled && (
                                         <ExpandableTextarea
@@ -297,32 +383,35 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             Messages
                                         </label>
                                         <button
+                                            type="button"
                                             onClick={addMessagePair}
-                                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs"
+                                            className="text-xs px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded"
                                         >
                                             + Add Message
                                         </button>
                                     </div>
+                                    
                                     <div className="space-y-3">
                                         {config.messages.map((message, index) => (
-                                            <div key={index} className="border border-gray-200 dark:border-gray-700 rounded p-3">
+                                            <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-md p-3 bg-gray-50 dark:bg-gray-900">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <select
-                                                        value={message.role}
-                                                        onChange={(e) => {
-                                                            const newMessages = [...config.messages];
-                                                            newMessages[index].role = e.target.value;
-                                                            setConfig({ ...config, messages: newMessages });
-                                                        }}
-                                                        className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                                    >
-                                                        <option value="system">System</option>
-                                                        <option value="user">User</option>
-                                                        <option value="assistant">Assistant</option>
-                                                    </select>
+                                                    <div className="flex items-center space-x-2">
+                                                        <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                                                            message.role === 'user' 
+                                                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                                                                : 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
+                                                        }`}>
+                                                            {message.role === 'user' ? '👤 User' : '🤖 Assistant'}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                            Message {index + 1}
+                                                        </span>
+                                                    </div>
                                                     <button
+                                                        type="button"
                                                         onClick={() => deleteMessage(index)}
                                                         className="text-red-600 hover:text-red-700 text-xs"
+                                                        title="Delete message"
                                                     >
                                                         × Delete
                                                     </button>
@@ -330,58 +419,186 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                 <ExpandableTextarea
                                                     value={message.content}
                                                     onChange={(value) => updateMessage(index, value)}
-                                                    placeholder={`Enter ${message.role} message...`}
+                                                    placeholder={message.role === 'user' 
+                                                        ? "Enter user message or use {{variable}} syntax" 
+                                                        : "Enter assistant's previous response or use {{variable}} syntax"
+                                                    }
                                                     inputData={inputData}
                                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                                                     rows={3}
+                                                    hint="💡 Kéo thả biến từ INPUT panel"
                                                 />
                                             </div>
                                         ))}
                                     </div>
+                                    
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                        💡 Messages sẽ tự động xen kẽ: User → Assistant → User → Assistant...
+                                    </p>
                                 </div>
+
+                                {/* Functions */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Functions (Optional)
+                                        </label>
+                                        <button
+                                            onClick={addFunction}
+                                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs"
+                                        >
+                                            + Add Function
+                                        </button>
+                                    </div>
+                                    {config.functions.length > 0 && (
+                                        <div className="space-y-3 mb-3">
+                                            {config.functions.map((func, index) => (
+                                                <div key={index} className="border border-gray-200 dark:border-gray-700 rounded p-3 bg-gray-50 dark:bg-gray-900">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                                            Function {index + 1}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => deleteFunction(index)}
+                                                            className="text-red-600 hover:text-red-700 text-xs"
+                                                        >
+                                                            × Delete
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <input
+                                                            type="text"
+                                                            value={func.name || ''}
+                                                            onChange={(e) => updateFunction(index, 'name', e.target.value)}
+                                                            placeholder="Function name (e.g., get_weather)"
+                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                        />
+                                                        <ExpandableTextarea
+                                                            value={func.description || ''}
+                                                            onChange={(value) => updateFunction(index, 'description', value)}
+                                                            placeholder="Function description (e.g., Get the current weather)"
+                                                            inputData={inputData}
+                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                            rows={2}
+                                                        />
+                                                        <ExpandableTextarea
+                                                            value={JSON.stringify(func.parameters || {}, null, 2)}
+                                                            onChange={(value) => {
+                                                                try {
+                                                                    const params = JSON.parse(value);
+                                                                    updateFunction(index, 'parameters', params);
+                                                                } catch (err) {
+                                                                    // Invalid JSON, keep as is
+                                                                }
+                                                            }}
+                                                            placeholder='{"type": "object", "properties": {"location": {"type": "string"}}, "required": ["location"]}'
+                                                            inputData={inputData}
+                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono"
+                                                            rows={4}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Function Call */}
+                                {config.functions.length > 0 && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Function Call
+                                        </label>
+                                        <select
+                                            value={config.functionCall}
+                                            onChange={(e) => setConfig({ ...config, functionCall: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        >
+                                            <option value="auto">Auto (let model decide)</option>
+                                            <option value="none">None (force no function call)</option>
+                                            {config.functions.map((func, index) => (
+                                                func.name && <option key={index} value={func.name}>Force: {func.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
 
                                 {/* Advanced Options */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                         Advanced Options
                                     </label>
-                                    <div className="space-y-2">
-                                        {availableOptions.map(option => (
-                                            <div key={option.key} className="flex items-center space-x-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={config.advancedOptions[option.key] !== undefined}
-                                                    onChange={() => toggleAdvancedOption(option)}
-                                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <label className="flex-1 text-sm text-gray-700 dark:text-gray-300">
-                                                    {option.label}
-                                                </label>
-                                                {config.advancedOptions[option.key] !== undefined && (
-                                                    <>
-                                                        {option.type === 'boolean' ? (
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={config.advancedOptions[option.key]}
-                                                                onChange={(e) => updateAdvancedOption(option, e.target.checked)}
-                                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                            />
-                                                        ) : (
-                                                            <input
-                                                                type={option.type}
-                                                                value={config.advancedOptions[option.key]}
-                                                                onChange={(e) => updateAdvancedOption(option, parseFloat(e.target.value))}
-                                                                min={option.min}
-                                                                max={option.max}
-                                                                step={option.step}
-                                                                className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                            />
-                                                        )}
-                                                    </>
-                                                )}
-                                            </div>
+                                    <select
+                                        value={selectedOption}
+                                        onChange={(e) => {
+                                            handleAddOption(e.target.value);
+                                        }}
+                                        className="inline-block px-3 py-2 mb-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                    >
+                                        <option value="">+ Add Option</option>
+                                        {availableOptions.filter(opt => config.advancedOptions[opt.key] === undefined).map(option => (
+                                            <option key={option.key} value={option.key}>{option.label}</option>
                                         ))}
-                                    </div>
+                                    </select>
+                                    
+                                    {Object.keys(config.advancedOptions).length === 0 && (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Chọn option từ dropdown phía trên để thêm vào configuration
+                                        </p>
+                                    )}
+
+                                    {Object.keys(config.advancedOptions).length > 0 && (
+                                        <div className="space-y-2 mt-2">
+                                            {Object.entries(config.advancedOptions).map(([key, value]) => {
+                                                const option = availableOptions.find(opt => opt.key === key);
+                                                if (!option) return null;
+
+                                                return (
+                                                    <div key={key} className="border border-gray-200 dark:border-gray-700 rounded p-3 bg-gray-50 dark:bg-gray-900">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                                {option.label}
+                                                            </label>
+                                                            <button
+                                                                onClick={() => removeAdvancedOption(key)}
+                                                                className="text-red-600 hover:text-red-700 text-xs"
+                                                            >
+                                                                × Remove
+                                                            </button>
+                                                        </div>
+                                                        {option.type === 'boolean' ? (
+                                                            <label className="flex items-center space-x-2">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={value}
+                                                                    onChange={(e) => updateAdvancedOption(key, e.target.checked)}
+                                                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                />
+                                                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                                                    {option.description}
+                                                                </span>
+                                                            </label>
+                                                        ) : (
+                                                            <>
+                                                                <input
+                                                                    type={option.type}
+                                                                    value={value}
+                                                                    onChange={(e) => updateAdvancedOption(key, parseFloat(e.target.value))}
+                                                                    min={option.min}
+                                                                    max={option.max}
+                                                                    step={option.step}
+                                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                                />
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                    {option.description}
+                                                                </p>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -410,16 +627,15 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {showCredentialModal && (
-                <CredentialModal
-                    onClose={() => setShowCredentialModal(false)}
-                    onSave={handleCredentialSaved}
-                    initialType="custom"
-                />
-            )}
-        </>
+            {/* Credential Modal */}
+            <CredentialModal
+                isOpen={showCredentialModal}
+                onClose={() => setShowCredentialModal(false)}
+                onSave={handleCredentialSaved}
+                credentialType="custom"
+            />
+        </div>
     );
 }
 

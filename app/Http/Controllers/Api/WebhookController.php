@@ -2035,6 +2035,38 @@ JS;
                 'messages' => $messages,
             ];
 
+            // Add functions if provided
+            if (!empty($config['functions']) && is_array($config['functions'])) {
+                $functions = [];
+                foreach ($config['functions'] as $func) {
+                    if (!empty($func['name'])) {
+                        $functions[] = [
+                            'name' => $func['name'],
+                            'description' => $func['description'] ?? '',
+                            'parameters' => $func['parameters'] ?? [
+                                'type' => 'object',
+                                'properties' => [],
+                                'required' => []
+                            ]
+                        ];
+                    }
+                }
+                if (!empty($functions)) {
+                    $requestBody['functions'] = $functions;
+                    
+                    // Add function_call
+                    $functionCall = $config['functionCall'] ?? 'auto';
+                    if ($functionCall === 'none') {
+                        $requestBody['function_call'] = 'none';
+                    } elseif ($functionCall !== 'auto') {
+                        // Specific function name
+                        $requestBody['function_call'] = ['name' => $functionCall];
+                    } else {
+                        $requestBody['function_call'] = 'auto';
+                    }
+                }
+            }
+
             // Add advanced options
             if (!empty($config['advancedOptions']) && is_array($config['advancedOptions'])) {
                 foreach ($config['advancedOptions'] as $key => $value) {
@@ -2044,6 +2076,8 @@ JS;
                         $requestBody[$key] = strpos($value, '.') !== false 
                             ? floatval($value) 
                             : intval($value);
+                    } elseif (is_bool($value)) {
+                        $requestBody[$key] = $value;
                     } else {
                         $requestBody[$key] = $value;
                     }
@@ -2828,6 +2862,69 @@ JS;
     /**
      * Get column headers from Google Sheets
      */
+    public function getGeminiModels(Request $request)
+    {
+        try {
+            $credentialId = $request->input('credentialId');
+            
+            if (!$credentialId) {
+                return response()->json([
+                    'error' => 'Credential ID is required'
+                ], 400);
+            }
+
+            // Get credential
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential) {
+                return response()->json([
+                    'error' => 'Credential not found'
+                ], 404);
+            }
+
+            // Extract API key from credential
+            $headerValue = $credential->data['headerValue'] ?? null;
+            if (!$headerValue) {
+                return response()->json([
+                    'error' => 'Invalid credential configuration'
+                ], 400);
+            }
+
+            // Remove "Bearer " prefix if exists
+            $apiKey = $headerValue;
+            if (strpos($headerValue, 'Bearer ') === 0) {
+                $apiKey = substr($headerValue, 7);
+            }
+
+            // Fetch models from Gemini API
+            $response = Http::get('https://generativelanguage.googleapis.com/v1beta/models', [
+                'key' => $apiKey
+            ]);
+
+            if (!$response->successful()) {
+                Log::error('Gemini Models API Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                
+                return response()->json([
+                    'error' => 'Failed to fetch models from Gemini API',
+                    'details' => $response->body()
+                ], $response->status());
+            }
+
+            return response()->json($response->json());
+        } catch (\Exception $e) {
+            Log::error('Error fetching Gemini models', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to fetch Gemini models',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function getGoogleSheetsColumns(Request $request)
     {
         try {

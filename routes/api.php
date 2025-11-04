@@ -34,6 +34,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Node testing route (avoids CORS for Claude API)
     Route::post('/test-node', [WorkflowController::class, 'testNode']);
 
+    // Gemini routes
+    Route::post('/gemini/get-models', [WebhookController::class, 'getGeminiModels']);
+    
     // Google Sheets routes
     Route::post('/google-sheets/get-columns', [WebhookController::class, 'getGoogleSheetsColumns']);
 
