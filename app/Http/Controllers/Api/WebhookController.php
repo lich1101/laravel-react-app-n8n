@@ -2033,46 +2033,7 @@ JS;
             $requestBody = [
                 'model' => $config['model'] ?? 'gemini-2.0-flash',
                 'messages' => $messages,
-                'temperature' => $config['temperature'] ?? 0.7,
-                'top_p' => $config['topP'] ?? 1,
             ];
-
-            // Add functions if provided
-            if (!empty($config['functions']) && is_array($config['functions'])) {
-                $functions = [];
-                foreach ($config['functions'] as $func) {
-                    if (!empty($func['name'])) {
-                        $functions[] = [
-                            'name' => $func['name'],
-                            'description' => $func['description'] ?? '',
-                            'parameters' => $func['parameters'] ?? [
-                                'type' => 'object',
-                                'properties' => [],
-                                'required' => []
-                            ]
-                        ];
-                    }
-                }
-                if (!empty($functions)) {
-                    $requestBody['functions'] = $functions;
-                    
-                    // Add function_call
-                    $functionCall = $config['functionCall'] ?? 'auto';
-                    if ($functionCall === 'none') {
-                        $requestBody['function_call'] = 'none';
-                    } elseif ($functionCall !== 'auto') {
-                        // Specific function name
-                        $requestBody['function_call'] = ['name' => $functionCall];
-                    } else {
-                        $requestBody['function_call'] = 'auto';
-                    }
-                }
-            }
-
-            // Add stream option
-            if (isset($config['stream'])) {
-                $requestBody['stream'] = (bool)$config['stream'];
-            }
 
             // Add advanced options
             if (!empty($config['advancedOptions']) && is_array($config['advancedOptions'])) {

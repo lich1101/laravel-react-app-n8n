@@ -14,16 +14,14 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         ],
         credentialId: null,
         timeout: 60,
-        functions: [],
-        functionCall: 'auto',
-        stream: false,
-        temperature: 0.7,
-        topP: 1,
         advancedOptions: {},
     });
 
     const availableOptions = [
         { key: 'max_tokens', label: 'Maximum Tokens', type: 'number', min: 1, max: 100000, step: 1, default: 8192, description: 'Giới hạn độ dài response' },
+        { key: 'temperature', label: 'Temperature', type: 'number', min: 0, max: 2, step: 0.1, default: 0.7, description: 'Độ sáng tạo của câu trả lời (0-2)' },
+        { key: 'top_p', label: 'Top P', type: 'number', min: 0, max: 1, step: 0.1, default: 1, description: 'Điều chỉnh độ tập trung câu trả lời (0-1)' },
+        { key: 'stream', label: 'Enable Streaming', type: 'boolean', default: false, description: 'Stream response từ API' },
         { key: 'timeout', label: 'Request Timeout (seconds)', type: 'number', min: 10, max: 300, step: 10, default: 60, description: 'Thời gian chờ tối đa cho API response' },
     ];
 
@@ -96,34 +94,6 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         setConfig({ ...config, messages: newMessages });
     };
 
-    const addFunction = () => {
-        const newFunctions = [...config.functions, {
-            name: '',
-            description: '',
-            parameters: {
-                type: 'object',
-                properties: {},
-                required: []
-            }
-        }];
-        setConfig({ ...config, functions: newFunctions });
-    };
-
-    const updateFunction = (index, field, value) => {
-        const newFunctions = [...config.functions];
-        if (field === 'name' || field === 'description') {
-            newFunctions[index][field] = value;
-        } else if (field === 'parameters') {
-            newFunctions[index].parameters = value;
-        }
-        setConfig({ ...config, functions: newFunctions });
-    };
-
-    const deleteFunction = (index) => {
-        const newFunctions = config.functions.filter((_, i) => i !== index);
-        setConfig({ ...config, functions: newFunctions });
-    };
-
     const toggleAdvancedOption = (option) => {
         const newOptions = { ...config.advancedOptions };
         if (newOptions[option.key] !== undefined) {
@@ -136,7 +106,11 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
     const updateAdvancedOption = (option, value) => {
         const newOptions = { ...config.advancedOptions };
-        newOptions[option.key] = value;
+        if (option.type === 'boolean') {
+            newOptions[option.key] = value;
+        } else {
+            newOptions[option.key] = value;
+        }
         setConfig({ ...config, advancedOptions: newOptions });
     };
 
@@ -366,143 +340,6 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                     </div>
                                 </div>
 
-                                {/* Functions */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            Functions (Optional)
-                                        </label>
-                                        <button
-                                            onClick={addFunction}
-                                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs"
-                                        >
-                                            + Add Function
-                                        </button>
-                                    </div>
-                                    {config.functions.length > 0 && (
-                                        <div className="space-y-3">
-                                            {config.functions.map((func, index) => (
-                                                <div key={index} className="border border-gray-200 dark:border-gray-700 rounded p-3">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                                                            Function {index + 1}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => deleteFunction(index)}
-                                                            className="text-red-600 hover:text-red-700 text-xs"
-                                                        >
-                                                            × Delete
-                                                        </button>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <input
-                                                            type="text"
-                                                            value={func.name || ''}
-                                                            onChange={(e) => updateFunction(index, 'name', e.target.value)}
-                                                            placeholder="Function name"
-                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                        />
-                                                        <ExpandableTextarea
-                                                            value={func.description || ''}
-                                                            onChange={(value) => updateFunction(index, 'description', value)}
-                                                            placeholder="Function description"
-                                                            inputData={inputData}
-                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                            rows={2}
-                                                        />
-                                                        <ExpandableTextarea
-                                                            value={JSON.stringify(func.parameters || {}, null, 2)}
-                                                            onChange={(value) => {
-                                                                try {
-                                                                    const params = JSON.parse(value);
-                                                                    updateFunction(index, 'parameters', params);
-                                                                } catch (e) {
-                                                                    // Invalid JSON, keep as is
-                                                                }
-                                                            }}
-                                                            placeholder='{"type": "object", "properties": {}, "required": []}'
-                                                            inputData={inputData}
-                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono"
-                                                            rows={4}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Function Call */}
-                                {config.functions.length > 0 && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Function Call
-                                        </label>
-                                        <select
-                                            value={config.functionCall}
-                                            onChange={(e) => setConfig({ ...config, functionCall: e.target.value })}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                        >
-                                            <option value="auto">Auto</option>
-                                            <option value="none">None</option>
-                                            {config.functions.map((func, index) => (
-                                                <option key={index} value={func.name}>{func.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-
-                                {/* Stream */}
-                                <div>
-                                    <label className="flex items-center space-x-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={config.stream}
-                                            onChange={(e) => setConfig({ ...config, stream: e.target.checked })}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span className="text-sm text-gray-700 dark:text-gray-300">Enable Streaming</span>
-                                    </label>
-                                </div>
-
-                                {/* Temperature */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Temperature: {config.temperature}
-                                    </label>
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="2"
-                                        step="0.1"
-                                        value={config.temperature}
-                                        onChange={(e) => setConfig({ ...config, temperature: parseFloat(e.target.value) })}
-                                        className="w-full"
-                                    />
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        Độ sáng tạo của câu trả lời (0-2)
-                                    </p>
-                                </div>
-
-                                {/* Top P */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Top P: {config.topP}
-                                    </label>
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.1"
-                                        value={config.topP}
-                                        onChange={(e) => setConfig({ ...config, topP: parseFloat(e.target.value) })}
-                                        className="w-full"
-                                    />
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        Điều chỉnh độ tập trung câu trả lời (0-1)
-                                    </p>
-                                </div>
-
                                 {/* Advanced Options */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -521,15 +358,26 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                     {option.label}
                                                 </label>
                                                 {config.advancedOptions[option.key] !== undefined && (
-                                                    <input
-                                                        type={option.type}
-                                                        value={config.advancedOptions[option.key]}
-                                                        onChange={(e) => updateAdvancedOption(option, option.type === 'number' ? parseFloat(e.target.value) : e.target.value)}
-                                                        min={option.min}
-                                                        max={option.max}
-                                                        step={option.step}
-                                                        className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                    />
+                                                    <>
+                                                        {option.type === 'boolean' ? (
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={config.advancedOptions[option.key]}
+                                                                onChange={(e) => updateAdvancedOption(option, e.target.checked)}
+                                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                        ) : (
+                                                            <input
+                                                                type={option.type}
+                                                                value={config.advancedOptions[option.key]}
+                                                                onChange={(e) => updateAdvancedOption(option, parseFloat(e.target.value))}
+                                                                min={option.min}
+                                                                max={option.max}
+                                                                step={option.step}
+                                                                className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                            />
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
                                         ))}
