@@ -30,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/workflows/{workflow}/nodes', [WorkflowController::class, 'saveNode']);
     Route::get('/workflows/{workflow}/executions', [WorkflowController::class, 'executions']);
     Route::get('/workflows/{workflow}/executions/{execution}', [WorkflowController::class, 'execution']);
+    Route::delete('/workflows/{workflow}/executions/{execution}', [WorkflowController::class, 'deleteExecution']);
     
     // Node testing route (avoids CORS for Claude API)
     Route::post('/test-node', [WorkflowController::class, 'testNode']);

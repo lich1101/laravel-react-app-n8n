@@ -326,6 +326,32 @@ const WorkflowHistory = () => {
         fetchExecutionDetails(execution.id);
     };
 
+    const handleDeleteExecution = async (executionId, event) => {
+        event.stopPropagation(); // Prevent selecting execution when clicking delete
+        
+        if (!confirm('Bạn có chắc muốn xóa execution này?')) {
+            return;
+        }
+
+        try {
+            await axios.delete(`/workflows/${workflowId}/executions/${executionId}`);
+            
+            // Remove from list
+            setExecutions(prev => prev.filter(e => e.id !== executionId));
+            
+            // Clear selection if deleted execution was selected
+            if (selectedExecution?.id === executionId) {
+                setSelectedExecution(null);
+                setExecutionDetails(null);
+                setWorkflowNodes([]);
+                setWorkflowEdges([]);
+            }
+        } catch (err) {
+            console.error('Error deleting execution:', err);
+            alert('Không thể xóa execution. Vui lòng thử lại.');
+        }
+    };
+
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
         setShowConfigModal(true);
@@ -422,7 +448,7 @@ const WorkflowHistory = () => {
                                 <div
                                     key={execution.id}
                                     onClick={() => handleSelectExecution(execution)}
-                                    className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                                    className={`p-3 rounded-lg cursor-pointer transition-colors relative group ${
                                         selectedExecution?.id === execution.id
                                             ? 'bg-blue-600'
                                             : 'bg-gray-700 hover:bg-gray-600'
@@ -432,19 +458,30 @@ const WorkflowHistory = () => {
                                         <span className="text-sm font-medium text-white">
                                             {formatDate(execution.started_at)}
                                         </span>
-                                        <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                                            execution.status === 'success' ? 'bg-green-500 text-white' :
-                                            execution.status === 'error' || execution.status === 'failed' ? 'bg-red-500 text-white' :
-                                            execution.status === 'running' ? 'bg-blue-500 text-white' :
-                                            execution.status === 'queued' ? 'bg-gray-500 text-white' :
-                                            'bg-yellow-500 text-white'
-                                        }`}>
-                                            {execution.status === 'success' ? 'Success' : 
-                                             execution.status === 'error' || execution.status === 'failed' ? 'Error' :
-                                             execution.status === 'running' ? 'Running' :
-                                             execution.status === 'queued' ? 'Queued' :
-                                             'Unknown'}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                                                execution.status === 'success' ? 'bg-green-500 text-white' :
+                                                execution.status === 'error' || execution.status === 'failed' ? 'bg-red-500 text-white' :
+                                                execution.status === 'running' ? 'bg-blue-500 text-white' :
+                                                execution.status === 'queued' ? 'bg-gray-500 text-white' :
+                                                'bg-yellow-500 text-white'
+                                            }`}>
+                                                {execution.status === 'success' ? 'Success' : 
+                                                 execution.status === 'error' || execution.status === 'failed' ? 'Error' :
+                                                 execution.status === 'running' ? 'Running' :
+                                                 execution.status === 'queued' ? 'Queued' :
+                                                 'Unknown'}
+                                            </span>
+                                            <button
+                                                onClick={(e) => handleDeleteExecution(execution.id, e)}
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-600 rounded"
+                                                title="Xóa execution"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
                                     </div>
                                     <p className="text-xs text-gray-300">
                                         Hoàn thành trong {execution.duration_ms}ms

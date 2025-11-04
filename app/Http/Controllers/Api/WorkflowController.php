@@ -194,6 +194,22 @@ class WorkflowController extends Controller
     }
 
     /**
+     * Delete an execution
+     */
+    public function deleteExecution(string $workflowId, string $executionId): JsonResponse
+    {
+        $user = auth()->user();
+        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+
+        $execution = $workflow->executions()->findOrFail($executionId);
+        $execution->delete();
+
+        return response()->json([
+            'message' => 'Execution deleted successfully'
+        ]);
+    }
+
+    /**
      * Test a node configuration (avoids CORS issues)
      */
     public function testNode(Request $request): JsonResponse
