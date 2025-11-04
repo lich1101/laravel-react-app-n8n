@@ -16,7 +16,7 @@ class ExecuteWorkflowJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $timeout = 300; // 5 minutes max
+    public $timeout = 0; // No timeout limit - workflow có thể chạy vô thời hạn
     public $tries = 1; // No retry for workflow execution
 
     protected $execution;
