@@ -213,33 +213,38 @@ const WorkflowHistory = () => {
         fetchExecutions();
     }, [workflowId]);
 
-    // Auto-refresh executions when there's a running execution
+    // Auto-refresh executions - ALWAYS poll to detect new executions
     useEffect(() => {
         const hasRunningExecution = executions.some(e => 
             e.status === 'running' || e.status === 'queued'
         );
         
-        if (!hasRunningExecution) return;
+        // Poll fast (2s) when there's a running execution, slower (5s) otherwise
+        const pollInterval = hasRunningExecution ? 2000 : 5000;
         
-        // Poll every 2 seconds when there's a running execution
         const interval = setInterval(async () => {
             try {
                 const response = await axios.get(`/workflows/${workflowId}/executions`);
                 const newExecutions = response.data.data || response.data;
                 setExecutions(newExecutions);
                 
-                // Auto-refresh selected execution details if status changed
+                // Auto-refresh selected execution details if status changed or is running
                 if (selectedExecution && newExecutions.length > 0) {
                     const updatedExecution = newExecutions.find(e => e.id === selectedExecution.id);
-                    if (updatedExecution && updatedExecution.status !== selectedExecution.status) {
+                    if (updatedExecution) {
+                        const statusChanged = updatedExecution.status !== selectedExecution.status;
+                        const isRunning = updatedExecution.status === 'running' || updatedExecution.status === 'queued';
+                        
+                        if (statusChanged || isRunning) {
                         setSelectedExecution(updatedExecution);
                         fetchExecutionDetails(updatedExecution.id);
+                        }
                     }
                 }
             } catch (err) {
                 console.error('Error auto-refreshing executions:', err);
             }
-        }, 2000);
+        }, pollInterval);
         
         return () => clearInterval(interval);
     }, [executions, selectedExecution, workflowId]);
@@ -282,16 +287,30 @@ const WorkflowHistory = () => {
             
             // Lấy nodes và edges từ workflow_snapshot (snapshot tại thời điểm thực thi)
             const snapshot = response.data.workflow_snapshot || {};
-            const nodes = snapshot.nodes || [];
-            const edges = snapshot.edges || [];
+            let nodes = snapshot.nodes || [];
+            let edges = snapshot.edges || [];
             
+            // Nếu snapshot chưa có (execution đang running), fallback về workflow hiện tại
+            if (nodes.length === 0) {
+                try {
+                    const workflowResponse = await axios.get(`/workflows/${workflowId}`);
+                    nodes = workflowResponse.data.nodes || [];
+                    edges = workflowResponse.data.edges || [];
+                    console.log('📊 Using current workflow nodes (execution is running):', {
+                        execution_id: executionId,
+                        nodes_count: nodes.length,
+                        edges_count: edges.length,
+                    });
+                } catch (err) {
+                    console.error('Error fetching workflow nodes:', err);
+                }
+            } else {
             console.log('📊 Execution Details Loaded:', {
                 execution_id: executionId,
                 snapshot_nodes_count: nodes.length,
                 snapshot_edges_count: edges.length,
-                nodes: nodes,
-                edges: edges,
             });
+            }
             
             setWorkflowNodes(nodes);
             setWorkflowEdges(edges);
