@@ -2123,6 +2123,13 @@ JS;
 
     private function getValueFromPath($path, $inputData, $workflow = null)
     {
+        // Handle built-in variables (like 'now')
+        if ($path === 'now') {
+            // Return current date/time in Vietnamese format
+            $now = now('Asia/Ho_Chi_Minh');
+            return $now->format('d/m/Y H:i:s');
+        }
+        
         if (empty($inputData) || !is_array($inputData)) {
             Log::warning('getValueFromPath: inputData is empty or not array', [
                 'path' => $path,

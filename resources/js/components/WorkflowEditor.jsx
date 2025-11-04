@@ -1371,7 +1371,25 @@ function WorkflowEditor() {
     };
 
     // Get value from path like "input-0.headers.content-length" or "nodeName.field"
+    // Also handles built-in variables like "now"
     const getValueFromPath = (path, inputData) => {
+        // Handle built-in variables
+        if (path === 'now') {
+            // Return current date/time in Vietnamese format
+            const now = new Date();
+            const vietnamTime = now.toLocaleString('vi-VN', {
+                timeZone: 'Asia/Ho_Chi_Minh',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            return vietnamTime;
+        }
+        
         if (!inputData) return undefined;
 
         const parts = path.split('.');

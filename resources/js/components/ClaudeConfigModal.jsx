@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
 import CredentialModal from './CredentialModal';
+import ExpandableTextarea from './ExpandableTextarea';
+import ResultDisplay from './ResultDisplay';
 
 function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
@@ -71,17 +73,8 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         setShowCredentialModal(false);
     };
 
-    const autoEscape = (text) => {
-        if (!text) return text;
-        return text
-            .replace(/\\/g, '\\\\')
-            .replace(/"/g, '\\"')
-            .replace(/\n/g, '\\n')
-            .replace(/\r/g, '\\r')
-            .replace(/\t/g, '\\t')
-            .replace(/\s+/g, ' ')
-            .trim();
-    };
+    // REMOVED: autoEscape - không escape ở UI nữa
+    // Escape sẽ được thực hiện ở backend khi xử lý
 
     const addMessagePair = () => {
         const newMessages = [...config.messages];
@@ -98,7 +91,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
     const updateMessage = (index, content) => {
         const newMessages = [...config.messages];
-        newMessages[index].content = autoEscape(content);
+        newMessages[index].content = content; // Không escape ở UI
         setConfig({ ...config, messages: newMessages });
     };
 
@@ -546,35 +539,15 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                     </label>
                                 </div>
                                 {config.systemMessageEnabled && (
-                                    <>
-                                        <textarea
-                                            value={config.systemMessage}
-                                            onChange={(e) => {
-                                                const escaped = autoEscape(e.target.value);
-                                                setConfig({ ...config, systemMessage: escaped });
-                                            }}
-                                            onDrop={(e) => {
-                                                e.preventDefault();
-                                                const variable = e.dataTransfer.getData('text/plain');
-                                                const start = e.target.selectionStart;
-                                                const end = e.target.selectionEnd;
-                                                const currentValue = e.target.value;
-                                                const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                                const escaped = autoEscape(newValue);
-                                                setConfig({ ...config, systemMessage: escaped });
-                                                setTimeout(() => {
-                                                    e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                                }, 0);
-                                            }}
-                                            onDragOver={(e) => e.preventDefault()}
-                                            placeholder="You are a helpful assistant..."
-                                            rows={4}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
-                                        />
-                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            💡 Kéo thả biến từ INPUT panel hoặc dùng cú pháp {`{{variable}}`}
-                                        </p>
-                                    </>
+                                    <ExpandableTextarea
+                                        value={config.systemMessage}
+                                        onChange={(newValue) => setConfig({ ...config, systemMessage: newValue })}
+                                        placeholder="You are a helpful assistant..."
+                                        rows={4}
+                                        label="System Message"
+                                        hint="💡 Kéo thả biến từ INPUT panel hoặc dùng cú pháp {{variable}}"
+                                        inputData={inputData}
+                                    />
                                 )}
                             </div>
 
@@ -622,33 +595,19 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                     </button>
                                                 )}
                                             </div>
-                                            <textarea
+                                            <ExpandableTextarea
                                                 value={message.content}
-                                                onChange={(e) => updateMessage(index, e.target.value)}
-                                                onDrop={(e) => {
-                                                    e.preventDefault();
-                                                    const variable = e.dataTransfer.getData('text/plain');
-                                                    const start = e.target.selectionStart;
-                                                    const end = e.target.selectionEnd;
-                                                    const currentValue = e.target.value;
-                                                    const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                                    updateMessage(index, newValue);
-                                                    setTimeout(() => {
-                                                        e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                                    }, 0);
-                                                }}
-                                                onDragOver={(e) => e.preventDefault()}
+                                                onChange={(newValue) => updateMessage(index, newValue)}
                                                 placeholder={
                                                     message.role === 'user' 
                                                         ? "Enter user message or use {{variable}} syntax"
                                                         : "Enter assistant's previous response or use {{variable}} syntax"
                                                 }
                                                 rows={4}
-                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                                                label={`${message.role === 'user' ? 'User' : 'Assistant'} Message ${index + 1}`}
+                                                hint="💡 Kéo thả biến từ INPUT panel"
+                                                inputData={inputData}
                                             />
-                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                💡 Kéo thả biến từ INPUT panel
-                                            </p>
                                         </div>
                                     ))}
                                 </div>
