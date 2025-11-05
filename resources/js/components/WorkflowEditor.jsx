@@ -563,20 +563,30 @@ function WorkflowEditor() {
     };
 
     const fetchWorkflow = async () => {
-        // If creating new workflow
+        // If creating new workflow - auto-create in database immediately
         if (id === 'new') {
-            const newWorkflow = {
-                id: null,
-                name: 'Untitled Workflow',
-                description: '',
-                active: false,
-                nodes: [],
-                edges: []
-            };
-            setWorkflow(newWorkflow);
-            setNodes([]);
-            setEdges([]);
-            return;
+            try {
+                console.log('Auto-creating new workflow in database...');
+                const response = await axios.post('/workflows', {
+                    name: 'Untitled Workflow',
+                    description: '',
+                    nodes: [],
+                    edges: [],
+                    active: false
+                });
+                
+                const newWorkflowId = response.data.id;
+                console.log('New workflow created with ID:', newWorkflowId);
+                
+                // Redirect to the newly created workflow (replace history to avoid back button issues)
+                navigate(`/workflows/${newWorkflowId}`, { replace: true });
+                return;
+            } catch (error) {
+                console.error('Error auto-creating workflow:', error);
+                alert('Lỗi khi tạo workflow mới');
+                navigate(getBackUrl());
+                return;
+            }
         }
 
         // Fetch existing workflow
@@ -756,26 +766,14 @@ function WorkflowEditor() {
         setIsSaving(true);
         setSaved(false);
         try {
-            if (id === 'new' || !workflow?.id) {
-                // Create new workflow
-                const response = await axios.post('/workflows', {
-                    name: workflow?.name || 'Untitled Workflow',
-                    description: workflow?.description || '',
-                    nodes,
-                    edges,
-                    active: false
-                });
-                // Redirect to the newly created workflow
-                navigate(`/workflows/${response.data.id}`, { replace: true });
-            } else {
-                // Update existing workflow
-                await axios.put(`/workflows/${id}`, {
-                    nodes,
-                    edges,
-                });
-            }
+            // Always update (no more create case, workflow is auto-created on page load)
+            await axios.put(`/workflows/${id}`, {
+                nodes,
+                edges,
+            });
+            
             setSaved(true);
-            setHasChanges(false); // ⭐ Reset changes after save
+            setHasChanges(false); // Reset changes after save
             setTimeout(() => setSaved(false), 2000);
         } catch (error) {
             console.error('Error saving workflow:', error);
@@ -903,8 +901,8 @@ function WorkflowEditor() {
     };
 
     const handleToggleActive = async () => {
-        if (id === 'new' || !workflow?.id) {
-            alert('Vui lòng lưu workflow trước khi activate');
+        if (!workflow?.id) {
+            alert('Workflow chưa tồn tại');
             return;
         }
         
@@ -2425,8 +2423,8 @@ function WorkflowEditor() {
         setHasChanges(true);
         setSaved(false);
 
-        // Save to backend (only if workflow is already created)
-        if (id !== 'new' && workflow?.id) {
+        // Save to backend (workflow always exists now)
+        if (workflow?.id) {
             try {
                 await axios.post(`/workflows/${id}/nodes`, {
                     node_id: selectedNode.id,
