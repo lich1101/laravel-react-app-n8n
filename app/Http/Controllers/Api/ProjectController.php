@@ -157,6 +157,8 @@ class ProjectController extends Controller
                 'Accept' => 'application/json',
             ])->post($configUrl, [
                 'max_concurrent_workflows' => $project->max_concurrent_workflows,
+                'project_id' => $project->id,
+                'project_name' => $project->name,
             ]);
 
             $results['config_synced'] = $configResponse->successful();
