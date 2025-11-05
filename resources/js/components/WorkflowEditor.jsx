@@ -1601,179 +1601,65 @@ function WorkflowEditor() {
         return undefined;
     };
 
-    // Test HTTP Request node
+    // Test HTTP Request node (via backend API)
     const handleTestHttpNode = async (config) => {
         try {
             console.log('Testing HTTP Request with config:', config);
 
-            // Get input data for this node
-            const inputData = getNodeInputData(selectedNode?.id || '');
-            console.log('Input data for variable resolution:', inputData);
+            // Call backend API to test HTTP Request node
+            const response = await axios.post('/api/workflows/test-node', {
+                nodeType: 'http',
+                config: config,
+                inputData: [], // Backend will build this from nodes/edges/nodeOutputs
+                nodes: nodes,
+                edges: edges,
+                nodeOutputs: nodeOutputData,
+                nodeId: selectedNode?.id
+            });
 
-            // Build URL with query parameters
-            let url = resolveVariables(config.url, inputData);
-            if (config.queryParams && config.queryParams.length > 0) {
-                const queryString = config.queryParams
-                    .filter(p => p.name && p.value)
-                    .map(p => {
-                        const resolvedName = resolveVariables(p.name, inputData);
-                        const resolvedValue = resolveVariables(p.value, inputData);
-                        return `${encodeURIComponent(resolvedName)}=${encodeURIComponent(resolvedValue)}`;
-                    })
-                    .join('&');
-                url += `?${queryString}`;
-            }
-
-            // Build headers
-            const headers = {};
-            if (config.headers && config.headers.length > 0) {
-                config.headers.forEach(header => {
-                    if (header.name && header.value) {
-                        const resolvedName = resolveVariables(header.name, inputData);
-                        const resolvedValue = resolveVariables(header.value, inputData);
-                        headers[resolvedName] = resolvedValue;
-                    }
-                });
-            }
-
-            // Add authentication
-            if (config.auth && config.auth !== 'none') {
-                // Try to load credential from database if credentialId is provided
-                if (config.credentialId) {
-                    try {
-                        const credResponse = await axios.get(`/credentials/${config.credentialId}`);
-                        const credential = credResponse.data;
-                        
-                        console.log('Using credential from database:', credential);
-                        
-                        // Apply credential based on type
-                        switch (credential.type) {
-                            case 'bearer':
-                                if (credential.data?.token) {
-                                    const token = resolveVariables(credential.data.token, inputData);
-                                    headers['Authorization'] = `Bearer ${token}`;
-                                }
-                                break;
-
-                            case 'api_key':
-                                if (credential.data?.key && credential.data?.headerName) {
-                                    const keyValue = resolveVariables(credential.data.key, inputData);
-                                    headers[credential.data.headerName] = keyValue;
-                                }
-                                break;
-
-                            case 'basic':
-                                if (credential.data?.username && credential.data?.password) {
-                                    const username = resolveVariables(credential.data.username, inputData);
-                                    const password = resolveVariables(credential.data.password, inputData);
-                                    const encoded = btoa(`${username}:${password}`);
-                                    headers['Authorization'] = `Basic ${encoded}`;
-                                }
-                                break;
-
-                            case 'custom':
-                                if (credential.data?.headerName && credential.data?.headerValue) {
-                                    const headerValue = resolveVariables(credential.data.headerValue, inputData);
-                                    headers[credential.data.headerName] = headerValue;
-                                }
-                                break;
-
-                            case 'oauth2':
-                                if (credential.data?.accessToken) {
-                                    const token = resolveVariables(credential.data.accessToken, inputData);
-                                    headers['Authorization'] = `Bearer ${token}`;
-                                }
-                                break;
-                        }
-                    } catch (error) {
-                        console.error('Error loading credential:', error);
-                    }
-                } else {
-                    // Fallback to old inline credential
-                    if (config.auth === 'bearer' && config.credential) {
-                        const resolvedCredential = resolveVariables(config.credential, inputData);
-                        headers['Authorization'] = `Bearer ${resolvedCredential}`;
-                    } else if (config.auth === 'basic' && config.credential) {
-                        const resolvedCredential = resolveVariables(config.credential, inputData);
-                        headers['Authorization'] = `Basic ${btoa(resolvedCredential)}`;
-                    } else if (config.auth === 'custom' && config.credential) {
-                        // Custom header format: "HeaderName: HeaderValue"
-                        const resolvedCredential = resolveVariables(config.credential, inputData);
-                        const parts = resolvedCredential.split(':');
-                        if (parts.length === 2) {
-                            headers[parts[0].trim()] = parts[1].trim();
-                        }
-                    }
-                }
-            }
-
-            // Build request options
-            const requestOptions = {
-                method: config.method,
-                headers: {
-                    ...headers,
-                },
-            };
-
-            // Add body for POST, PUT, PATCH
-            if (['POST', 'PUT', 'PATCH'].includes(config.method) && config.bodyContent) {
-                let bodyContent = resolveVariables(config.bodyContent, inputData);
-
-                if (config.bodyType === 'json') {
-                    try {
-                        // Try to parse as JSON
-                        requestOptions.body = JSON.stringify(JSON.parse(bodyContent));
-                        requestOptions.headers['Content-Type'] = 'application/json';
-                    } catch (e) {
-                        requestOptions.body = bodyContent;
-                        requestOptions.headers['Content-Type'] = 'application/json';
-                    }
-                } else if (config.bodyType === 'form') {
-                    requestOptions.body = bodyContent;
-                    // Note: multipart/form-data requires FormData object, this is simplified
-                    delete requestOptions.headers['Content-Type'];
-                } else if (config.bodyType === 'urlencoded') {
-                    requestOptions.body = bodyContent;
-                    requestOptions.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-                } else {
-                    requestOptions.body = bodyContent;
-                }
-            }
-
-            console.log('Making request to:', url);
-            console.log('Request options:', requestOptions);
-
-            // Make the HTTP request
-            const response = await fetch(url, requestOptions);
-            const data = await response.text();
-
-            let bodyData = data;
-            try {
-                bodyData = JSON.parse(data);
-            } catch (e) {
-                // Keep as text if not JSON
-            }
-
-            const result = {
-                status: response.status,
-                statusText: response.statusText,
-                headers: Object.fromEntries(response.headers.entries()),
-                body: bodyData,
-            };
-
-            console.log('Response:', result);
-            return result;
+            console.log('HTTP Request test result:', response.data);
+            return response.data;
         } catch (error) {
-            console.error('Error testing HTTP request:', error);
+            console.error('Error testing HTTP Request node:', error);
             return {
-                error: error.message || 'An error occurred',
-                details: error.toString(),
+                error: error.response?.data?.message || error.message || 'An error occurred',
+                details: error.response?.data?.error || error.toString(),
             };
         }
     };
 
-    // Test Perplexity node
+    // Helper function to call backend test node API
+    const callTestNodeAPI = async (nodeType, config) => {
+        try {
+            const response = await axios.post('/api/workflows/test-node', {
+                nodeType: nodeType,
+                config: config,
+                inputData: [], // Backend will build this from nodes/edges/nodeOutputs
+                nodes: nodes,
+                edges: edges,
+                nodeOutputs: nodeOutputData,
+                nodeId: selectedNode?.id
+            });
+
+            console.log(`${nodeType} test result:`, response.data);
+            return response.data;
+        } catch (error) {
+            console.error(`Error testing ${nodeType} node:`, error);
+            return {
+                error: error.response?.data?.message || error.message || 'An error occurred',
+                details: error.response?.data?.error || error.toString(),
+            };
+        }
+    };
+
+    // Test Perplexity node (via backend API)
     const handleTestPerplexityNode = async (config) => {
+        console.log('Testing Perplexity with config:', config);
+        return await callTestNodeAPI('perplexity', config);
+    };
+
+    // OLD - Keeping for reference, but not used
+    const handleTestPerplexityNode_OLD = async (config) => {
         try {
             console.log('Testing Perplexity with config:', config);
 
@@ -1862,72 +1748,26 @@ function WorkflowEditor() {
         }
     };
 
-    // Test Claude node (call via backend to avoid CORS)
+    // Test Claude node (via backend API)
     const handleTestClaudeNode = async (config) => {
-        try {
-            console.log('Testing Claude with config:', config);
-
-            const inputData = getNodeInputData(selectedNode?.id || '');
-            console.log('Input data for variable resolution:', inputData);
-
-            if (!config.credentialId) {
-                throw new Error('Claude API credential is required');
-            }
-
-            // Call backend API to test node (avoids CORS)
-            const response = await axios.post('/test-node', {
-                nodeType: 'claude',
-                config: config,
-                inputData: inputData
-            });
-
-            console.log('Claude response:', response.data);
-            return response.data;
-        } catch (error) {
-            console.error('Error testing Claude:', error);
-            return {
-                error: error.response?.data?.message || error.message || 'An error occurred',
-                details: error.toString(),
-            };
-        }
+        console.log('Testing Claude with config:', config);
+        return await callTestNodeAPI('claude', config);
     };
 
-    // Test Gemini node (call via backend)
+    // Test Gemini node (via backend API)
     const handleTestGeminiNode = async (config) => {
-        try {
-            console.log('Testing Gemini with config:', config);
-
-            const inputData = getNodeInputData(selectedNode?.id || '');
-            console.log('Input data for variable resolution:', inputData);
-
-            if (!config.credentialId) {
-                throw new Error('Gemini API credential is required');
-            }
-
-            // Call backend API to test node
-            const response = await axios.post('/test-node', {
-                nodeType: 'gemini',
-                config: config,
-                inputData: inputData,
-                nodes: nodes,
-                edges: edges,
-                nodeOutputs: nodeOutputData,
-                nodeId: selectedNode?.id || '',
-            });
-
-            console.log('Gemini response:', response.data);
-            return response.data;
-        } catch (error) {
-            console.error('Error testing Gemini:', error);
-            return {
-                error: error.response?.data?.message || error.message || 'An error occurred',
-                details: error.toString(),
-            };
-        }
+        console.log('Testing Gemini with config:', config);
+        return await callTestNodeAPI('gemini', config);
     };
 
-    // Test If node
+    // Test If node (via backend API)
     const handleTestIfNode = async (config) => {
+        console.log('Testing If node with config:', config);
+        return await callTestNodeAPI('if', config);
+    };
+
+    // OLD - Keeping for reference, but not used
+    const handleTestIfNode_OLD = async (config) => {
         try {
             console.log('Testing If node with config:', config);
 
@@ -2098,14 +1938,14 @@ function WorkflowEditor() {
             // Call backend API to test node
             // Include nodes, edges, nodeOutputs, and nodeId so backend can build namedInputs
             // This fixes {{NodeName.field}} variable resolution in test step
-            const response = await axios.post('/test-node', {
+            const response = await axios.post('/api/workflows/test-node', {
                 nodeType: 'googledocs',
                 config: config,
-                inputData: inputData,
-                nodes: nodes, // All nodes for building node map
-                edges: edges, // All edges for finding upstream nodes
-                nodeOutputs: nodeOutputData, // Output data from all tested nodes
-                nodeId: selectedNode?.id || '', // Current node being tested
+                inputData: [], // Backend will build this
+                nodes: nodes,
+                edges: edges,
+                nodeOutputs: nodeOutputData,
+                nodeId: selectedNode?.id || '',
             });
 
             console.log('Google Docs response:', response.data);
@@ -2119,41 +1959,20 @@ function WorkflowEditor() {
         }
     };
 
+    // Test Google Sheets node (via backend API)
     const handleTestGoogleSheetsNode = async (config) => {
-        try {
-            console.log('Testing Google Sheets with config:', config);
-
-            const inputData = getNodeInputData(selectedNode?.id || '');
-            console.log('Input data for Google Sheets:', inputData);
-
-            if (!config.credentialId) {
-                throw new Error('Google Sheets credential is required');
-            }
-
-            // Call backend API to test node
-            const response = await axios.post('/test-node', {
-                nodeType: 'googlesheets',
-                config: config,
-                inputData: inputData,
-                nodes: nodes,
-                edges: edges,
-                nodeOutputs: nodeOutputData,
-                nodeId: selectedNode?.id || '',
-            });
-
-            console.log('Google Sheets response:', response.data);
-            return response.data;
-        } catch (error) {
-            console.error('Error testing Google Sheets:', error);
-            return {
-                error: error.response?.data?.message || error.message || 'An error occurred',
-                details: error.toString(),
-            };
-        }
+        console.log('Testing Google Sheets with config:', config);
+        return await callTestNodeAPI('googlesheets', config);
     };
 
-    // Test Switch node
+    // Test Switch node (via backend API)
     const handleTestSwitchNode = async (config) => {
+        console.log('Testing Switch node with config:', config);
+        return await callTestNodeAPI('switch', config);
+    };
+
+    // OLD - Keeping for reference, but not used
+    const handleTestSwitchNode_OLD = async (config) => {
         try {
             console.log('Testing Switch node with config:', config);
 
@@ -2236,163 +2055,39 @@ function WorkflowEditor() {
         }
     };
 
-    // Test Escape node
+    // Test Escape node (via backend API)
     const handleTestEscapeNode = async (config) => {
-        try {
-            console.log('Testing Escape node with config:', config);
-
-            // Get input data for this node
-            const inputData = getNodeInputData(selectedNode?.id || '');
-            console.log('Input data for escape:', inputData);
-            console.log('Named inputs (available for variable resolution):', Object.keys(inputData).filter(k => typeof k === 'string'));
-            
-            // Check for missing upstream nodes
-            const allUpstreamNodeIds = new Set();
-            const visitedNodes = new Set();
-            const queue = [selectedNode?.id];
-            
-            while (queue.length > 0) {
-                const currentId = queue.shift();
-                edges.forEach(edge => {
-                    if (edge.target === currentId) {
-                        const sourceNodeId = edge.source;
-                        if (!visitedNodes.has(sourceNodeId)) {
-                            visitedNodes.add(sourceNodeId);
-                            allUpstreamNodeIds.add(sourceNodeId);
-                            queue.push(sourceNodeId);
-                        }
-                    }
-                });
-            }
-            
-            const missingNodes = [];
-            allUpstreamNodeIds.forEach(nodeId => {
-                if (!nodeOutputData[nodeId]) {
-                    const node = nodes.find(n => n.id === nodeId);
-                    if (node) {
-                        missingNodes.push(node.data.customName || node.data.label || node.type);
-                    }
-                }
-            });
-            
-            if (missingNodes.length > 0) {
-                console.warn('⚠️ Some upstream nodes have not been tested yet:', missingNodes);
-                console.warn('💡 Please test these nodes first to get complete variable resolution:', missingNodes.join(', '));
-            }
-
-            // Escape function
-            const escapeText = (text) => {
-                if (!text || typeof text !== 'string') return text;
-                return text
-                    .replace(/\\/g, '\\\\')
-                    .replace(/"/g, '\\"')
-                    .replace(/\n/g, '\\n')
-                    .replace(/\r/g, '\\r')
-                    .replace(/\t/g, '\\t')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-            };
-
-            // Build output object
-            const result = {};
-            
-            config.fields.forEach(field => {
-                if (!field.name || !field.value) return;
-                
-                // Resolve variable
-                const resolvedValue = resolveVariables(field.value, inputData);
-                
-                // Escape the resolved value
-                const escapedValue = escapeText(resolvedValue);
-                
-                // Set nested field (support a.b.c format)
-                const parts = field.name.split('.');
-                let current = result;
-                
-                for (let i = 0; i < parts.length - 1; i++) {
-                    if (!current[parts[i]]) {
-                        current[parts[i]] = {};
-                    }
-                    current = current[parts[i]];
-                }
-                
-                current[parts[parts.length - 1]] = escapedValue;
-            });
-
-            console.log('Escape result:', result);
-            return result;
-        } catch (error) {
-            console.error('Error in Escape node:', error);
-            return {
-                error: error.message || 'An error occurred',
-                details: error.toString(),
-            };
-        }
+        console.log('Testing Escape node with config:', config);
+        return await callTestNodeAPI('escape', config);
     };
 
-    // Test Code node
+    // Test Code node (via backend API)
     const handleTestCodeNode = async (config) => {
         try {
             console.log('Testing Code node with config:', config);
 
-            // Get input data for this node
-            const inputData = getNodeInputData(selectedNode?.id || '');
-            console.log('Input data for code execution:', inputData);
-
-            // STEP 1: Pre-resolve {{variable}} syntax in code
-            let code = config.code || '';
-            
-            // Replace {{variable}} with actual values
-            const variablePattern = /\{\{([^}]+)\}\}/g;
-            let resolvedCode = code;
-            let match;
-            
-            while ((match = variablePattern.exec(code)) !== null) {
-                const fullMatch = match[0]; // {{path}}
-                const path = match[1]; // path
-                const value = getValueFromPath(path, inputData);
-                
-                if (value !== undefined && value !== null) {
-                    // Encode value properly for JavaScript
-                    let replacement;
-                    if (typeof value === 'string') {
-                        replacement = JSON.stringify(value);
-                    } else if (typeof value === 'number' || typeof value === 'boolean') {
-                        replacement = JSON.stringify(value);
-                    } else if (typeof value === 'object') {
-                        replacement = JSON.stringify(value);
-                    } else {
-                        replacement = 'null';
-                    }
-                    resolvedCode = resolvedCode.replace(fullMatch, replacement);
-                    
-                    console.log('Resolved variable:', { path, value, replacement });
-                }
+            if (!config.code) {
+                throw new Error('No code provided');
             }
-            
-            console.log('Code after variable resolution:', resolvedCode);
 
-            // STEP 2: Create sandbox environment for code execution
-            const $input = {
-                first: () => inputData && inputData.length > 0 ? inputData[0] : {},
-                all: () => inputData || [],
-                item: (index) => inputData && inputData[index] ? inputData[index] : {},
-            };
+            // Call backend API to test Code node
+            const response = await axios.post('/api/workflows/test-node', {
+                nodeType: 'code',
+                config: config,
+                inputData: [], // Backend will build this from nodes/edges/nodeOutputs
+                nodes: nodes,
+                edges: edges,
+                nodeOutputs: nodeOutputData,
+                nodeId: selectedNode?.id
+            });
 
-            // STEP 3: Execute resolved JavaScript code
-            const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-            const executeCode = new AsyncFunction('$input', resolvedCode);
-            
-            const result = await executeCode($input);
-            
-            console.log('Code execution result:', result);
-            return result;
+            console.log('Code node test result:', response.data);
+            return response.data;
         } catch (error) {
-            console.error('Error executing code:', error);
+            console.error('Error testing Code node:', error);
             return {
-                error: error.message || 'An error occurred',
-                details: error.toString(),
-                stack: error.stack,
+                error: error.response?.data?.message || error.message || 'An error occurred',
+                details: error.response?.data?.error || error.toString(),
             };
         }
     };

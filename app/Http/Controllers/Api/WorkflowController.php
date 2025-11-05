@@ -260,6 +260,21 @@ class WorkflowController extends Controller
             
             // Call appropriate execute method based on node type
             switch ($nodeType) {
+                case 'http':
+                    $result = $webhookController->testHttpNode($config, $inputData);
+                    break;
+                case 'code':
+                    $result = $webhookController->testCodeNode($config, $inputData);
+                    break;
+                case 'if':
+                    $result = $webhookController->testIfNode($config, $inputData);
+                    break;
+                case 'switch':
+                    $result = $webhookController->testSwitchNode($config, $inputData);
+                    break;
+                case 'escape':
+                    $result = $webhookController->testEscapeNode($config, $inputData);
+                    break;
                 case 'claude':
                     $result = $webhookController->testClaudeNode($config, $inputData);
                     break;

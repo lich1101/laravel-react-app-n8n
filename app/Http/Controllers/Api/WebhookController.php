@@ -1652,6 +1652,46 @@ class WebhookController extends Controller
         }
     }
 
+    /**
+     * Test Code node (public method for API endpoint)
+     */
+    public function testCodeNode($config, $inputData)
+    {
+        return $this->executeCodeNode($config, $inputData);
+    }
+
+    /**
+     * Test HTTP Request node (public method for API endpoint)
+     */
+    public function testHttpNode($config, $inputData)
+    {
+        return $this->executeHttpNode($config, $inputData);
+    }
+
+    /**
+     * Test If node (public method for API endpoint)
+     */
+    public function testIfNode($config, $inputData)
+    {
+        return $this->executeIfNode($config, $inputData);
+    }
+
+    /**
+     * Test Switch node (public method for API endpoint)
+     */
+    public function testSwitchNode($config, $inputData)
+    {
+        return $this->executeSwitchNode($config, $inputData);
+    }
+
+    /**
+     * Test Escape & Set node (public method for API endpoint)
+     */
+    public function testEscapeNode($config, $inputData)
+    {
+        return $this->executeEscapeNode($config, $inputData);
+    }
+
     private function executeCodeNode($config, $inputData)
     {
         try {
