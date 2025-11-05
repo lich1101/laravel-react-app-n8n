@@ -2601,19 +2601,42 @@ JS;
         ]);
 
         // PRIORITY 1: Try to resolve by node customName (e.g., "Webhook1.body.content")
-        // Check if first part is a string key (customName) in inputData
-        if (isset($parts[0]) && isset($inputData[$parts[0]]) && !is_numeric($parts[0])) {
-            $nodeName = $parts[0];
+        // IMPORTANT: Handle case where firstPart might contain array index
+        // Example: "top 3 urls[0].string_top_url" → firstPart = "top 3 urls[0]"
+        // We need to extract nodeName = "top 3 urls" and remainingPath = "[0].string_top_url"
+        
+        $nodeName = $parts[0];
+        $remainingPath = '';
+        
+        // Check if firstPart contains array index like "top 3 urls[0]"
+        if (preg_match('/^([^\[]+)(\[.*)$/', $parts[0], $arrayIndexMatch)) {
+            $nodeName = $arrayIndexMatch[1]; // "top 3 urls"
+            $arrayPart = $arrayIndexMatch[2]; // "[0]"
+            
+            // Build remaining path: "[0].string_top_url"
+            if (count($parts) > 1) {
+                $remainingPath = $arrayPart . '.' . implode('.', array_slice($parts, 1));
+            } else {
+                $remainingPath = $arrayPart;
+            }
+        } else {
+            // No array index in first part, normal path
+            if (count($parts) > 1) {
+                $remainingPath = implode('.', array_slice($parts, 1));
+            }
+        }
+        
+        // Check if nodeName exists in inputData
+        if (isset($inputData[$nodeName]) && !is_numeric($nodeName)) {
             $value = $inputData[$nodeName];
             
             Log::info('✅ Found node by customName', [
                 'node_name' => $nodeName,
-                'remaining_path' => array_slice($parts, 1),
+                'remaining_path' => $remainingPath,
             ]);
             
-            // If there are more parts, traverse them using the helper
-            if (count($parts) > 1) {
-                $remainingPath = substr($path, strlen($nodeName) + 1); // +1 for the dot
+            // If there's a remaining path, traverse it using the helper
+            if ($remainingPath !== '') {
                 $value = $this->traversePath($remainingPath, $value);
             }
             
