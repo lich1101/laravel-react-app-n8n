@@ -31,8 +31,8 @@ class ProjectFolderController extends Controller
             
             // All users have edit permission on all folders
             $folder->user_permission = 'edit';
-            // Only creator and admin can delete
-            $folder->can_delete = ($user->id === $folder->created_by || $user->role === 'admin');
+            // All users (including 'user' role) can delete folders
+            $folder->can_delete = true;
             
             unset($folder->directWorkflows);
         });
@@ -214,6 +214,78 @@ class ProjectFolderController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Folder deleted successfully'
+        ]);
+    }
+
+    /**
+     * Update folder by regular user (not from Administrator)
+     * User can rename folder and modify workflows
+     */
+    public function userUpdateFolder(Request $request, string $folderId): JsonResponse
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $folder = Folder::find($folderId);
+        if (!$folder) {
+            return response()->json(['error' => 'Folder not found'], 404);
+        }
+
+        $request->validate([
+            'name' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        // User can update folder name and description
+        if ($request->has('name')) {
+            $folder->name = $request->name;
+        }
+        if ($request->has('description')) {
+            $folder->description = $request->description;
+        }
+
+        $folder->save();
+
+        \Log::info("User '{$user->email}' updated folder '{$folder->name}' (ID: {$folderId})");
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Folder updated successfully',
+            'folder' => $folder
+        ]);
+    }
+
+    /**
+     * Delete folder by regular user (not from Administrator)
+     * User can delete any folder they have access to
+     */
+    public function userDeleteFolder(string $folderId): JsonResponse
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $folder = Folder::find($folderId);
+        if (!$folder) {
+            return response()->json(['error' => 'Folder not found'], 404);
+        }
+
+        \Log::info("User '{$user->email}' deleting folder '{$folder->name}' (ID: {$folderId})");
+
+        // Delete all workflows in this folder first
+        $deletedWorkflows = Workflow::where('folder_id', $folderId)->delete();
+        
+        \Log::info("Deleted {$deletedWorkflows} workflows from folder '{$folder->name}'");
+
+        // Delete the folder
+        $folder->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Folder and all workflows deleted successfully'
         ]);
     }
 }

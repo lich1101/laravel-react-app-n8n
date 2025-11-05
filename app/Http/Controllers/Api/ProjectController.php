@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\Folder;
+use App\Models\FolderProjectMapping;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
@@ -191,47 +192,164 @@ class ProjectController extends Controller
         }
 
         try {
-            // 2. Sync folders (same as FolderController sync)
-            $projectDomain = $project->domain ?: $project->subdomain;
-            $projectDomain = rtrim($projectDomain, '/');
-            // Add https:// if not present
-            if (!preg_match('/^https?:\/\//', $projectDomain)) {
-                $projectDomain = 'https://' . $projectDomain;
-            }
-            $folderUrl = $projectDomain . '/api/project-folders';
-            
-            // Delete all existing folders first
-            $deleteResponse = Http::withHeaders([
-                'X-Admin-Key' => config('app.user_app_admin_key'),
-            ])->delete($folderUrl);
+            // 2. Sync folders (CREATE or UPDATE, not DELETE all)
+            $syncedCount = 0;
+            $failedCount = 0;
 
-            // Create folders for this project
             foreach ($project->folders as $folder) {
-                $createResponse = Http::withHeaders([
-                    'X-Admin-Key' => config('app.user_app_admin_key'),
-                ])->post($folderUrl, [
-                    'id' => $folder->id,
-                    'name' => $folder->name,
-                    'description' => $folder->description,
-                    'workflows' => $folder->directWorkflows->map(function ($workflow) {
-                        return [
-                            'id' => $workflow->id,
-                            'name' => $workflow->name,
-                            'description' => $workflow->description,
-                            'nodes' => $workflow->nodes,
-                            'edges' => $workflow->edges,
-                            'active' => $workflow->active,
-                        ];
-                    }),
-                ]);
+                try {
+                    // Load directWorkflows for this folder
+                    $folder->loadMissing('directWorkflows');
+
+                    // Check if mapping exists
+                    $mapping = FolderProjectMapping::where('admin_folder_id', $folder->id)
+                        ->where('project_id', $project->id)
+                        ->first();
+
+                    if (!$mapping) {
+                        // First time sync - create folder in project domain
+                        \Log::info("Creating folder '{$folder->name}' in project '{$project->name}'");
+                        $this->createFolderInProject($folder, $project);
+                        $syncedCount++;
+                    } else {
+                        // Update existing folder in project domain
+                        \Log::info("Updating folder '{$folder->name}' in project '{$project->name}'");
+                        $this->updateFolderInProject($folder, $project, $mapping);
+                        $syncedCount++;
+                    }
+                } catch (\Exception $e) {
+                    \Log::error("Error syncing folder '{$folder->name}': " . $e->getMessage());
+                    $results['errors'][] = "Folder '{$folder->name}': " . $e->getMessage();
+                    $failedCount++;
+                }
             }
 
-            $results['folders_synced'] = true;
+            $results['folders_synced'] = $failedCount === 0;
+            $results['folders_synced_count'] = $syncedCount;
+            $results['folders_failed_count'] = $failedCount;
 
         } catch (\Exception $e) {
             $results['errors'][] = 'Folder sync error: ' . $e->getMessage();
         }
 
         return $results;
+    }
+
+    /**
+     * Create a new folder in the project domain (first time sync)
+     */
+    private function createFolderInProject(Folder $folder, Project $project)
+    {
+        $projectDomain = $project->domain ?: $project->subdomain;
+        // Add https:// if not present
+        if (!preg_match('/^https?:\/\//', $projectDomain)) {
+            $projectDomain = 'https://' . $projectDomain;
+        }
+        $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders';
+
+        \Log::info("Creating folder '{$folder->name}' in project domain: {$apiUrl}");
+
+        // Prepare workflows data
+        $workflowsData = $folder->directWorkflows->map(function ($workflow) {
+            return [
+                'name' => $workflow->name,
+                'description' => $workflow->description,
+                'nodes' => $workflow->nodes,
+                'edges' => $workflow->edges,
+                'active' => $workflow->active,
+            ];
+        })->toArray();
+
+        $response = Http::timeout(30)
+            ->withHeaders([
+                'X-Admin-Key' => config('app.user_app_admin_key'),
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])
+            ->post($apiUrl, [
+                'id' => $folder->id,
+                'name' => $folder->name,
+                'description' => $folder->description,
+                'workflows' => $workflowsData,
+                'admin_user_email' => 'admin.user@chatplus.vn',
+            ]);
+
+        if ($response->successful()) {
+            $data = $response->json();
+            \Log::info("Successfully created folder in project domain", $data);
+
+            // Create mapping
+            FolderProjectMapping::create([
+                'admin_folder_id' => $folder->id,
+                'project_id' => $project->id,
+                'project_folder_id' => $data['folder_id'] ?? $data['id'] ?? null,
+                'workflow_mappings' => array_combine(
+                    $folder->directWorkflows->pluck('id')->toArray(),
+                    $data['workflow_ids'] ?? []
+                ),
+            ]);
+        } else {
+            $errorMsg = "Failed to create folder. Status: {$response->status()}, Response: " . $response->body();
+            \Log::error($errorMsg);
+            throw new \Exception($errorMsg);
+        }
+    }
+
+    /**
+     * Update an existing folder in the project domain
+     */
+    private function updateFolderInProject(Folder $folder, Project $project, FolderProjectMapping $mapping)
+    {
+        $projectDomain = $project->domain ?: $project->subdomain;
+        // Add https:// if not present
+        if (!preg_match('/^https?:\/\//', $projectDomain)) {
+            $projectDomain = 'https://' . $projectDomain;
+        }
+        $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders/' . $mapping->project_folder_id;
+
+        \Log::info("Updating folder '{$folder->name}' in project domain: {$apiUrl}");
+
+        // Prepare workflows data with mapped IDs
+        $workflowsData = $folder->directWorkflows->map(function ($workflow) use ($mapping) {
+            $projectWorkflowId = $mapping->workflow_mappings[$workflow->id] ?? null;
+
+            return [
+                'id' => $projectWorkflowId,
+                'name' => $workflow->name,
+                'description' => $workflow->description,
+                'nodes' => $workflow->nodes,
+                'edges' => $workflow->edges,
+                'active' => $workflow->active,
+            ];
+        })->toArray();
+
+        $response = Http::timeout(30)
+            ->withHeaders([
+                'X-Admin-Key' => config('app.user_app_admin_key'),
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])
+            ->put($apiUrl, [
+                'name' => $folder->name,
+                'description' => $folder->description,
+                'workflows' => $workflowsData,
+                'admin_user_email' => 'admin.user@chatplus.vn',
+            ]);
+
+        if ($response->successful()) {
+            \Log::info("Successfully updated folder in project domain");
+        } else if ($response->status() === 404) {
+            // Folder not found - it was deleted, recreate it
+            \Log::warning("Folder not found (404), deleting old mapping and recreating folder");
+            $mapping->delete();
+            
+            // Recreate the folder
+            $this->createFolderInProject($folder, $project);
+            \Log::info("Successfully recreated folder after 404 error");
+        } else {
+            $errorMsg = "Failed to update folder. Status: {$response->status()}, Response: " . $response->body();
+            \Log::error($errorMsg);
+            throw new \Exception($errorMsg);
+        }
     }
 }

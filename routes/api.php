@@ -64,6 +64,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Project folder routes (for regular authenticated users)
     Route::get('/project-folders', [ProjectFolderController::class, 'getFolders']);
+    Route::put('/project-folders/{folderId}/user-update', [ProjectFolderController::class, 'userUpdateFolder']);
+    Route::delete('/project-folders/{folderId}/user-delete', [ProjectFolderController::class, 'userDeleteFolder']);
     
     // System settings routes (administrator only)
     Route::get('/system-settings', [SystemSettingController::class, 'index']);

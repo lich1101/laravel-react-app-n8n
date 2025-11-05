@@ -116,21 +116,16 @@ class WorkflowController extends Controller
         $workflow = Workflow::findOrFail($id);
 
         // Check ownership hoặc permission
-        if ($workflow->user_id !== $user->id) {
+        // User role cũng được phép xóa tất cả workflows (kể cả từ folder)
+        if ($workflow->user_id !== $user->id && $user->role !== 'admin' && $user->role !== 'user') {
             return response()->json([
                 'error' => 'Unauthorized',
                 'message' => 'Bạn không có quyền xóa workflow này'
             ], 403);
         }
 
-        // Ngăn xóa workflows được sync từ Administrator (is_from_folder = true)
-        // Chỉ admin mới được xóa workflows từ folder
-        if ($workflow->is_from_folder && $user->role !== 'admin') {
-            return response()->json([
-                'error' => 'Cannot delete workflow from folder',
-                'message' => 'Workflow này được sync từ Administrator. Bạn không thể xóa, chỉ có thể sửa. Liên hệ Admin để xóa.'
-            ], 403);
-        }
+        // User role giờ được phép xóa workflows từ folder
+        // Bỏ check is_from_folder để user có full quyền quản lý workflows
 
         $workflow->delete();
 
