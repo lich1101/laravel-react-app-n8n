@@ -1603,35 +1603,14 @@ function WorkflowEditor() {
 
     // Test HTTP Request node (via backend API)
     const handleTestHttpNode = async (config) => {
-        try {
-            console.log('Testing HTTP Request with config:', config);
-
-            // Call backend API to test HTTP Request node
-            const response = await axios.post('/api/workflows/test-node', {
-                nodeType: 'http',
-                config: config,
-                inputData: [], // Backend will build this from nodes/edges/nodeOutputs
-                nodes: nodes,
-                edges: edges,
-                nodeOutputs: nodeOutputData,
-                nodeId: selectedNode?.id
-            });
-
-            console.log('HTTP Request test result:', response.data);
-            return response.data;
-        } catch (error) {
-            console.error('Error testing HTTP Request node:', error);
-            return {
-                error: error.response?.data?.message || error.message || 'An error occurred',
-                details: error.response?.data?.error || error.toString(),
-            };
-        }
+        console.log('Testing HTTP Request with config:', config);
+        return await callTestNodeAPI('http', config);
     };
 
     // Helper function to call backend test node API
     const callTestNodeAPI = async (nodeType, config) => {
         try {
-            const response = await axios.post('/api/workflows/test-node', {
+            const response = await axios.post('/workflows/test-node', {
                 nodeType: nodeType,
                 config: config,
                 inputData: [], // Backend will build this from nodes/edges/nodeOutputs
@@ -1935,21 +1914,8 @@ function WorkflowEditor() {
                 throw new Error('Google Docs credential is required');
             }
 
-            // Call backend API to test node
-            // Include nodes, edges, nodeOutputs, and nodeId so backend can build namedInputs
-            // This fixes {{NodeName.field}} variable resolution in test step
-            const response = await axios.post('/api/workflows/test-node', {
-                nodeType: 'googledocs',
-                config: config,
-                inputData: [], // Backend will build this
-                nodes: nodes,
-                edges: edges,
-                nodeOutputs: nodeOutputData,
-                nodeId: selectedNode?.id || '',
-            });
-
-            console.log('Google Docs response:', response.data);
-            return response.data;
+            // Call backend API using helper
+            return await callTestNodeAPI('googledocs', config);
         } catch (error) {
             console.error('Error testing Google Docs:', error);
             return {
@@ -2063,33 +2029,8 @@ function WorkflowEditor() {
 
     // Test Code node (via backend API)
     const handleTestCodeNode = async (config) => {
-        try {
-            console.log('Testing Code node with config:', config);
-
-            if (!config.code) {
-                throw new Error('No code provided');
-            }
-
-            // Call backend API to test Code node
-            const response = await axios.post('/api/workflows/test-node', {
-                nodeType: 'code',
-                config: config,
-                inputData: [], // Backend will build this from nodes/edges/nodeOutputs
-                nodes: nodes,
-                edges: edges,
-                nodeOutputs: nodeOutputData,
-                nodeId: selectedNode?.id
-            });
-
-            console.log('Code node test result:', response.data);
-            return response.data;
-        } catch (error) {
-            console.error('Error testing Code node:', error);
-            return {
-                error: error.response?.data?.message || error.message || 'An error occurred',
-                details: error.response?.data?.error || error.toString(),
-            };
-        }
+        console.log('Testing Code node with config:', config);
+        return await callTestNodeAPI('code', config);
     };
 
     const handleSaveConfig = async (config) => {
