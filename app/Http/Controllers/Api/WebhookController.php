@@ -2443,6 +2443,87 @@ JS;
         }, $code);
     }
 
+    /**
+     * Helper function to tokenize and traverse a path with complex array indices
+     * Supports: "field", "field[0]", "field[0][1]", "field[0].nested[1].deep"
+     * 
+     * @param string $pathSegment The remaining path to traverse
+     * @param mixed $startValue The starting value to traverse from
+     * @return mixed The resolved value or null if not found
+     */
+    private function traversePath($pathSegment, $startValue)
+    {
+        if (empty($pathSegment)) {
+            return $startValue;
+        }
+        
+        // Tokenize the segment into parts
+        // "optimized_messages[0].summaryAssistantMessage" -> ["optimized_messages", "[0]", "summaryAssistantMessage"]
+        $tokens = [];
+        $currentToken = '';
+        $i = 0;
+        $length = strlen($pathSegment);
+        
+        while ($i < $length) {
+            $char = $pathSegment[$i];
+            
+            if ($char === '.') {
+                if ($currentToken !== '') {
+                    $tokens[] = $currentToken;
+                    $currentToken = '';
+                }
+            } elseif ($char === '[') {
+                if ($currentToken !== '') {
+                    $tokens[] = $currentToken;
+                    $currentToken = '';
+                }
+                $endBracket = strpos($pathSegment, ']', $i);
+                if ($endBracket === false) {
+                    return null;
+                }
+                $tokens[] = substr($pathSegment, $i, $endBracket - $i + 1);
+                $i = $endBracket + 1;
+                continue;
+            } else {
+                $currentToken .= $char;
+            }
+            $i++;
+        }
+        
+        if ($currentToken !== '') {
+            $tokens[] = $currentToken;
+        }
+        
+        // Traverse using tokens
+        $current = $startValue;
+        
+        foreach ($tokens as $token) {
+            if (empty($token)) {
+                continue;
+            }
+            
+            // Check if token is an array index like "[0]"
+            if (preg_match('/^\[(\d+)\]$/', $token, $matches)) {
+                $index = (int) $matches[1];
+                
+                if (is_array($current) && isset($current[$index])) {
+                    $current = $current[$index];
+                } else {
+                    return null;
+                }
+            } else {
+                // Object key access
+                if (is_array($current) && isset($current[$token])) {
+                    $current = $current[$token];
+                } else {
+                    return null;
+                }
+            }
+        }
+        
+        return $current;
+    }
+
     private function getValueFromPath($path, $inputData, $workflow = null)
     {
         // Handle built-in variables (like 'now')
@@ -2490,32 +2571,10 @@ JS;
                 'remaining_path' => array_slice($parts, 1),
             ]);
             
-            // Navigate through the remaining path
-            for ($i = 1; $i < count($parts); $i++) {
-                $currentPart = $parts[$i];
-                
-                // Check if this part contains array index like "choices[0]"
-                if (preg_match('/^([^\[]+)\[(\d+)\]$/', $currentPart, $matches)) {
-                    $key = $matches[1];
-                    $arrayIndex = (int) $matches[2];
-                    
-                    if (is_array($value) && isset($value[$key]) && is_array($value[$key]) && isset($value[$key][$arrayIndex])) {
-                        $value = $value[$key][$arrayIndex];
-                    } else {
-                        return null;
-                    }
-                } else {
-                    // Normal key access
-                    if (is_array($value) && isset($value[$currentPart])) {
-                        $value = $value[$currentPart];
-                        // Handle array values (e.g., Laravel headers are arrays)
-                        if (is_array($value) && count($value) === 1 && isset($value[0])) {
-                            $value = $value[0];
-                        }
-                    } else {
-                        return null;
-                    }
-                }
+            // If there are more parts, traverse them using the helper
+            if (count($parts) > 1) {
+                $remainingPath = substr($path, strlen($nodeName) + 1); // +1 for the dot
+                $value = $this->traversePath($remainingPath, $value);
             }
             
             return $value;
@@ -2551,101 +2610,25 @@ JS;
             }
 
             if ($value !== null) {
-
-                // Navigate through the object path
-                for ($i = 1; $i < count($parts); $i++) {
-                    $currentPart = $parts[$i];
-                    
-                    // Check if this part contains array index like "choices[0]"
-                    if (preg_match('/^([^\[]+)\[(\d+)\]$/', $currentPart, $matches)) {
-                        $key = $matches[1];
-                        $arrayIndex = (int) $matches[2];
-                        
-                        Log::info('Navigating path with array index', [
-                            'original_part' => $currentPart,
-                            'key' => $key,
-                            'array_index' => $arrayIndex,
-                            'value_is_array' => is_array($value),
-                            'available_keys' => is_array($value) ? array_keys($value) : [],
-                        ]);
-                        
-                        // First access the key, then the array index
-                        if (is_array($value) && isset($value[$key])) {
-                            $value = $value[$key];
-                            if (is_array($value) && isset($value[$arrayIndex])) {
-                                $value = $value[$arrayIndex];
-                            } else {
-                                return null;
-                            }
-                        } else {
-                            return null;
-                        }
-                    } else {
-                        // Normal key access
-                        Log::info('Navigating path', [
-                            'current_path' => $currentPart,
-                            'value_is_array' => is_array($value),
-                            'available_keys' => is_array($value) ? array_keys($value) : [],
-                        ]);
-
-                        if (is_array($value) && isset($value[$currentPart])) {
-                            $value = $value[$currentPart];
-                            // Handle array values (e.g., Laravel headers are arrays)
-                            if (is_array($value) && count($value) === 1 && isset($value[0])) {
-                                $value = $value[0];
-                            }
-                        } else {
-                            // Try case-insensitive matching for headers
-                            if (is_array($value) && $i === count($parts) - 1) { // Only for last part
-                                foreach ($value as $key => $val) {
-                                    if (strtolower($key) === strtolower($currentPart)) {
-                                        $value = $val;
-                                        if (is_array($value) && count($value) === 1 && isset($value[0])) {
-                                            $value = $value[0];
-                                        }
-                                        break;
-                                    }
-                                }
-                            } else {
-                                return null;
-                            }
-                        }
-                    }
+                // If there are more parts, traverse them using the helper
+                if (count($parts) > 1) {
+                    $remainingPath = implode('.', array_slice($parts, 1));
+                    $value = $this->traversePath($remainingPath, $value);
                 }
-
+                
                 return $value;
             }
         }
 
-        // Try to find in any input
+        // PRIORITY 3: Try to find in any input (backward compat)
         foreach ($inputData as $input) {
-            $value = $input;
-            foreach ($parts as $part) {
-                // Check if this part contains array index
-                if (preg_match('/^([^\[]+)\[(\d+)\]$/', $part, $matches)) {
-                    $key = $matches[1];
-                    $arrayIndex = (int) $matches[2];
-                    
-                    if (is_array($value) && isset($value[$key]) && is_array($value[$key]) && isset($value[$key][$arrayIndex])) {
-                        $value = $value[$key][$arrayIndex];
-                    } else {
-                        $value = null;
-                        break;
-                    }
-                } else {
-                    // Normal key access
-                    if (is_array($value) && isset($value[$part])) {
-                        $value = $value[$part];
-                        // Handle array values (e.g., Laravel headers are arrays)
-                        if (is_array($value) && count($value) === 1 && isset($value[0])) {
-                            $value = $value[0];
-                        }
-                    } else {
-                        $value = null;
-                        break;
-                    }
-                }
+            if (!is_array($input)) {
+                continue;
             }
+            
+            // Try to traverse the entire path from this input
+            $value = $this->traversePath($path, $input);
+            
             if ($value !== null) {
                 return $value;
             }

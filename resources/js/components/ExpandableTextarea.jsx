@@ -78,12 +78,12 @@ function ExpandableTextarea({
         });
     };
 
-    // Get value from path (e.g., "NodeName.field.subfield")
+    // Get value from path - Supports complex paths with array indices
+    // Examples: "NodeName.field", "NodeName.array[0]", "NodeName.array[0].nested[1].field"
     // Also handles built-in variables like "now"
     const getValueFromPath = (path, data) => {
         // Handle built-in variables
         if (path === 'now') {
-            // Return current date/time in Vietnamese format
             const now = new Date();
             const vietnamTime = now.toLocaleString('vi-VN', {
                 timeZone: 'Asia/Ho_Chi_Minh',
@@ -100,14 +100,73 @@ function ExpandableTextarea({
         
         if (!data) return undefined;
         
-        const parts = path.split('.');
+        // Tokenize the path into segments
+        // Split by dots, but preserve array indices
+        // "a.b[0].c[1][2].d" -> ["a", "b", "[0]", "c", "[1]", "[2]", "d"]
+        const tokens = [];
+        let currentToken = '';
+        let i = 0;
+        
+        while (i < path.length) {
+            const char = path[i];
+            
+            if (char === '.') {
+                if (currentToken) {
+                    tokens.push(currentToken);
+                    currentToken = '';
+                }
+            } else if (char === '[') {
+                // Save current token if exists
+                if (currentToken) {
+                    tokens.push(currentToken);
+                    currentToken = '';
+                }
+                // Extract array index
+                const endBracket = path.indexOf(']', i);
+                if (endBracket === -1) {
+                    // Invalid syntax
+                    return undefined;
+                }
+                tokens.push(path.substring(i, endBracket + 1)); // Include '[' and ']'
+                i = endBracket + 1;
+                continue;
+            } else {
+                currentToken += char;
+            }
+            
+            i++;
+        }
+        
+        // Don't forget the last token
+        if (currentToken) {
+            tokens.push(currentToken);
+        }
+        
+        // Now traverse using tokens
         let current = data;
         
-        for (const part of parts) {
-            if (current && typeof current === 'object' && part in current) {
-                current = current[part];
+        for (const token of tokens) {
+            if (!token) continue;
+            
+            // Check if token is an array index like "[0]"
+            const arrayIndexMatch = token.match(/^\[(\d+)\]$/);
+            
+            if (arrayIndexMatch) {
+                // Array index access
+                const index = parseInt(arrayIndexMatch[1]);
+                
+                if (Array.isArray(current) && index >= 0 && index < current.length) {
+                    current = current[index];
+                } else {
+                    return undefined;
+                }
             } else {
-                return undefined;
+                // Object key access
+                if (current && typeof current === 'object' && token in current) {
+                    current = current[token];
+                } else {
+                    return undefined;
+                }
             }
         }
         

@@ -1440,6 +1440,72 @@ function WorkflowEditor() {
         return resolved;
     };
 
+    // Helper function to tokenize and traverse a path with complex array indices
+    // Supports: "field", "field[0]", "field[0][1]", "field[0].nested[1].deep"
+    const traversePath = (pathSegment, startValue) => {
+        if (!pathSegment) return startValue;
+        
+        // Tokenize the segment into parts
+        // "optimized_messages[0].summaryAssistantMessage" -> ["optimized_messages", "[0]", "summaryAssistantMessage"]
+        const tokens = [];
+        let currentToken = '';
+        let i = 0;
+        
+        while (i < pathSegment.length) {
+            const char = pathSegment[i];
+            
+            if (char === '.') {
+                if (currentToken) {
+                    tokens.push(currentToken);
+                    currentToken = '';
+                }
+            } else if (char === '[') {
+                if (currentToken) {
+                    tokens.push(currentToken);
+                    currentToken = '';
+                }
+                const endBracket = pathSegment.indexOf(']', i);
+                if (endBracket === -1) return undefined;
+                tokens.push(pathSegment.substring(i, endBracket + 1));
+                i = endBracket + 1;
+                continue;
+            } else {
+                currentToken += char;
+            }
+            i++;
+        }
+        
+        if (currentToken) {
+            tokens.push(currentToken);
+        }
+        
+        // Traverse using tokens
+        let current = startValue;
+        
+        for (const token of tokens) {
+            if (!token) continue;
+            
+            const arrayIndexMatch = token.match(/^\[(\d+)\]$/);
+            
+            if (arrayIndexMatch) {
+                const index = parseInt(arrayIndexMatch[1]);
+                if (Array.isArray(current) && index >= 0 && index < current.length) {
+                    current = current[index];
+                } else {
+                    return undefined;
+                }
+            } else {
+                if (current && typeof current === 'object' && token in current) {
+                    current = current[token];
+                } else {
+                    return undefined;
+                }
+            }
+        }
+        
+        return current;
+    };
+
     // Get value from path like "input-0.headers.content-length" or "nodeName.field"
     // Also handles built-in variables like "now"
     const getValueFromPath = (path, inputData) => {
@@ -1467,39 +1533,17 @@ function WorkflowEditor() {
         
         // PRIORITY 1: Try to resolve by node customName (check if it exists as a key in inputData)
         if (inputData[firstPart] !== undefined && isNaN(firstPart)) {
-            let value = inputData[firstPart];
-            
             console.log('Found node by customName:', firstPart);
             
-            // Navigate through remaining path parts
-            for (let i = 1; i < parts.length; i++) {
-                const currentPart = parts[i];
-                
-                // Check if this part contains array index like "choices[0]"
-                const arrayMatch = currentPart.match(/^([^\[]+)\[(\d+)\]$/);
-                if (arrayMatch) {
-                    const key = arrayMatch[1];
-                    const arrayIndex = parseInt(arrayMatch[2]);
-                    
-                    if (value && typeof value === 'object' && key in value) {
-                        value = value[key];
-                        if (Array.isArray(value) && arrayIndex >= 0 && arrayIndex < value.length) {
-                            value = value[arrayIndex];
-                        } else {
-                            return undefined;
-                        }
-                    } else {
-                        return undefined;
-                    }
-                } else {
-                    // Normal key access
-                    if (value && typeof value === 'object') {
-                        value = value[currentPart];
-                    } else {
-                        return undefined;
-                    }
-                }
+            // Get the starting value from the first part
+            let value = inputData[firstPart];
+            
+            // If there are more parts, traverse them using the helper
+            if (parts.length > 1) {
+                const remainingPath = path.substring(firstPart.length + 1); // +1 for the dot
+                value = traversePath(remainingPath, value);
             }
+            
             return value;
         }
 
@@ -1531,36 +1575,10 @@ function WorkflowEditor() {
             }
             
             if (value !== undefined) {
-                for (let i = 1; i < parts.length; i++) {
-                    const currentPart = parts[i];
-                    
-                    // Check if this part contains array index like "choices[0]"
-                    const arrayMatch = currentPart.match(/^([^\[]+)\[(\d+)\]$/);
-                    if (arrayMatch) {
-                        const key = arrayMatch[1];
-                        const arrayIndex = parseInt(arrayMatch[2]);
-                        
-                        console.log('Navigating with array index:', { key, arrayIndex, value });
-                        
-                        // First access the key, then the array index
-                        if (value && typeof value === 'object' && key in value) {
-                            value = value[key];
-                            if (Array.isArray(value) && arrayIndex >= 0 && arrayIndex < value.length) {
-                                value = value[arrayIndex];
-                            } else {
-                                return undefined;
-                            }
-                        } else {
-                            return undefined;
-                        }
-                    } else {
-                        // Normal key access
-                        if (value && typeof value === 'object') {
-                            value = value[currentPart];
-                        } else {
-                            return undefined;
-                        }
-                    }
+                // If there are more parts, traverse them using the helper
+                if (parts.length > 1) {
+                    const remainingPath = parts.slice(1).join('.');
+                    value = traversePath(remainingPath, value);
                 }
                 return value;
             }
@@ -1571,34 +1589,10 @@ function WorkflowEditor() {
             for (let i = 0; i < inputData.length; i++) {
                 if (typeof inputData[i] !== 'object') continue;
                 
-                let value = inputData[i];
-                let found = true;
+                // Try to traverse the entire path from this input
+                const value = traversePath(path, inputData[i]);
                 
-                for (const part of parts) {
-                    // Check if this part contains array index
-                    const arrayMatch = part.match(/^([^\[]+)\[(\d+)\]$/);
-                    if (arrayMatch) {
-                        const key = arrayMatch[1];
-                        const arrayIndex = parseInt(arrayMatch[2]);
-                        
-                        if (value && typeof value === 'object' && key in value && Array.isArray(value[key]) && arrayIndex < value[key].length) {
-                            value = value[key][arrayIndex];
-                        } else {
-                            found = false;
-                            break;
-                        }
-                    } else {
-                        // Normal key access
-                        if (value && typeof value === 'object' && part in value) {
-                            value = value[part];
-                        } else {
-                            found = false;
-                            break;
-                        }
-                    }
-                }
-                
-                if (found && value !== undefined && value !== null) {
+                if (value !== undefined && value !== null) {
                     return value;
                 }
             }
