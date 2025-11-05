@@ -216,7 +216,7 @@ class FolderController extends Controller
 
         try {
             // Use APP_KEY from project domain for authentication
-            $adminKey = env('USER_APP_ADMIN_KEY', 'base64:nwdDyfV4pwpxIJGIW1ktTkyG26tTrKsKbCugHkgdFOw=');
+            $adminKey = config('app.user_app_admin_key');
             
             $response = Http::timeout(30)
                 ->withHeaders([
@@ -285,7 +285,7 @@ class FolderController extends Controller
 
         try {
             // Use APP_KEY from project domain for authentication
-            $adminKey = env('USER_APP_ADMIN_KEY', 'base64:nwdDyfV4pwpxIJGIW1ktTkyG26tTrKsKbCugHkgdFOw=');
+            $adminKey = config('app.user_app_admin_key');
             
             $response = Http::timeout(30)
                 ->withHeaders([

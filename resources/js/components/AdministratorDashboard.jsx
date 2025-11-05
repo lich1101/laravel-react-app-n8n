@@ -66,11 +66,11 @@ const AdministratorDashboard = () => {
                     {activeTab === 'settings' ? (
                         <Settings />
                     ) : (
-                        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                            {activeTab === 'folders' && <FoldersTab />}
-                            {activeTab === 'projects' && <ProjectsTab />}
-                            {activeTab === 'users' && <UsersTab />}
-                        </div>
+                    <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+                        {activeTab === 'folders' && <FoldersTab />}
+                        {activeTab === 'projects' && <ProjectsTab />}
+                        {activeTab === 'users' && <UsersTab />}
+                    </div>
                     )}
                 </div>
             </div>

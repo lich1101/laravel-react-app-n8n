@@ -151,38 +151,64 @@ class ProjectController extends Controller
 
         try {
             // 1. Sync max_concurrent_workflows config
-            $configUrl = rtrim($project->subdomain, '/') . '/api/project-config/sync';
-            $configResponse = Http::withHeaders([
-                'X-Admin-Key' => env('USER_APP_ADMIN_KEY'),
-                'Accept' => 'application/json',
-            ])->post($configUrl, [
+            $projectDomain = $project->domain ?: $project->subdomain;
+            $projectDomain = rtrim($projectDomain, '/');
+            // Add https:// if not present
+            if (!preg_match('/^https?:\/\//', $projectDomain)) {
+                $projectDomain = 'https://' . $projectDomain;
+            }
+            $configUrl = $projectDomain . '/api/project-config/sync';
+            
+            \Log::info("Syncing config to project '{$project->name}' at URL: {$configUrl}", [
                 'max_concurrent_workflows' => $project->max_concurrent_workflows,
                 'project_id' => $project->id,
-                'project_name' => $project->name,
             ]);
+            
+            $configResponse = Http::timeout(30)
+                ->withHeaders([
+                    'X-Admin-Key' => config('app.user_app_admin_key'),
+                    'Accept' => 'application/json',
+                    'Content-Type' => 'application/json',
+                ])->post($configUrl, [
+                    'max_concurrent_workflows' => $project->max_concurrent_workflows,
+                    'project_id' => $project->id,
+                    'project_name' => $project->name,
+                ]);
 
             $results['config_synced'] = $configResponse->successful();
-            if (!$configResponse->successful()) {
-                $results['errors'][] = 'Config sync failed: ' . $configResponse->body();
+            if ($configResponse->successful()) {
+                \Log::info("Config sync successful for project '{$project->name}'", $configResponse->json());
+            } else {
+                $errorMsg = 'Config sync failed: ' . $configResponse->status() . ' - ' . $configResponse->body();
+                \Log::error($errorMsg);
+                $results['errors'][] = $errorMsg;
             }
 
         } catch (\Exception $e) {
-            $results['errors'][] = 'Config sync error: ' . $e->getMessage();
+            $errorMsg = 'Config sync error: ' . $e->getMessage();
+            \Log::error($errorMsg);
+            $results['errors'][] = $errorMsg;
         }
 
         try {
             // 2. Sync folders (same as FolderController sync)
-            $folderUrl = rtrim($project->subdomain, '/') . '/api/project-folders';
+            $projectDomain = $project->domain ?: $project->subdomain;
+            $projectDomain = rtrim($projectDomain, '/');
+            // Add https:// if not present
+            if (!preg_match('/^https?:\/\//', $projectDomain)) {
+                $projectDomain = 'https://' . $projectDomain;
+            }
+            $folderUrl = $projectDomain . '/api/project-folders';
             
             // Delete all existing folders first
             $deleteResponse = Http::withHeaders([
-                'X-Admin-Key' => env('USER_APP_ADMIN_KEY'),
+                'X-Admin-Key' => config('app.user_app_admin_key'),
             ])->delete($folderUrl);
 
             // Create folders for this project
             foreach ($project->folders as $folder) {
                 $createResponse = Http::withHeaders([
-                    'X-Admin-Key' => env('USER_APP_ADMIN_KEY'),
+                    'X-Admin-Key' => config('app.user_app_admin_key'),
                 ])->post($folderUrl, [
                     'id' => $folder->id,
                     'name' => $folder->name,

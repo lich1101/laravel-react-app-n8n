@@ -99,6 +99,18 @@ return [
 
     'key' => env('APP_KEY'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | User App Admin Key
+    |--------------------------------------------------------------------------
+    |
+    | This key is used by the Administrator app to authenticate API requests
+    | to child project applications (e.g., laravel-react-app-n8n-user).
+    |
+    */
+
+    'user_app_admin_key' => env('USER_APP_ADMIN_KEY'),
+
     'previous_keys' => [
         ...array_filter(
             explode(',', (string) env('APP_PREVIOUS_KEYS', ''))

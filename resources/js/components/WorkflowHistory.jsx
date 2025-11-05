@@ -459,19 +459,19 @@ const WorkflowHistory = () => {
                                             {formatDate(execution.started_at)}
                                         </span>
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                                                execution.status === 'success' ? 'bg-green-500 text-white' :
-                                                execution.status === 'error' || execution.status === 'failed' ? 'bg-red-500 text-white' :
-                                                execution.status === 'running' ? 'bg-blue-500 text-white' :
-                                                execution.status === 'queued' ? 'bg-gray-500 text-white' :
-                                                'bg-yellow-500 text-white'
-                                            }`}>
-                                                {execution.status === 'success' ? 'Success' : 
-                                                 execution.status === 'error' || execution.status === 'failed' ? 'Error' :
-                                                 execution.status === 'running' ? 'Running' :
-                                                 execution.status === 'queued' ? 'Queued' :
-                                                 'Unknown'}
-                                            </span>
+                                        <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                                            execution.status === 'success' ? 'bg-green-500 text-white' :
+                                            execution.status === 'error' || execution.status === 'failed' ? 'bg-red-500 text-white' :
+                                            execution.status === 'running' ? 'bg-blue-500 text-white' :
+                                            execution.status === 'queued' ? 'bg-gray-500 text-white' :
+                                            'bg-yellow-500 text-white'
+                                        }`}>
+                                            {execution.status === 'success' ? 'Success' : 
+                                             execution.status === 'error' || execution.status === 'failed' ? 'Error' :
+                                             execution.status === 'running' ? 'Running' :
+                                             execution.status === 'queued' ? 'Queued' :
+                                             'Unknown'}
+                                        </span>
                                             <button
                                                 onClick={(e) => handleDeleteExecution(execution.id, e)}
                                                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-600 rounded"
