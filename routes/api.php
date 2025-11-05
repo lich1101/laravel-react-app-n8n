@@ -35,7 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/workflows/{workflow}/executions/{execution}', [WorkflowController::class, 'deleteExecution']);
     
     // Node testing route (avoids CORS for Claude API)
-    Route::post('/test-node', [WorkflowController::class, 'testNode']);
+    Route::post('/workflows/test-node', [WorkflowController::class, 'testNode']);
 
     // Gemini routes
     Route::post('/gemini/get-models', [WebhookController::class, 'getGeminiModels']);
