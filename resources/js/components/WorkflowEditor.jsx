@@ -442,6 +442,8 @@ function WorkflowEditor() {
     const [isTestingWorkflow, setIsTestingWorkflow] = useState(false);
     const [runningNodes, setRunningNodes] = useState(new Set());
     const [completedNodes, setCompletedNodes] = useState(new Set());
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [editedName, setEditedName] = useState('');
     const [testExecutionId, setTestExecutionId] = useState(null);
     const reactFlowWrapper = useRef(null);
     const [reactFlowInstance, setReactFlowInstance] = useState(null);
@@ -731,6 +733,23 @@ function WorkflowEditor() {
         setHoveredEdge(null);
         setHasChanges(true);
         setSaved(false);
+    };
+
+    const handleSaveWorkflowName = async (newName) => {
+        if (!workflow || !workflow.id || !newName.trim()) return;
+        
+        try {
+            await axios.put(`/workflows/${workflow.id}`, {
+                name: newName.trim(),
+                nodes: workflow.nodes,
+                edges: workflow.edges,
+            });
+            setWorkflow({ ...workflow, name: newName.trim() });
+            setIsEditingName(false);
+        } catch (error) {
+            console.error('Error updating workflow name:', error);
+            alert('Error updating workflow name');
+        }
     };
 
     const handleSave = async () => {
@@ -2473,9 +2492,44 @@ function WorkflowEditor() {
                             ← Back
                         </button>
                         <div>
-                            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                                {workflow.name}
-                            </h1>
+                            {isEditingName ? (
+                                <input
+                                    type="text"
+                                    value={editedName}
+                                    onChange={(e) => setEditedName(e.target.value)}
+                                    onBlur={() => {
+                                        if (editedName.trim()) {
+                                            handleSaveWorkflowName(editedName);
+                                        } else {
+                                            setIsEditingName(false);
+                                        }
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            if (editedName.trim()) {
+                                                handleSaveWorkflowName(editedName);
+                                            }
+                                        } else if (e.key === 'Escape') {
+                                            setIsEditingName(false);
+                                        }
+                                    }}
+                                    autoFocus
+                                    className="text-xl font-semibold bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-blue-500 rounded px-2 py-1"
+                                />
+                            ) : (
+                                <h1
+                                    onClick={() => {
+                                        if (workflow && workflow.id) {
+                                            setEditedName(workflow.name);
+                                            setIsEditingName(true);
+                                        }
+                                    }}
+                                    className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                                    title="Click to edit workflow name"
+                                >
+                                    {workflow.name}
+                                </h1>
+                            )}
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                                 {workflow.description || 'No description'}
                             </p>
