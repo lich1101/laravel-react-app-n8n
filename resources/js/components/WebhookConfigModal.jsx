@@ -681,12 +681,141 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                         </svg>
                                     </div>
                                     <p className="text-green-400 font-medium mb-2">Listening for webhook...</p>
-                                    <p className="text-gray-400 text-sm">Send a request to the webhook URL above</p>
-                                    <div className="mt-4 bg-gray-900 rounded p-3 text-left max-w-md">
-                                        <p className="text-xs text-gray-400 mb-1">Test URL:</p>
-                                        <code className="text-xs text-green-400 break-all">
-                                            {config.method} {baseUrl}/api/webhook-test/{config.path}
-                                        </code>
+                                    <p className="text-gray-400 text-sm">Send a request to the webhook URL below</p>
+                                    
+                                    <div className="mt-4 w-full max-w-lg space-y-3">
+                                        {/* Test URL */}
+                                        <div className="bg-gray-900 rounded p-3 text-left">
+                                            <p className="text-xs text-gray-400 mb-1">Test URL:</p>
+                                            <code className="text-xs text-green-400 break-all">
+                                                {config.method} {baseUrl}/api/webhook-test/{config.path}
+                                            </code>
+                                        </div>
+
+                                        {/* Authentication Info */}
+                                        {config.auth !== 'none' && (
+                                            <div className="bg-orange-900/30 border border-orange-600/50 rounded p-3 text-left">
+                                                <p className="text-xs text-orange-400 font-semibold mb-2">🔐 Authentication Required:</p>
+                                                
+                                                {/* Bearer Token */}
+                                                {config.authType === 'bearer' && config.credentialId && (
+                                                    <>
+                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">Bearer Token</span></p>
+                                                        {credentials.find(c => c.id === parseInt(config.credentialId)) && (
+                                                            <>
+                                                                {config.auth === 'header' ? (
+                                                                    <>
+                                                                        <p className="text-xs text-gray-400 mt-2">Header:</p>
+                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                            Authorization: Bearer {credentials.find(c => c.id === parseInt(config.credentialId))?.data?.headerValue?.replace('Bearer ', '') || '[TOKEN]'}
+                                                                        </code>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
+                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                            ?token={credentials.find(c => c.id === parseInt(config.credentialId))?.data?.headerValue?.replace('Bearer ', '') || '[TOKEN]'}
+                                                                        </code>
+                                                                    </>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {/* Basic Auth */}
+                                                {config.authType === 'basic' && (
+                                                    <>
+                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">Basic Auth</span></p>
+                                                        {config.auth === 'header' ? (
+                                                            <>
+                                                                <p className="text-xs text-gray-400 mt-2">Header:</p>
+                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                    Authorization: Basic {btoa(`${config.username}:${config.password}`)}
+                                                                </code>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <p className="text-xs text-gray-400 mt-2">Query Parameters:</p>
+                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                    ?username={config.username}&password={config.password}
+                                                                </code>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {/* API Key */}
+                                                {config.authType === 'apiKey' && (
+                                                    <>
+                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">API Key</span></p>
+                                                        {config.auth === 'header' ? (
+                                                            <>
+                                                                <p className="text-xs text-gray-400 mt-2">Header:</p>
+                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                    {config.apiKeyName}: {config.apiKeyValue}
+                                                                </code>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
+                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                    ?{config.apiKeyName}={config.apiKeyValue}
+                                                                </code>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {/* Custom Header */}
+                                                {config.authType === 'custom' && (
+                                                    <>
+                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">Custom Header</span></p>
+                                                        {config.auth === 'header' ? (
+                                                            <>
+                                                                <p className="text-xs text-gray-400 mt-2">Header:</p>
+                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                    {config.customHeaderName}: {config.customHeaderValue}
+                                                                </code>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
+                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                    ?{config.customHeaderName}={config.customHeaderValue}
+                                                                </code>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {/* OAuth2 */}
+                                                {config.authType === 'oauth2' && config.credentialId && (
+                                                    <>
+                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">OAuth 2.0</span></p>
+                                                        {credentials.find(c => c.id === parseInt(config.credentialId)) && (
+                                                            <>
+                                                                {config.auth === 'header' ? (
+                                                                    <>
+                                                                        <p className="text-xs text-gray-400 mt-2">Header:</p>
+                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                            Authorization: Bearer {credentials.find(c => c.id === parseInt(config.credentialId))?.data?.accessToken?.replace('Bearer ', '') || '[TOKEN]'}
+                                                                        </code>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
+                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                            ?access_token={credentials.find(c => c.id === parseInt(config.credentialId))?.data?.accessToken?.replace('Bearer ', '') || '[TOKEN]'}
+                                                                        </code>
+                                                                    </>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : testError ? (
