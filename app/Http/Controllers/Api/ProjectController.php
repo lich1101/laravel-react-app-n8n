@@ -153,7 +153,7 @@ class ProjectController extends Controller
             // 1. Sync max_concurrent_workflows config
             $configUrl = rtrim($project->subdomain, '/') . '/api/project-config/sync';
             $configResponse = Http::withHeaders([
-                'X-Admin-Key' => config('app.admin_key'),
+                'X-Admin-Key' => env('USER_APP_ADMIN_KEY'),
                 'Accept' => 'application/json',
             ])->post($configUrl, [
                 'max_concurrent_workflows' => $project->max_concurrent_workflows,
@@ -174,13 +174,13 @@ class ProjectController extends Controller
             
             // Delete all existing folders first
             $deleteResponse = Http::withHeaders([
-                'X-Admin-Key' => config('app.admin_key'),
+                'X-Admin-Key' => env('USER_APP_ADMIN_KEY'),
             ])->delete($folderUrl);
 
             // Create folders for this project
             foreach ($project->folders as $folder) {
                 $createResponse = Http::withHeaders([
-                    'X-Admin-Key' => config('app.admin_key'),
+                    'X-Admin-Key' => env('USER_APP_ADMIN_KEY'),
                 ])->post($folderUrl, [
                     'id' => $folder->id,
                     'name' => $folder->name,
