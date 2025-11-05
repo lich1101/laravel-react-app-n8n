@@ -13,6 +13,7 @@ class Project extends Model
         'subdomain',
         'domain',
         'status',
+        'max_concurrent_workflows',
     ];
 
     protected $casts = [

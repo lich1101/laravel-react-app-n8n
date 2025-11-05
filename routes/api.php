@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\FolderController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectFolderController;
+use App\Http\Controllers\Api\ProjectConfigController;
 use App\Http\Controllers\Api\CredentialController;
 use App\Http\Controllers\Api\SystemSettingController;
 
@@ -58,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/folders/{folder}/sync', [FolderController::class, 'syncFolder']);
 
     // Project routes (administrator only)
+    Route::post('/projects/{project}/sync', [ProjectController::class, 'sync']);
     Route::apiResource('projects', ProjectController::class);
 
     // Project folder routes (for regular authenticated users)
@@ -81,6 +83,10 @@ Route::middleware('admin.key')->group(function () {
     Route::post('/project-folders', [ProjectFolderController::class, 'createFolder']);
     Route::put('/project-folders/{folderId}', [ProjectFolderController::class, 'updateFolder']);
     Route::delete('/project-folders/{folderId}', [ProjectFolderController::class, 'deleteFolder']);
+    
+    // Project config management (called from project domains)
+    Route::get('/project-config', [ProjectConfigController::class, 'getConfig']);
+    Route::post('/project-config/sync', [ProjectConfigController::class, 'updateLocalConfig']);
 });
 
 // Webhook routes - these should be public and handle dynamic paths
