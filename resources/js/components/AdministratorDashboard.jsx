@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ProjectsTab from './AdministratorDashboard/ProjectsTab';
 import FoldersTab from './AdministratorDashboard/FoldersTab';
 import UsersTab from './AdministratorDashboard/UsersTab';
+import Settings from '../pages/Settings';
 import Sidebar from './Sidebar';
 
 const AdministratorDashboard = () => {
@@ -20,6 +21,7 @@ const AdministratorDashboard = () => {
         { id: 'folders', label: 'Folders', icon: '📁' },
         { id: 'projects', label: 'Projects', icon: '🏢' },
         { id: 'users', label: 'Users', icon: '👥' },
+        { id: 'settings', label: 'Settings', icon: '⚙️' },
     ];
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -61,11 +63,15 @@ const AdministratorDashboard = () => {
 
                 {/* Content Area */}
                 <div className="flex-1 p-6">
-                    <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                        {activeTab === 'folders' && <FoldersTab />}
-                        {activeTab === 'projects' && <ProjectsTab />}
-                        {activeTab === 'users' && <UsersTab />}
-                    </div>
+                    {activeTab === 'settings' ? (
+                        <Settings />
+                    ) : (
+                        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+                            {activeTab === 'folders' && <FoldersTab />}
+                            {activeTab === 'projects' && <ProjectsTab />}
+                            {activeTab === 'users' && <UsersTab />}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

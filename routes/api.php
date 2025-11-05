@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\FolderController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectFolderController;
 use App\Http\Controllers\Api\CredentialController;
+use App\Http\Controllers\Api\SystemSettingController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -61,6 +62,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Project folder routes (for regular authenticated users)
     Route::get('/project-folders', [ProjectFolderController::class, 'getFolders']);
+    
+    // System settings routes (administrator only)
+    Route::get('/system-settings', [SystemSettingController::class, 'index']);
+    Route::put('/system-settings/{key}', [SystemSettingController::class, 'update']);
     
     // Credential routes
     // IMPORTANT: Specific routes must come BEFORE apiResource

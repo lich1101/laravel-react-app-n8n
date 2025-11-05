@@ -5,6 +5,7 @@ import AdminDashboard from './AdminDashboard';
 import AdministratorDashboard from './AdministratorDashboard';
 import WorkflowList from './WorkflowList';
 import WorkflowEditor from './WorkflowEditor';
+import Settings from '../pages/Settings';
 import ProtectedRoute from './ProtectedRoute';
 
 function App() {
@@ -45,6 +46,14 @@ function App() {
           element={
             <ProtectedRoute>
               <WorkflowEditor />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute requireAdministrator={true}>
+              <Settings />
             </ProtectedRoute>
           }
         />
