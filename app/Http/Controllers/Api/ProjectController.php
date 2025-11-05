@@ -59,8 +59,7 @@ class ProjectController extends Controller
             $project->folders()->sync($request->folder_ids);
         }
 
-        // Sync config and folders to project
-        $this->syncProject($project);
+        // Don't auto-sync - user will manually click Sync button when needed
 
         $project->load(['users', 'folders']);
         return response()->json($project, 201);
@@ -107,8 +106,7 @@ class ProjectController extends Controller
             $project->folders()->sync($request->folder_ids);
         }
 
-        // Sync config and folders to project
-        $this->syncProject($project);
+        // Don't auto-sync - user will manually click Sync button when needed
 
         $project->load(['users', 'folders']);
         return response()->json($project);
