@@ -2672,12 +2672,18 @@ JS;
                 }
 
                 $credential = \App\Models\Credential::find($credentialId);
-                if (!$credential || !isset($credential->data['headerValue'])) {
-                    \Log::warning('Bearer credential not found or invalid', ['credentialId' => $credentialId]);
+                if (!$credential) {
+                    \Log::warning('Bearer credential not found', ['credentialId' => $credentialId]);
                     return false;
                 }
 
-                $expectedToken = $credential->data['headerValue'];
+                // Support both old (headerValue) and new (token) format
+                $expectedToken = $credential->data['token'] ?? $credential->data['headerValue'] ?? null;
+                if (!$expectedToken) {
+                    \Log::warning('Bearer token not found in credential data', ['credentialId' => $credentialId]);
+                    return false;
+                }
+                
                 // Remove "Bearer " prefix if present in stored token
                 $expectedToken = str_replace('Bearer ', '', $expectedToken);
 
@@ -2980,8 +2986,14 @@ JS;
                 $credentialId = $listeningData['credential_id'] ?? null;
                 if ($credentialId) {
                     $credential = \App\Models\Credential::find($credentialId);
-                    if ($credential && isset($credential->data['headerValue'])) {
-                        $expectedToken = str_replace('Bearer ', '', $credential->data['headerValue']);
+                    if ($credential) {
+                        // Support both old (headerValue) and new (token) format
+                        $expectedToken = $credential->data['token'] ?? $credential->data['headerValue'] ?? null;
+                        if ($expectedToken) {
+                            $expectedToken = str_replace('Bearer ', '', $expectedToken);
+                        } else {
+                            return false;
+                        }
                     } else {
                         return false;
                     }

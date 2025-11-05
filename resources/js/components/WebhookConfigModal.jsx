@@ -24,6 +24,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
     const [testOutput, setTestOutput] = useState(null);
     const [testError, setTestError] = useState(null);
     const [credentials, setCredentials] = useState([]);
+    const [selectedCredential, setSelectedCredential] = useState(null);
     const [showCredentialModal, setShowCredentialModal] = useState(false);
     const [selectedCredentialType, setSelectedCredentialType] = useState('bearer');
     const [pathError, setPathError] = useState(null);
@@ -46,6 +47,25 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
             }
         };
     }, []);
+
+    // Load selected credential when credentialId changes
+    useEffect(() => {
+        const loadSelectedCredential = async () => {
+            if (config.credentialId) {
+                try {
+                    const response = await axios.get(`/credentials/${config.credentialId}`);
+                    setSelectedCredential(response.data);
+                } catch (error) {
+                    console.error('Error loading credential:', error);
+                    setSelectedCredential(null);
+                }
+            } else {
+                setSelectedCredential(null);
+            }
+        };
+        
+        loadSelectedCredential();
+    }, [config.credentialId]);
 
     // Check path duplicate when path changes
     useEffect(() => {
@@ -701,24 +721,26 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 {config.authType === 'bearer' && config.credentialId && (
                                                     <>
                                                         <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">Bearer Token</span></p>
-                                                        {credentials.find(c => c.id === parseInt(config.credentialId)) && (
+                                                        {selectedCredential ? (
                                                             <>
                                                                 {config.auth === 'header' ? (
                                                                     <>
                                                                         <p className="text-xs text-gray-400 mt-2">Header:</p>
-                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
-                                                                            Authorization: Bearer {credentials.find(c => c.id === parseInt(config.credentialId))?.data?.headerValue?.replace('Bearer ', '') || '[TOKEN]'}
+                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1 break-all">
+                                                                            Authorization: Bearer {(selectedCredential.data?.token || selectedCredential.data?.headerValue || '')?.replace('Bearer ', '') || '[TOKEN NOT FOUND]'}
                                                                         </code>
                                                                     </>
                                                                 ) : (
                                                                     <>
                                                                         <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
-                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
-                                                                            ?token={credentials.find(c => c.id === parseInt(config.credentialId))?.data?.headerValue?.replace('Bearer ', '') || '[TOKEN]'}
+                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1 break-all">
+                                                                            ?token={(selectedCredential.data?.token || selectedCredential.data?.headerValue || '')?.replace('Bearer ', '') || '[TOKEN NOT FOUND]'}
                                                                         </code>
                                                                     </>
                                                                 )}
                                                             </>
+                                                        ) : (
+                                                            <p className="text-xs text-gray-400 mt-2">Loading credential...</p>
                                                         )}
                                                     </>
                                                 )}
@@ -793,24 +815,26 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 {config.authType === 'oauth2' && config.credentialId && (
                                                     <>
                                                         <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">OAuth 2.0</span></p>
-                                                        {credentials.find(c => c.id === parseInt(config.credentialId)) && (
+                                                        {selectedCredential ? (
                                                             <>
                                                                 {config.auth === 'header' ? (
                                                                     <>
                                                                         <p className="text-xs text-gray-400 mt-2">Header:</p>
-                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
-                                                                            Authorization: Bearer {credentials.find(c => c.id === parseInt(config.credentialId))?.data?.accessToken?.replace('Bearer ', '') || '[TOKEN]'}
+                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1 break-all">
+                                                                            Authorization: Bearer {selectedCredential.data?.accessToken?.replace('Bearer ', '') || '[TOKEN NOT FOUND]'}
                                                                         </code>
                                                                     </>
                                                                 ) : (
                                                                     <>
                                                                         <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
-                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
-                                                                            ?access_token={credentials.find(c => c.id === parseInt(config.credentialId))?.data?.accessToken?.replace('Bearer ', '') || '[TOKEN]'}
+                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1 break-all">
+                                                                            ?access_token={selectedCredential.data?.accessToken?.replace('Bearer ', '') || '[TOKEN NOT FOUND]'}
                                                                         </code>
                                                                     </>
                                                                 )}
                                                             </>
+                                                        ) : (
+                                                            <p className="text-xs text-gray-400 mt-2">Loading credential...</p>
                                                         )}
                                                     </>
                                                 )}
