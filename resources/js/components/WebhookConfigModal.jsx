@@ -172,6 +172,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                 method: config.method,
                 auth: config.auth,
                 auth_type: config.authType,
+                credential_id: config.credentialId, // For bearer/oauth2
                 auth_config: {
                     apiKeyValue: config.apiKeyValue,
                     username: config.username,

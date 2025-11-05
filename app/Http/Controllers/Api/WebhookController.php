@@ -2660,28 +2660,56 @@ JS;
     private function validateWebhookAuth(Request $request, $config)
     {
         $authType = $config['authType'] ?? 'bearer';
+        $auth = $config['auth'] ?? 'header'; // header or query
 
         switch ($authType) {
             case 'bearer':
-                $expectedToken = $config['apiKeyValue'] ?? '';
+                // Bearer token is stored in credentials table
+                $credentialId = $config['credentialId'] ?? null;
+                if (!$credentialId) {
+                    \Log::warning('Bearer auth configured but no credentialId provided');
+                    return false;
+                }
+
+                $credential = \App\Models\Credential::find($credentialId);
+                if (!$credential || !isset($credential->data['headerValue'])) {
+                    \Log::warning('Bearer credential not found or invalid', ['credentialId' => $credentialId]);
+                    return false;
+                }
+
+                $expectedToken = $credential->data['headerValue'];
                 // Remove "Bearer " prefix if present in stored token
                 $expectedToken = str_replace('Bearer ', '', $expectedToken);
 
-                $authHeader = $request->header('Authorization', '');
-                $providedToken = str_replace('Bearer ', '', $authHeader);
+                // Get token from Authorization header or query param
+                if ($auth === 'header') {
+                    $authHeader = $request->header('Authorization', '');
+                    $providedToken = str_replace('Bearer ', '', $authHeader);
+                } else {
+                    // Query auth: look for token in query params
+                    $providedToken = $request->query('token', $request->query('access_token', ''));
+                }
+
                 return !empty($expectedToken) && hash_equals($expectedToken, $providedToken);
 
             case 'basic':
                 $expectedUsername = $config['username'] ?? '';
                 $expectedPassword = $config['password'] ?? '';
-                $authHeader = $request->header('Authorization', '');
 
-                if (strpos($authHeader, 'Basic ') !== 0) {
-                    return false;
+                if ($auth === 'header') {
+                    $authHeader = $request->header('Authorization', '');
+
+                    if (strpos($authHeader, 'Basic ') !== 0) {
+                        return false;
+                    }
+
+                    $credentials = base64_decode(str_replace('Basic ', '', $authHeader));
+                    list($username, $password) = explode(':', $credentials, 2);
+                } else {
+                    // Query auth: look for username/password in query params
+                    $username = $request->query('username', '');
+                    $password = $request->query('password', '');
                 }
-
-                $credentials = base64_decode(str_replace('Basic ', '', $authHeader));
-                list($username, $password) = explode(':', $credentials, 2);
 
                 return hash_equals($expectedUsername, $username) &&
                        hash_equals($expectedPassword, $password);
@@ -2689,8 +2717,15 @@ JS;
             case 'apiKey':
                 $keyName = $config['apiKeyName'] ?? '';
                 $expectedKeyValue = $config['apiKeyValue'] ?? '';
-                $providedKeyValue = $request->header($keyName, '');
 
+                if ($auth === 'header') {
+                    $providedKeyValue = $request->header($keyName, '');
+                } else {
+                    // Query auth: look in query params
+                    $providedKeyValue = $request->query($keyName, '');
+                }
+
+                // Also check request body as fallback
                 if (empty($providedKeyValue)) {
                     $providedKeyValue = $request->input($keyName, '');
                 }
@@ -2700,14 +2735,42 @@ JS;
             case 'custom':
                 $headerName = $config['customHeaderName'] ?? '';
                 $expectedHeaderValue = $config['customHeaderValue'] ?? '';
-                $providedHeaderValue = $request->header($headerName, '');
+
+                if ($auth === 'header') {
+                    $providedHeaderValue = $request->header($headerName, '');
+                } else {
+                    // Query auth: look in query params
+                    $providedHeaderValue = $request->query($headerName, '');
+                }
 
                 return !empty($expectedHeaderValue) && hash_equals($expectedHeaderValue, $providedHeaderValue);
 
             case 'oauth2':
-                $expectedToken = $config['apiKeyValue'] ?? '';
-                $authHeader = $request->header('Authorization', '');
-                $providedToken = str_replace('Bearer ', '', $authHeader);
+                // OAuth2 token is stored in credentials table
+                $credentialId = $config['credentialId'] ?? null;
+                if (!$credentialId) {
+                    \Log::warning('OAuth2 auth configured but no credentialId provided');
+                    return false;
+                }
+
+                $credential = \App\Models\Credential::find($credentialId);
+                if (!$credential || !isset($credential->data['accessToken'])) {
+                    \Log::warning('OAuth2 credential not found or invalid', ['credentialId' => $credentialId]);
+                    return false;
+                }
+
+                $expectedToken = $credential->data['accessToken'];
+                // Remove "Bearer " prefix if present
+                $expectedToken = str_replace('Bearer ', '', $expectedToken);
+
+                // Get token from Authorization header or query param
+                if ($auth === 'header') {
+                    $authHeader = $request->header('Authorization', '');
+                    $providedToken = str_replace('Bearer ', '', $authHeader);
+                } else {
+                    $providedToken = $request->query('token', $request->query('access_token', ''));
+                }
+
                 return !empty($expectedToken) && hash_equals($expectedToken, $providedToken);
 
             case 'digest':
@@ -2716,22 +2779,23 @@ JS;
                 $expectedUsername = $config['username'] ?? '';
                 $expectedPassword = $config['password'] ?? '';
 
-                // Try to get credentials from various sources
-                $username = $request->input('username', '');
-                $password = $request->input('password', '');
-
-                // If not in request body, try headers
-                if (empty($username)) {
+                if ($auth === 'header') {
                     $authHeader = $request->header('Authorization', '');
                     // Parse Digest header if present
                     if (strpos($authHeader, 'Digest ') === 0) {
                         // This is a simplified check - real Digest auth is more complex
+                        // In production, you should implement full RFC 2617 Digest authentication
                         return hash_equals($expectedUsername, 'username') && hash_equals($expectedPassword, 'password');
                     }
+                    return false;
+                } else {
+                    // Query auth: username/password in query params
+                    $username = $request->query('username', '');
+                    $password = $request->query('password', '');
+                    
+                    return !empty($expectedUsername) && hash_equals($expectedUsername, $username) &&
+                           !empty($expectedPassword) && hash_equals($expectedPassword, $password);
                 }
-
-                return !empty($expectedUsername) && hash_equals($expectedUsername, $username) &&
-                       !empty($expectedPassword) && hash_equals($expectedPassword, $password);
 
             default:
                 return false; // Unknown auth type
@@ -2753,6 +2817,7 @@ JS;
             'method' => $request->input('method'),
             'auth' => $request->input('auth'),
             'auth_type' => $request->input('auth_type'),
+            'credential_id' => $request->input('credential_id'), // For bearer/oauth2
             'auth_config' => $request->input('auth_config'),
             'started_at' => now(),
         ], now()->addMinutes(5));
@@ -2906,27 +2971,49 @@ JS;
     private function validateTestWebhookAuth(Request $request, $listeningData)
     {
         $authType = $listeningData['auth_type'] ?? 'bearer';
+        $auth = $listeningData['auth'] ?? 'header';
         $authConfig = $listeningData['auth_config'] ?? [];
 
         switch ($authType) {
             case 'bearer':
-                $expectedToken = $authConfig['apiKeyValue'] ?? '';
-                $expectedToken = str_replace('Bearer ', '', $expectedToken);
-                $authHeader = $request->header('Authorization', '');
-                $providedToken = str_replace('Bearer ', '', $authHeader);
+                // Get token from credential if available
+                $credentialId = $listeningData['credential_id'] ?? null;
+                if ($credentialId) {
+                    $credential = \App\Models\Credential::find($credentialId);
+                    if ($credential && isset($credential->data['headerValue'])) {
+                        $expectedToken = str_replace('Bearer ', '', $credential->data['headerValue']);
+                    } else {
+                        return false;
+                    }
+                } else {
+                    $expectedToken = $authConfig['apiKeyValue'] ?? '';
+                    $expectedToken = str_replace('Bearer ', '', $expectedToken);
+                }
+                
+                if ($auth === 'header') {
+                    $authHeader = $request->header('Authorization', '');
+                    $providedToken = str_replace('Bearer ', '', $authHeader);
+                } else {
+                    $providedToken = $request->query('token', $request->query('access_token', ''));
+                }
+                
                 return !empty($expectedToken) && hash_equals($expectedToken, $providedToken);
 
             case 'basic':
                 $expectedUsername = $authConfig['username'] ?? '';
                 $expectedPassword = $authConfig['password'] ?? '';
-                $authHeader = $request->header('Authorization', '');
 
-                if (strpos($authHeader, 'Basic ') !== 0) {
-                    return false;
+                if ($auth === 'header') {
+                    $authHeader = $request->header('Authorization', '');
+                    if (strpos($authHeader, 'Basic ') !== 0) {
+                        return false;
+                    }
+                    $credentials = base64_decode(str_replace('Basic ', '', $authHeader));
+                    list($username, $password) = explode(':', $credentials, 2);
+                } else {
+                    $username = $request->query('username', '');
+                    $password = $request->query('password', '');
                 }
-
-                $credentials = base64_decode(str_replace('Basic ', '', $authHeader));
-                list($username, $password) = explode(':', $credentials, 2);
 
                 return hash_equals($expectedUsername, $username) &&
                        hash_equals($expectedPassword, $password);
@@ -2934,7 +3021,12 @@ JS;
             case 'apiKey':
                 $keyName = $authConfig['apiKeyName'] ?? '';
                 $expectedKeyValue = $authConfig['apiKeyValue'] ?? '';
-                $providedKeyValue = $request->header($keyName, '');
+                
+                if ($auth === 'header') {
+                    $providedKeyValue = $request->header($keyName, '');
+                } else {
+                    $providedKeyValue = $request->query($keyName, '');
+                }
 
                 if (empty($providedKeyValue)) {
                     $providedKeyValue = $request->input($keyName, '');
@@ -2945,9 +3037,37 @@ JS;
             case 'custom':
                 $headerName = $authConfig['customHeaderName'] ?? '';
                 $expectedHeaderValue = $authConfig['customHeaderValue'] ?? '';
-                $providedHeaderValue = $request->header($headerName, '');
+                
+                if ($auth === 'header') {
+                    $providedHeaderValue = $request->header($headerName, '');
+                } else {
+                    $providedHeaderValue = $request->query($headerName, '');
+                }
 
                 return !empty($expectedHeaderValue) && hash_equals($expectedHeaderValue, $providedHeaderValue);
+
+            case 'oauth2':
+                // Get token from credential
+                $credentialId = $listeningData['credential_id'] ?? null;
+                if ($credentialId) {
+                    $credential = \App\Models\Credential::find($credentialId);
+                    if ($credential && isset($credential->data['accessToken'])) {
+                        $expectedToken = str_replace('Bearer ', '', $credential->data['accessToken']);
+                    } else {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+                
+                if ($auth === 'header') {
+                    $authHeader = $request->header('Authorization', '');
+                    $providedToken = str_replace('Bearer ', '', $authHeader);
+                } else {
+                    $providedToken = $request->query('token', $request->query('access_token', ''));
+                }
+                
+                return !empty($expectedToken) && hash_equals($expectedToken, $providedToken);
 
             default:
                 return true;
