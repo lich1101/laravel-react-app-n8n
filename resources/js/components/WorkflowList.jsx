@@ -99,6 +99,26 @@ const WorkflowList = () => {
         }
     };
 
+    const handleDeleteFolder = async (folderId, folderName, e) => {
+        e.stopPropagation();
+        
+        const message = `Are you sure you want to delete folder "${folderName}"?\n\nThis will delete the folder and all workflows inside it.\n\nThis action cannot be undone.`;
+        
+        if (window.confirm(message)) {
+            try {
+                await axios.delete(`/project-folders/${folderId}/user-delete`);
+                fetchData();
+            } catch (error) {
+                console.error('Error deleting folder:', error);
+                if (error.response?.status === 403) {
+                    alert('⚠️ Bạn không có quyền xóa folder này');
+                } else {
+                    alert('⚠️ Không thể xóa folder. Vui lòng thử lại.');
+                }
+            }
+        }
+    };
+
     const handleToggleActive = async (workflow, e) => {
         e.stopPropagation();
         try {
@@ -247,6 +267,15 @@ const WorkflowList = () => {
                                         </span>
                                     )}
                                 </div>
+                                <button
+                                    onClick={(e) => handleDeleteFolder(folder.id, folder.name, e)}
+                                    className="text-gray-400 hover:text-red-400 p-2"
+                                    title="Delete folder and all workflows inside"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
                             </div>
 
                             {/* Folder Workflows - Collapsible */}
