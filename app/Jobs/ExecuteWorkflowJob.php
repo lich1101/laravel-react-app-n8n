@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Workflow;
 use App\Models\WorkflowExecution;
+use App\Models\SystemSetting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -17,7 +18,7 @@ class ExecuteWorkflowJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 0; // No timeout limit - workflow có thể chạy vô thời hạn
-    public $tries = 1; // No retry for workflow execution
+    public $tries = 0; // Unlimited retries (for queue management when limit reached)
 
     protected $execution;
     protected $workflow;
@@ -33,9 +34,28 @@ class ExecuteWorkflowJob implements ShouldQueue
     public function handle()
     {
         try {
+            // Check concurrent workflows limit
+            $maxConcurrent = SystemSetting::get('max_concurrent_workflows', 5);
+            $runningCount = WorkflowExecution::where('status', 'running')->count();
+            
+            if ($runningCount >= $maxConcurrent) {
+                // Too many workflows running, release back to queue with delay
+                Log::info('Concurrent limit reached, re-queuing workflow', [
+                    'execution_id' => $this->execution->id,
+                    'running_count' => $runningCount,
+                    'max_concurrent' => $maxConcurrent,
+                ]);
+                
+                // Release job back to queue, retry after 3 seconds
+                $this->release(3);
+                return;
+            }
+            
             Log::info('Starting async workflow execution', [
                 'execution_id' => $this->execution->id,
                 'workflow_id' => $this->workflow->id,
+                'running_count' => $runningCount,
+                'max_concurrent' => $maxConcurrent,
             ]);
 
             // Update status to running

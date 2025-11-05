@@ -118,38 +118,8 @@ class WebhookController extends Controller
                 'raw_content' => $request->getContent(),
             ]);
             
-            // Check concurrent workflows limit
-            $maxConcurrent = SystemSetting::get('max_concurrent_workflows', 5);
-            $runningCount = WorkflowExecution::whereIn('status', ['running', 'queued'])->count();
-            
-            if ($runningCount >= $maxConcurrent) {
-                Log::warning('Concurrent workflow limit reached', [
-                    'running_count' => $runningCount,
-                    'max_concurrent' => $maxConcurrent,
-                    'workflow_id' => $workflow->id,
-                ]);
-                
-                // Update execution status to failed
-                $execution->update([
-                    'status' => 'error',
-                    'output_data' => [
-                        'error' => 'Concurrent workflow limit reached',
-                        'message' => "Hệ thống đang chạy {$runningCount}/{$maxConcurrent} workflows. Vui lòng thử lại sau.",
-                    ],
-                    'finished_at' => now(),
-                ]);
-                
-                $responses[] = [
-                    'execution_id' => $execution->id,
-                    'workflow_id' => $workflow->id,
-                    'workflow_name' => $workflow->name,
-                    'status' => 'error',
-                    'message' => "Concurrent workflow limit reached ({$runningCount}/{$maxConcurrent})",
-                ];
-                continue; // Skip to next workflow
-            }
-            
             // Dispatch job to execute workflow asynchronously
+            // Concurrency limit will be checked in the Job itself
             ExecuteWorkflowJob::dispatch(
                 $execution,
                 $workflow,
