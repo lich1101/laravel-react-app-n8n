@@ -954,15 +954,22 @@ class WebhookController extends Controller
                     Log::info('Body resolution from content', [
                         'original' => substr($originalBody, 0, 200),
                         'has_variables' => strpos($originalBody, '{{') !== false,
+                        'bodyType' => $config['bodyType'] ?? 'none',
                     ]);
 
-                    if (!empty($config['bodyType']) && $config['bodyType'] === 'json') {
+                    // If body looks like JSON (starts with { or [), always use JSON resolution
+                    // This ensures proper escaping of newlines, quotes, etc.
+                    $trimmedBody = trim($originalBody);
+                    $isJsonFormat = (!empty($trimmedBody) && ($trimmedBody[0] === '{' || $trimmedBody[0] === '[')) ||
+                                   (!empty($config['bodyType']) && $config['bodyType'] === 'json');
+                    
+                    if ($isJsonFormat) {
                         // For JSON body, use special resolution that preserves JSON validity
                         $bodyContent = $this->resolveVariablesInJSON($originalBody, $inputData);
                         $body = $bodyContent;
                         $headers['Content-Type'] = 'application/json';
                     } else {
-                        // For non-JSON body, use normal resolution
+                        // For non-JSON body (plain text, form data, etc.), use normal resolution
                         $bodyContent = $this->resolveVariables($originalBody, $inputData);
                         $body = $bodyContent;
                     }
