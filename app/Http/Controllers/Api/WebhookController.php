@@ -2532,37 +2532,64 @@ JS;
         ]);
 
         // First, replace n8n syntax: {{ $('NodeName').item.json.field }}
-        $template = preg_replace_callback('/\{\{\s*\$\(\'([^\']+)\'\)\.item\.json\.([^}]+)\s*\}\}/', function ($matches) use ($inputData, $workflow) {
+        $template = preg_replace_callback('/\{\{\s*\$\(\'([^\']+)\'\)\.item\.json\.([^}]+)\s*\}\}/', function ($matches) use ($inputData, $workflow, $template) {
             $nodeName = trim($matches[1]);
             $path = trim($matches[2]);
             $fullPath = $nodeName . '.' . $path;
             
             $value = $this->getValueFromPath($fullPath, $inputData, $workflow);
             
-            Log::info('n8n syntax resolution', [
-                'original' => $matches[0],
+            if ($value !== null) {
+                Log::info('n8n syntax resolution - SUCCESS', [
+                    'original' => $matches[0],
+                    'node_name' => $nodeName,
+                    'path' => $path,
+                ]);
+                return $value;
+            }
+            
+            // Variable not found - THROW ERROR
+            $availableNodes = array_filter(array_keys($inputData), function($key) {
+                return !is_numeric($key);
+            });
+            
+            Log::error('n8n syntax variable not found - STOPPING execution', [
+                'variable' => $matches[0],
                 'node_name' => $nodeName,
                 'path' => $path,
-                'value' => $value,
+                'available_nodes' => $availableNodes,
             ]);
             
-            return $value !== null ? $value : $matches[0];
+            throw new \Exception("Variable not found: {$matches[0]}. Available nodes: " . implode(', ', $availableNodes));
         }, $template);
 
         // Then, replace {{variable}} patterns (preg_replace_callback replaces ALL matches)
-        return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData, $workflow) {
+        return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData, $workflow, $template) {
             $path = trim($matches[1]);
             $value = $this->getValueFromPath($path, $inputData, $workflow);
 
-            Log::info('Variable resolution', [
-                'original' => $matches[0],
-                'path' => $path,
-                'found' => $value !== null,
-                'value_preview' => $value !== null ? (is_string($value) ? substr($value, 0, 100) : gettype($value)) : 'NULL',
-                'resolved_to' => $value !== null ? (is_string($value) ? substr($value, 0, 100) : $value) : $matches[0],
-            ]);
+            if ($value !== null) {
+                Log::info('Variable resolution - SUCCESS', [
+                    'original' => $matches[0],
+                    'path' => $path,
+                    'value_preview' => is_string($value) ? substr($value, 0, 100) : gettype($value),
+                ]);
+                return $value;
+            }
 
-            return $value !== null ? $value : $matches[0];
+            // Variable not found - THROW ERROR to stop workflow
+            $availableNodes = array_filter(array_keys($inputData), function($key) {
+                return !is_numeric($key);
+            });
+            
+            Log::error('Variable not found - STOPPING execution', [
+                'variable' => $matches[0],
+                'path' => $path,
+                'available_nodes' => $availableNodes,
+                'template_preview' => substr($template, 0, 200),
+            ]);
+            
+            throw new \Exception("Variable not found: {$matches[0]}. Available nodes: " . implode(', ', $availableNodes));
         }, $template);
     }
 
@@ -2608,12 +2635,26 @@ JS;
             // Check if this string contains {{variable}} patterns
             if (strpos($data, '{{') !== false) {
                 // Resolve all variables in this string
-                return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData) {
+                return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData, $data) {
                     $path = trim($matches[1]);
                     $value = $this->getValueFromPath($path, $inputData);
                     
-                    // Return the actual value (will be JSON-encoded properly when building final JSON)
-                    return $value !== null ? $value : $matches[0];
+                    if ($value !== null) {
+                        return $value;
+                    }
+                    
+                    // Variable not found - THROW ERROR
+                    $availableNodes = array_filter(array_keys($inputData), function($key) {
+                        return !is_numeric($key);
+                    });
+                    
+                    Log::error('Variable not found in JSON body - STOPPING execution', [
+                        'variable' => $matches[0],
+                        'path' => $path,
+                        'available_nodes' => $availableNodes,
+                    ]);
+                    
+                    throw new \Exception("Variable not found: {$matches[0]}. Available nodes: " . implode(', ', $availableNodes));
                 }, $data);
             }
         }
@@ -2631,14 +2672,15 @@ JS;
         }
 
         // Replace {{variable}} patterns with JSON-encoded values
-        return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData) {
-            $path = $matches[1];
+        return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData, $code) {
+            $path = trim($matches[1]);
             $value = $this->getValueFromPath($path, $inputData);
 
+            // Check if value exists (even if it's empty string, 0, false)
             if ($value !== null) {
                 // Encode value as JSON for safe JavaScript insertion
                 if (is_string($value)) {
-                    // String: wrap in quotes and escape
+                    // String: wrap in quotes and escape (even if empty)
                     return json_encode($value, JSON_UNESCAPED_UNICODE);
                 } elseif (is_numeric($value) || is_bool($value)) {
                     // Number/Boolean: direct value
@@ -2651,8 +2693,19 @@ JS;
                 }
             }
 
-            // If not found, keep the template (will cause error - user will know variable is invalid)
-            return $matches[0];
+            // If not found (null), THROW ERROR to stop workflow
+            $availableNodes = array_filter(array_keys($inputData), function($key) {
+                return !is_numeric($key);
+            });
+            
+            Log::error('Variable not found in Code node - STOPPING execution', [
+                'variable' => $matches[0],
+                'path' => $path,
+                'available_nodes' => $availableNodes,
+                'code_preview' => substr($code, 0, 200),
+            ]);
+            
+            throw new \Exception("Variable not found: {$matches[0]}. Available nodes: " . implode(', ', $availableNodes));
         }, $code);
     }
 
