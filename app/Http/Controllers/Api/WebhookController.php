@@ -919,28 +919,56 @@ class WebhookController extends Controller
         // Build body for POST, PUT, PATCH
         $body = null;
         if (in_array(strtoupper($config['method'] ?? 'GET'), ['POST', 'PUT', 'PATCH'])) {
-            if (!empty($config['bodyContent'])) {
-                $originalBody = $config['bodyContent'];
-
-                Log::info('Body resolution', [
-                    'original' => substr($originalBody, 0, 200),
-                    'has_variables' => strpos($originalBody, '{{') !== false,
-                ]);
-
-                if (!empty($config['bodyType']) && $config['bodyType'] === 'json') {
-                    // For JSON body, use special resolution that preserves JSON validity
-                    $bodyContent = $this->resolveVariablesInJSON($originalBody, $inputData);
-                    $body = $bodyContent;
+            // Check if sendBody is enabled
+            if (!empty($config['sendBody'])) {
+                // Priority 1: Use bodyParams (key-value fields) if available
+                if (!empty($config['bodyParams']) && is_array($config['bodyParams'])) {
+                    $bodyData = [];
+                    
+                    foreach ($config['bodyParams'] as $param) {
+                        $name = $this->resolveVariables($param['name'] ?? '', $inputData);
+                        $value = $this->resolveVariables($param['value'] ?? '', $inputData);
+                        
+                        if ($name !== '') {
+                            $bodyData[$name] = $value;
+                        }
+                    }
+                    
+                    Log::info('Body built from params', [
+                        'params_count' => count($config['bodyParams']),
+                        'body_keys' => array_keys($bodyData),
+                    ]);
+                    
+                    // Convert to JSON
+                    $body = json_encode($bodyData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                     $headers['Content-Type'] = 'application/json';
-                } else {
-                    // For non-JSON body, use normal resolution
-                    $bodyContent = $this->resolveVariables($originalBody, $inputData);
-                    $body = $bodyContent;
+                }
+                // Priority 2: Use bodyContent (raw string) if bodyParams not available
+                elseif (!empty($config['bodyContent'])) {
+                    $originalBody = $config['bodyContent'];
+
+                    Log::info('Body resolution from content', [
+                        'original' => substr($originalBody, 0, 200),
+                        'has_variables' => strpos($originalBody, '{{') !== false,
+                    ]);
+
+                    if (!empty($config['bodyType']) && $config['bodyType'] === 'json') {
+                        // For JSON body, use special resolution that preserves JSON validity
+                        $bodyContent = $this->resolveVariablesInJSON($originalBody, $inputData);
+                        $body = $bodyContent;
+                        $headers['Content-Type'] = 'application/json';
+                    } else {
+                        // For non-JSON body, use normal resolution
+                        $bodyContent = $this->resolveVariables($originalBody, $inputData);
+                        $body = $bodyContent;
+                    }
                 }
                 
-                Log::info('Final body', [
-                    'body_preview' => substr($body, 0, 300),
-                ]);
+                if ($body) {
+                    Log::info('Final body', [
+                        'body_preview' => substr($body, 0, 300),
+                    ]);
+                }
             }
         }
 
