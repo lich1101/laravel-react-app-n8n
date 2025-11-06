@@ -2781,11 +2781,33 @@ JS;
                 // Object key access
                 if (is_array($current) && isset($current[$token])) {
                     $current = $current[$token];
+                    
+                    // Log để debug - check nếu giá trị là empty string
+                    Log::info('Traverse path - key found', [
+                        'token' => $token,
+                        'value_type' => gettype($current),
+                        'value_is_empty_string' => $current === '',
+                        'value' => is_string($current) ? substr($current, 0, 50) : $current,
+                    ]);
                 } else {
+                    // Log để debug - key không tồn tại
+                    Log::warning('Traverse path - key NOT found', [
+                        'token' => $token,
+                        'current_type' => gettype($current),
+                        'current_is_array' => is_array($current),
+                        'available_keys' => is_array($current) ? array_keys($current) : 'N/A',
+                    ]);
                     return null;
                 }
             }
         }
+        
+        // Log final value
+        Log::info('Traverse path - FINAL result', [
+            'final_value_type' => gettype($current),
+            'final_value_is_empty_string' => $current === '',
+            'final_value' => is_string($current) ? substr($current, 0, 100) : (is_array($current) ? '[array]' : $current),
+        ]);
         
         return $current;
     }
