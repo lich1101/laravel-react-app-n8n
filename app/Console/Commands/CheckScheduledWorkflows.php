@@ -35,26 +35,44 @@ class CheckScheduledWorkflows extends Command
         // Get all active workflows
         $workflows = Workflow::where('active', true)->get();
         
+        $this->info("Found {$workflows->count()} active workflows");
+        
         $triggered = 0;
         $checked = 0;
         
         foreach ($workflows as $workflow) {
             $checked++;
+            $this->info("Checking workflow: {$workflow->name} (ID: {$workflow->id})");
             
-            // Get workflow nodes
-            $nodes = json_decode($workflow->nodes, true) ?? [];
+            // Get workflow nodes - already decoded by model cast
+            $nodes = $workflow->nodes;
+            
+            if (!is_array($nodes)) {
+                $this->warn("  Nodes is not array, skipping");
+                continue;
+            }
+            
+            $this->info("  Found " . count($nodes) . " nodes");
             
             // Find Schedule Trigger nodes
             foreach ($nodes as $node) {
-                if (($node['type'] ?? '') === 'schedule') {
+                $nodeType = $node['type'] ?? '';
+                $nodeName = $node['data']['customName'] ?? $node['data']['label'] ?? 'unnamed';
+                
+                if ($nodeType === 'schedule') {
+                    $this->info("  ✅ Found Schedule Trigger: {$nodeName}");
+                    
                     $config = $node['data']['config'] ?? [];
+                    $this->info("  Config: " . json_encode($config));
                     
                     if ($this->shouldTrigger($config, $workflow)) {
-                        $this->info("Triggering workflow: {$workflow->name} (ID: {$workflow->id})");
+                        $this->info("  🚀 Triggering workflow: {$workflow->name}");
                         
                         // Execute the workflow
                         $this->executeWorkflow($workflow, $node);
                         $triggered++;
+                    } else {
+                        $this->info("  ⏳ Not time to trigger yet");
                     }
                 }
             }
@@ -143,25 +161,25 @@ class CheckScheduledWorkflows extends Command
         
         switch ($interval) {
             case 'minutes':
-                return $now->diffInMinutes($lastTime) >= $intervalValue;
+                return $lastTime->diffInMinutes($now) >= $intervalValue;
             case 'hours':
-                return $now->diffInHours($lastTime) >= $intervalValue;
+                return $lastTime->diffInHours($now) >= $intervalValue;
             case 'days':
                 $hour = $config['triggerAt']['hour'] ?? 0;
                 $minute = $config['triggerAt']['minute'] ?? 0;
-                return $now->diffInDays($lastTime) >= $intervalValue 
+                return $lastTime->diffInDays($now) >= $intervalValue 
                     && $now->hour === $hour 
                     && $now->minute === $minute;
             case 'weeks':
                 $hour = $config['triggerAt']['hour'] ?? 0;
                 $minute = $config['triggerAt']['minute'] ?? 0;
-                return $now->diffInWeeks($lastTime) >= $intervalValue 
+                return $lastTime->diffInWeeks($now) >= $intervalValue 
                     && $now->hour === $hour 
                     && $now->minute === $minute;
             case 'months':
                 $hour = $config['triggerAt']['hour'] ?? 0;
                 $minute = $config['triggerAt']['minute'] ?? 0;
-                return $now->diffInMonths($lastTime) >= $intervalValue 
+                return $lastTime->diffInMonths($now) >= $intervalValue 
                     && $now->hour === $hour 
                     && $now->minute === $minute;
             default:

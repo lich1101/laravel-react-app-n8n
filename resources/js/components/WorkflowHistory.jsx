@@ -4,6 +4,7 @@ import axios from '../config/axios';
 import ReactFlow, { Background, Controls, MiniMap, Handle, Position } from 'reactflow';
 import 'reactflow/dist/style.css';
 import WebhookConfigModal from './WebhookConfigModal';
+import ScheduleTriggerConfigModal from './ScheduleTriggerConfigModal';
 import HttpRequestConfigModal from './HttpRequestConfigModal';
 import PerplexityConfigModal from './PerplexityConfigModal';
 import ClaudeConfigModal from './ClaudeConfigModal';
@@ -13,6 +14,7 @@ import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
 import CodeConfigModal from './CodeConfigModal';
 import EscapeConfigModal from './EscapeConfigModal';
 import IfConfigModal from './IfConfigModal';
+import SwitchConfigModal from './SwitchConfigModal';
 
 // Compact node component (giống hệt Editor nhưng READ-ONLY)
 const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
@@ -107,6 +109,15 @@ const nodeTypes = {
             handles={{ input: false, outputs: [{ id: null }] }}
         />
     ),
+    schedule: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="schedule"
+            iconPath="/icons/nodes/schedule.svg"
+            color="cyan"
+            handles={{ input: false, outputs: [{ id: null }] }}
+        />
+    ),
     http: (props) => (
         <CompactNode 
             {...props} 
@@ -176,6 +187,29 @@ const nodeTypes = {
             handles={{ input: true, outputs: [{ id: null }] }}
         />
     ),
+    switch: (props) => {
+        const rules = props.data?.config?.rules || [];
+        const outputs = rules.map((rule, index) => ({
+            id: `output${index}`,
+            label: rule.outputName || `Output ${index + 1}`,
+            color: 'blue'
+        }));
+        outputs.push({
+            id: 'fallback',
+            label: props.data?.config?.fallbackOutput || 'No Match',
+            color: 'gray'
+        });
+
+        return (
+            <CompactNode 
+                {...props} 
+                nodeType="switch"
+                iconPath="/icons/nodes/switch.svg"
+                color="cyan"
+                handles={{ input: true, outputs: outputs }}
+            />
+        );
+    },
     googledocs: (props) => (
         <CompactNode 
             {...props} 
@@ -431,6 +465,33 @@ const WorkflowHistory = () => {
         });
     };
 
+    // Tạo ReactFlow edges - chỉ highlight những edges được execute
+    const createReactFlowEdges = () => {
+        if (!workflowEdges.length) return [];
+
+        const nodeResults = executionDetails?.node_results || {};
+        const executionOrder = executionDetails?.execution_order || [];
+
+        return workflowEdges.map(edge => {
+            // Edge được execute nếu cả source và target đều có trong node_results
+            const sourceExecuted = nodeResults[edge.source] !== undefined;
+            const targetExecuted = nodeResults[edge.target] !== undefined;
+            const wasExecuted = sourceExecuted && targetExecuted;
+
+            return {
+                ...edge,
+                style: { 
+                    stroke: wasExecuted ? '#10b981' : '#4b5563', // green nếu executed, gray nếu không
+                    strokeWidth: wasExecuted ? 2 : 1,
+                },
+                markerEnd: {
+                    type: 'arrowclosed',
+                    color: wasExecuted ? '#10b981' : '#4b5563',
+                },
+            };
+        });
+    };
+
     if (loading) return <div className="p-4 text-white">Đang tải lịch sử thực thi...</div>;
     if (error) return <div className="p-4 text-red-500">{error}</div>;
 
@@ -460,13 +521,13 @@ const WorkflowHistory = () => {
                                         </span>
                                         <div className="flex items-center gap-2">
                                         <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                                            execution.status === 'success' ? 'bg-green-500 text-white' :
+                                            execution.status === 'success' || execution.status === 'completed' ? 'bg-green-500 text-white' :
                                             execution.status === 'error' || execution.status === 'failed' ? 'bg-red-500 text-white' :
                                             execution.status === 'running' ? 'bg-blue-500 text-white' :
                                             execution.status === 'queued' ? 'bg-gray-500 text-white' :
                                             'bg-yellow-500 text-white'
                                         }`}>
-                                            {execution.status === 'success' ? 'Success' : 
+                                            {execution.status === 'success' || execution.status === 'completed' ? 'Success' : 
                                              execution.status === 'error' || execution.status === 'failed' ? 'Error' :
                                              execution.status === 'running' ? 'Running' :
                                              execution.status === 'queued' ? 'Queued' :
@@ -519,17 +580,7 @@ const WorkflowHistory = () => {
                             <div className="flex-1 relative">
                                 <ReactFlow
                                     nodes={createReactFlowNodes()}
-                                    edges={workflowEdges.map(edge => ({
-                                        ...edge,
-                                        style: { 
-                                            stroke: '#10b981', 
-                                            strokeWidth: 1.5,
-                                        },
-                                        markerEnd: {
-                                            type: 'arrowclosed',
-                                            color: '#10b981',
-                                        },
-                                    }))}
+                                    edges={createReactFlowEdges()}
                                     nodeTypes={nodeTypes}
                                     onNodeClick={handleNodeDoubleClick}
                                     fitView
@@ -551,6 +602,19 @@ const WorkflowHistory = () => {
                             {/* Config Modals (READ-ONLY) */}
                             {showConfigModal && selectedNode && selectedNode.type === 'webhook' && (
                                 <WebhookConfigModal
+                                    node={selectedNode}
+                                    workflowId={workflowId}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onRename={() => {}} // No-op
+                                    onTestResult={() => {}} // No-op
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'schedule' && (
+                                <ScheduleTriggerConfigModal
                                     node={selectedNode}
                                     workflowId={workflowId}
                                     onSave={() => {}} // No-op
@@ -628,6 +692,22 @@ const WorkflowHistory = () => {
 
                             {showConfigModal && selectedNode && selectedNode.type === 'if' && (
                                 <IfConfigModal
+                                    node={selectedNode}
+                                    onSave={() => {}} // No-op
+                                    onClose={() => setShowConfigModal(false)}
+                                    onTest={() => {}} // No-op
+                                    onRename={() => {}} // No-op
+                                    inputData={getNodeInputData(selectedNode.id)}
+                                    outputData={getNodeOutputData(selectedNode.id)}
+                                    onTestResult={() => {}} // No-op
+                                    allEdges={workflowEdges}
+                                    allNodes={workflowNodes}
+                                    readOnly={true}
+                                />
+                            )}
+
+                            {showConfigModal && selectedNode && selectedNode.type === 'switch' && (
+                                <SwitchConfigModal
                                     node={selectedNode}
                                     onSave={() => {}} // No-op
                                     onClose={() => setShowConfigModal(false)}

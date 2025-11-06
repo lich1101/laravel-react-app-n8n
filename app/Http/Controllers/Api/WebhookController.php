@@ -153,8 +153,8 @@ class WebhookController extends Controller
         
         // Create execution record
         $workflowSnapshot = [
-            'nodes' => json_decode($workflow->nodes, true),
-            'edges' => json_decode($workflow->edges, true),
+            'nodes' => is_array($workflow->nodes) ? $workflow->nodes : json_decode($workflow->nodes, true),
+            'edges' => is_array($workflow->edges) ? $workflow->edges : json_decode($workflow->edges, true),
         ];
         
         $execution = WorkflowExecution::create([
@@ -211,15 +211,28 @@ class WebhookController extends Controller
         try {
             $result = $this->executeWorkflow($workflow, $request);
             
-            // Update execution as completed
+            // Extract execution details from result
+            $nodeResults = $result['node_results'] ?? [];
+            $executionOrder = $result['execution_order'] ?? [];
+            $errorNode = $result['error_node'] ?? null;
+            $hasError = $result['has_error'] ?? false;
+            
+            // Update execution as completed with all details
             $execution->update([
-                'status' => 'completed',
+                'status' => $hasError ? 'error' : 'completed',
                 'output_data' => $result,
-                'completed_at' => now(),
+                'node_results' => $nodeResults,
+                'execution_order' => $executionOrder,
+                'error_node' => $errorNode,
+                'finished_at' => now(),
+                'duration_ms' => $execution->started_at->diffInMilliseconds(now()),
             ]);
             
             Log::info('Workflow execution completed', [
                 'execution_id' => $execution->id,
+                'node_results_count' => count($nodeResults),
+                'execution_order_count' => count($executionOrder),
+                'has_error' => $hasError,
             ]);
             
             return $result;
@@ -232,7 +245,9 @@ class WebhookController extends Controller
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ],
-                'completed_at' => now(),
+                'error_message' => $e->getMessage(),
+                'finished_at' => now(),
+                'duration_ms' => $execution->started_at->diffInMilliseconds(now()),
             ]);
             
             throw $e;
@@ -378,13 +393,23 @@ class WebhookController extends Controller
 
     private function buildExecutionOrder($nodes, $edges)
     {
-        // Find webhook node (starting point)
+        // Find trigger node (starting point) - ưu tiên schedule, nếu không có thì dùng webhook
+        $scheduleNode = collect($nodes)->first(fn($n) => $n['type'] === 'schedule');
         $webhookNode = collect($nodes)->first(fn($n) => $n['type'] === 'webhook');
         
-        if (!$webhookNode) {
-            Log::warning('No webhook node found in workflow');
+        // Chọn trigger node: schedule có ưu tiên cao hơn
+        $triggerNode = $scheduleNode ?? $webhookNode;
+        
+        if (!$triggerNode) {
+            Log::warning('No trigger node (webhook or schedule) found in workflow');
             return [];
         }
+        
+        $triggerType = $triggerNode['type'] === 'schedule' ? 'schedule' : 'webhook';
+        Log::info('Trigger node found', [
+            'trigger_type' => $triggerType,
+            'node_id' => $triggerNode['id'],
+        ]);
 
         // Build adjacency graph: node_id => [connected_node_ids]
         $graph = [];
@@ -406,10 +431,10 @@ class WebhookController extends Controller
             $graph[$sourceId][] = $targetId;
         }
 
-        // Find all reachable nodes from webhook using BFS
-        $reachableNodes = [$webhookNode['id']];
-        $visited = [$webhookNode['id'] => true];
-        $queue = [$webhookNode['id']];
+        // Find all reachable nodes from trigger node using BFS
+        $reachableNodes = [$triggerNode['id']];
+        $visited = [$triggerNode['id'] => true];
+        $queue = [$triggerNode['id']];
         
         while (!empty($queue)) {
             $currentId = array_shift($queue);
@@ -423,8 +448,9 @@ class WebhookController extends Controller
             }
         }
 
-        Log::info('Reachable nodes from webhook', [
-            'webhook_node' => $webhookNode['id'],
+        Log::info('Reachable nodes from trigger', [
+            'trigger_type' => $triggerType,
+            'trigger_node' => $triggerNode['id'],
             'reachable_count' => count($reachableNodes),
             'reachable_nodes' => $reachableNodes,
         ]);
