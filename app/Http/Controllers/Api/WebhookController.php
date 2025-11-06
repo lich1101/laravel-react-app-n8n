@@ -2674,12 +2674,16 @@ JS;
         // Replace {{variable}} patterns with JSON-encoded values
         return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData, $code) {
             $path = trim($matches[1]);
-            $value = $this->getValueFromPath($path, $inputData);
+            $result = $this->getValueFromPathWithExists($path, $inputData);
 
-            // Check if value exists (even if it's empty string, 0, false)
-            if ($value !== null) {
+            // Check if path was found (key exists, even if value is null)
+            if ($result['exists']) {
+                $value = $result['value'];
+                
                 // Encode value as JSON for safe JavaScript insertion
-                if (is_string($value)) {
+                if ($value === null) {
+                    return 'null';
+                } elseif (is_string($value)) {
                     // String: wrap in quotes and escape (even if empty)
                     return json_encode($value, JSON_UNESCAPED_UNICODE);
                 } elseif (is_numeric($value) || is_bool($value)) {
@@ -2693,7 +2697,7 @@ JS;
                 }
             }
 
-            // If not found (null), THROW ERROR to stop workflow
+            // Path not found (key doesn't exist), THROW ERROR to stop workflow
             $availableNodes = array_filter(array_keys($inputData), function($key) {
                 return !is_numeric($key);
             });
@@ -2778,19 +2782,22 @@ JS;
                     return null;
                 }
             } else {
-                // Object key access
-                if (is_array($current) && isset($current[$token])) {
+                // Object key access - use array_key_exists to distinguish between:
+                // 1. Key doesn't exist (should return null)
+                // 2. Key exists but value is null (should return null but it's valid)
+                if (is_array($current) && array_key_exists($token, $current)) {
                     $current = $current[$token];
                     
-                    // Log để debug - check nếu giá trị là empty string
+                    // Log để debug
                     Log::info('Traverse path - key found', [
                         'token' => $token,
                         'value_type' => gettype($current),
+                        'value_is_null' => $current === null,
                         'value_is_empty_string' => $current === '',
                         'value' => is_string($current) ? substr($current, 0, 50) : $current,
                     ]);
                 } else {
-                    // Log để debug - key không tồn tại
+                    // Key truly doesn't exist
                     Log::warning('Traverse path - key NOT found', [
                         'token' => $token,
                         'current_type' => gettype($current),
@@ -2810,6 +2817,157 @@ JS;
         ]);
         
         return $current;
+    }
+
+    /**
+     * Get value from path with exists flag
+     * Returns ['exists' => bool, 'value' => mixed]
+     */
+    private function getValueFromPathWithExists($path, $inputData, $workflow = null)
+    {
+        // Handle built-in variables (like 'now')
+        if ($path === 'now') {
+            return [
+                'exists' => true,
+                'value' => now('Asia/Ho_Chi_Minh')->format('d/m/Y H:i:s'),
+            ];
+        }
+        
+        $value = $this->getValueFromPath($path, $inputData, $workflow);
+        
+        // If value is null, we can't tell if key exists or not with current implementation
+        // So we need to track it differently. For now, use a sentinel value.
+        // A better approach: modify getValueFromPath to return object, but that's a big refactor.
+        
+        // Quick fix: If getValueFromPath returns null, check if the last token exists in parent
+        if ($value === null) {
+            // Try to verify if the path truly exists by checking parent
+            $exists = $this->pathExists($path, $inputData);
+            return ['exists' => $exists, 'value' => null];
+        }
+        
+        return ['exists' => true, 'value' => $value];
+    }
+    
+    /**
+     * Check if a path exists (even if value is null)
+     * Uses same logic as getValueFromPath but tracks if path was found
+     */
+    private function pathExists($path, $inputData)
+    {
+        $parts = explode('.', $path);
+        $nodeName = $parts[0];
+        
+        // Handle array index in first part
+        if (preg_match('/^([^\[]+)(\[.*)$/', $parts[0], $arrayIndexMatch)) {
+            $nodeName = $arrayIndexMatch[1];
+        }
+        
+        if (!isset($inputData[$nodeName]) || is_numeric($nodeName)) {
+            return false;
+        }
+        
+        $current = $inputData[$nodeName];
+        
+        // Build remaining path same way as getValueFromPath
+        $remainingPath = '';
+        if (preg_match('/^([^\[]+)(\[.*)$/', $parts[0], $arrayIndexMatch)) {
+            $arrayPart = $arrayIndexMatch[2];
+            if (count($parts) > 1) {
+                $remainingPath = $arrayPart . '.' . implode('.', array_slice($parts, 1));
+            } else {
+                $remainingPath = $arrayPart;
+            }
+        } else {
+            if (count($parts) > 1) {
+                $remainingPath = implode('.', array_slice($parts, 1));
+            }
+        }
+        
+        if ($remainingPath === '') {
+            return true;
+        }
+        
+        // Use traversePath and check if result is NOT a "not found" sentinel
+        // Since traversePath returns null for both "not found" and "found but null value",
+        // we need a different approach: modify traversePath temporarily to track exists
+        $result = $this->traversePathWithExists($remainingPath, $current);
+        return $result['exists'];
+    }
+    
+    /**
+     * Traverse path and return ['exists' => bool, 'value' => mixed]
+     */
+    private function traversePathWithExists($pathSegment, $startValue)
+    {
+        if (empty($pathSegment)) {
+            return ['exists' => true, 'value' => $startValue];
+        }
+        
+        // Use same tokenization as traversePath
+        $tokens = [];
+        $currentToken = '';
+        $i = 0;
+        $length = strlen($pathSegment);
+        
+        while ($i < $length) {
+            $char = $pathSegment[$i];
+            
+            if ($char === '.') {
+                if ($currentToken !== '') {
+                    $tokens[] = $currentToken;
+                    $currentToken = '';
+                }
+            } elseif ($char === '[') {
+                if ($currentToken !== '') {
+                    $tokens[] = $currentToken;
+                    $currentToken = '';
+                }
+                $endBracket = strpos($pathSegment, ']', $i);
+                if ($endBracket === false) {
+                    return ['exists' => false, 'value' => null];
+                }
+                $tokens[] = substr($pathSegment, $i, $endBracket - $i + 1);
+                $i = $endBracket + 1;
+                continue;
+            } else {
+                $currentToken .= $char;
+            }
+            $i++;
+        }
+        
+        if ($currentToken !== '') {
+            $tokens[] = $currentToken;
+        }
+        
+        // Traverse using tokens
+        $current = $startValue;
+        
+        foreach ($tokens as $token) {
+            if (empty($token)) {
+                continue;
+            }
+            
+            // Check if token is an array index like "[0]"
+            if (preg_match('/^\[(\d+)\]$/', $token, $matches)) {
+                $index = (int) $matches[1];
+                
+                if (is_array($current) && isset($current[$index])) {
+                    $current = $current[$index];
+                } else {
+                    return ['exists' => false, 'value' => null];
+                }
+            } else {
+                // Object key access - use array_key_exists
+                if (is_array($current) && array_key_exists($token, $current)) {
+                    $current = $current[$token];
+                } else {
+                    return ['exists' => false, 'value' => null];
+                }
+            }
+        }
+        
+        return ['exists' => true, 'value' => $current];
     }
 
     private function getValueFromPath($path, $inputData, $workflow = null)
