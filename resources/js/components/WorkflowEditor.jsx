@@ -14,6 +14,7 @@ import 'reactflow/dist/style.css';
 import axios from '../config/axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import WebhookConfigModal from './WebhookConfigModal';
+import ScheduleTriggerConfigModal from './ScheduleTriggerConfigModal';
 import HttpRequestConfigModal from './HttpRequestConfigModal';
 import PerplexityConfigModal from './PerplexityConfigModal';
 import ClaudeConfigModal from './ClaudeConfigModal';
@@ -247,6 +248,18 @@ const nodeTypes = {
             nodeType="webhook"
             iconPath="/icons/nodes/webhook.svg"
             color="purple"
+            handles={{ input: false, outputs: [{ id: null }] }}
+            onQuickAdd={props.data.onQuickAdd}
+            connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
+        />
+    ),
+    schedule: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="schedule"
+            iconPath="/icons/nodes/schedule.svg"
+            color="cyan"
             handles={{ input: false, outputs: [{ id: null }] }}
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
@@ -2205,6 +2218,12 @@ function WorkflowEditor() {
                                         Webhook
                                     </button>
                                     <button
+                                        onClick={() => { addNode('schedule', 'Schedule Trigger'); setShowNodeMenu(false); }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                        ⏰ Schedule Trigger
+                                    </button>
+                                    <button
                                         onClick={() => { addNode('http', 'HTTP Request'); setShowNodeMenu(false); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     >
@@ -2572,6 +2591,18 @@ function WorkflowEditor() {
                 {/* Config Modal */}
                 {showConfigModal && selectedNode && selectedNode.type === 'webhook' && (
                     <WebhookConfigModal
+                        node={selectedNode}
+                        workflowId={id}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        onTestResult={handleTestResult}
+                        outputData={nodeOutputData[selectedNode.id]}
+                    />
+                )}
+
+                {showConfigModal && selectedNode && selectedNode.type === 'schedule' && (
+                    <ScheduleTriggerConfigModal
                         node={selectedNode}
                         workflowId={id}
                         onSave={handleSaveConfig}

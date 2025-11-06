@@ -644,6 +644,10 @@ class WebhookController extends Controller
                     'url' => $webhookRequest->url(),
                 ];
 
+            case 'schedule':
+                // For schedule trigger nodes, return trigger info
+                return $this->executeScheduleTriggerNode($config, $inputData);
+
             case 'http':
                 return $this->executeHttpNode($config, $inputData);
 
@@ -1653,6 +1657,14 @@ class WebhookController extends Controller
     }
 
     /**
+     * Test Schedule Trigger node (public method for API endpoint)
+     */
+    public function testScheduleTriggerNode($config, $inputData)
+    {
+        return $this->executeScheduleTriggerNode($config, $inputData);
+    }
+
+    /**
      * Test Code node (public method for API endpoint)
      */
     public function testCodeNode($config, $inputData)
@@ -1690,6 +1702,51 @@ class WebhookController extends Controller
     public function testEscapeNode($config, $inputData)
     {
         return $this->executeEscapeNode($config, $inputData);
+    }
+
+    private function executeScheduleTriggerNode($config, $inputData)
+    {
+        // Schedule trigger nodes return trigger information
+        // This is called when workflow is triggered by scheduler
+        return [
+            'triggeredAt' => now('Asia/Ho_Chi_Minh')->toIso8601String(),
+            'timezone' => $config['timezone'] ?? 'Asia/Ho_Chi_Minh',
+            'schedule' => $this->getScheduleDescription($config),
+            'triggerType' => $config['triggerType'] ?? 'interval',
+        ];
+    }
+
+    /**
+     * Get human-readable schedule description
+     */
+    private function getScheduleDescription($config)
+    {
+        $triggerType = $config['triggerType'] ?? 'interval';
+        
+        if ($triggerType === 'cron') {
+            return $config['cronExpression'] ?? '0 * * * *';
+        }
+        
+        $interval = $config['interval'] ?? 'hours';
+        $intervalValue = $config['intervalValue'] ?? 1;
+        
+        $labels = [
+            'minutes' => 'phút',
+            'hours' => 'giờ',
+            'days' => 'ngày',
+            'weeks' => 'tuần',
+            'months' => 'tháng',
+        ];
+        
+        $label = $labels[$interval] ?? $interval;
+        
+        if (in_array($interval, ['days', 'weeks', 'months'])) {
+            $hour = $config['triggerAt']['hour'] ?? 0;
+            $minute = $config['triggerAt']['minute'] ?? 0;
+            return sprintf('Mỗi %d %s lúc %02d:%02d', $intervalValue, $label, $hour, $minute);
+        }
+        
+        return sprintf('Mỗi %d %s', $intervalValue, $label);
     }
 
     private function executeCodeNode($config, $inputData)
