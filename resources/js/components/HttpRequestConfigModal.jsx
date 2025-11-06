@@ -13,6 +13,9 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
         headers: [],
         bodyType: 'json',
         bodyContent: '',
+        bodyParams: [], // Array of {name, value} for key-value fields
+        specifyBody: 'fields', // 'fields' or 'raw'
+        sendBody: false,
         timeout: 30, // Timeout in seconds (default 30s)
     });
 
@@ -28,7 +31,37 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
     useEffect(() => {
         if (node?.data?.config) {
-            setConfig({ ...config, ...node.data.config });
+            const nodeConfig = { ...node.data.config };
+            
+            // If bodyParams exists, use it. Otherwise, try to parse bodyContent to bodyParams
+            if (!nodeConfig.bodyParams && nodeConfig.bodyContent) {
+                try {
+                    // Try to parse JSON bodyContent to extract key-value pairs
+                    const parsed = JSON.parse(nodeConfig.bodyContent);
+                    if (typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
+                        nodeConfig.bodyParams = Object.keys(parsed).map(key => ({
+                            name: key,
+                            value: typeof parsed[key] === 'string' ? parsed[key] : JSON.stringify(parsed[key])
+                        }));
+                        nodeConfig.specifyBody = 'fields';
+                    } else {
+                        nodeConfig.specifyBody = 'raw';
+                    }
+                } catch (e) {
+                    // Not valid JSON or can't parse, keep as raw
+                    nodeConfig.specifyBody = 'raw';
+                }
+            } else if (!nodeConfig.specifyBody) {
+                // Default to fields if bodyParams exists
+                nodeConfig.specifyBody = nodeConfig.bodyParams && nodeConfig.bodyParams.length > 0 ? 'fields' : 'raw';
+            }
+            
+            // Set sendBody based on bodyType or bodyContent
+            if (nodeConfig.bodyType && nodeConfig.bodyType !== 'none') {
+                nodeConfig.sendBody = true;
+            }
+            
+            setConfig({ ...config, ...nodeConfig });
         }
         fetchCredentials();
     }, [node]);
@@ -241,7 +274,25 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
     };
 
     const handleSave = () => {
-        onSave(config);
+        const configToSave = { ...config };
+        
+        // Convert bodyParams to bodyContent if using fields mode
+        if (config.specifyBody === 'fields' && config.bodyParams && config.bodyParams.length > 0) {
+            const bodyObj = {};
+            config.bodyParams.forEach(param => {
+                if (param.name && param.name.trim() !== '') {
+                    bodyObj[param.name] = param.value || '';
+                }
+            });
+            configToSave.bodyContent = JSON.stringify(bodyObj, null, 2);
+        }
+        // If using raw mode, keep bodyContent as is
+        
+        // Remove bodyParams from saved config (only save bodyContent for backward compat)
+        delete configToSave.bodyParams;
+        delete configToSave.specifyBody;
+        
+        onSave(configToSave);
         // Optional: close modal after save
         // onClose();
     };
@@ -257,7 +308,19 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
             setIsTesting(true);
             setTestResults(null);
             try {
-                const result = await onTest(config);
+                // Convert bodyParams to bodyContent if using fields mode (same as handleSave)
+                const testConfig = { ...config };
+                if (config.specifyBody === 'fields' && config.bodyParams && config.bodyParams.length > 0) {
+                    const bodyObj = {};
+                    config.bodyParams.forEach(param => {
+                        if (param.name && param.name.trim() !== '') {
+                            bodyObj[param.name] = param.value || '';
+                        }
+                    });
+                    testConfig.bodyContent = JSON.stringify(bodyObj, null, 2);
+                }
+                
+                const result = await onTest(testConfig);
                 setTestResults(result);
 
                 // Save test result to output data
@@ -836,38 +899,151 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                checked={config.bodyType !== 'none'}
+                                                checked={config.sendBody || false}
                                                 onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        setConfig({ ...config, bodyType: 'json' });
-                                                    } else {
-                                                        setConfig({ ...config, bodyType: 'none' });
-                                                    }
+                                                    setConfig({ 
+                                                        ...config, 
+                                                        sendBody: e.target.checked,
+                                                        bodyType: e.target.checked ? 'json' : 'none'
+                                                    });
                                                 }}
                                                 className="sr-only peer"
                                             />
                                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                                         </label>
                                     </div>
-                                    {config.bodyType !== 'none' && (
+                                    {config.sendBody && (
                                         <>
-                                            <select
-                                                value={config.bodyType}
-                                                onChange={(e) => setConfig({ ...config, bodyType: e.target.value })}
-                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-2"
-                                            >
-                                                <option value="json">JSON</option>
-                                                <option value="form">Form-Data</option>
-                                                <option value="urlencoded">Form Urlencoded</option>
-                                                <option value="raw">Raw</option>
-                                            </select>
-                                            <textarea
-                                                value={config.bodyContent}
-                                                onChange={(e) => setConfig({ ...config, bodyContent: e.target.value })}
-                                                placeholder="Enter body content"
-                                                rows={5}
-                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
-                                            />
+                                            {/* Body Content Type */}
+                                            <div className="mb-2">
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    Body Content Type
+                                                </label>
+                                                <select
+                                                    value={config.bodyType || 'json'}
+                                                    onChange={(e) => setConfig({ ...config, bodyType: e.target.value })}
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                >
+                                                    <option value="json">JSON</option>
+                                                    <option value="form">Form-Data</option>
+                                                    <option value="urlencoded">Form Urlencoded</option>
+                                                    <option value="raw">Raw</option>
+                                                </select>
+                                            </div>
+                                            
+                                            {/* Specify Body */}
+                                            {config.bodyType === 'json' && (
+                                                <div className="mb-2">
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        Specify Body
+                                                    </label>
+                                                    <select
+                                                        value={config.specifyBody || 'fields'}
+                                                        onChange={(e) => setConfig({ ...config, specifyBody: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                    >
+                                                        <option value="fields">Using Fields Below</option>
+                                                        <option value="raw">Raw JSON</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Body Parameters (Fields) */}
+                                            {config.bodyType === 'json' && config.specifyBody === 'fields' && (
+                                                <div className="mb-2">
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                        Body Parameters
+                                                    </label>
+                                                    {(config.bodyParams || []).length > 0 && (
+                                                        <div className="grid grid-cols-2 gap-2 mb-2 px-2">
+                                                            <div className="text-xs font-medium text-gray-600 dark:text-gray-400">Name</div>
+                                                            <div className="text-xs font-medium text-gray-600 dark:text-gray-400">Value</div>
+                                                        </div>
+                                                    )}
+                                                    <div className="space-y-2">
+                                                        {(config.bodyParams || []).map((param, index) => (
+                                                            <div key={index} className="flex gap-2 items-center">
+                                                                <input
+                                                                    type="text"
+                                                                    value={param.name || ''}
+                                                                    onChange={(e) => {
+                                                                        const newParams = [...(config.bodyParams || [])];
+                                                                        newParams[index] = { ...newParams[index], name: e.target.value };
+                                                                        setConfig({ ...config, bodyParams: newParams });
+                                                                    }}
+                                                                    placeholder="Name"
+                                                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    value={param.value || ''}
+                                                                    onChange={(e) => {
+                                                                        const newParams = [...(config.bodyParams || [])];
+                                                                        newParams[index] = { ...newParams[index], value: e.target.value };
+                                                                        setConfig({ ...config, bodyParams: newParams });
+                                                                    }}
+                                                                    onDrop={(e) => {
+                                                                        e.preventDefault();
+                                                                        const variable = e.dataTransfer.getData('text/plain');
+                                                                        const start = e.target.selectionStart;
+                                                                        const end = e.target.selectionEnd;
+                                                                        const currentValue = e.target.value;
+                                                                        const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
+                                                                        const newParams = [...(config.bodyParams || [])];
+                                                                        newParams[index] = { ...newParams[index], value: newValue };
+                                                                        setConfig({ ...config, bodyParams: newParams });
+                                                                        setTimeout(() => {
+                                                                            e.target.setSelectionRange(start + variable.length, start + variable.length);
+                                                                        }, 0);
+                                                                    }}
+                                                                    onDragOver={(e) => e.preventDefault()}
+                                                                    placeholder="Value"
+                                                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const newParams = config.bodyParams.filter((_, i) => i !== index);
+                                                                        setConfig({ ...config, bodyParams: newParams });
+                                                                    }}
+                                                                    className="text-red-600 hover:text-red-700"
+                                                                    title="Remove parameter"
+                                                                >
+                                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                        <button
+                                                            onClick={() => {
+                                                                setConfig({ 
+                                                                    ...config, 
+                                                                    bodyParams: [...(config.bodyParams || []), { name: '', value: '' }]
+                                                                });
+                                                            }}
+                                                            className="w-full px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm"
+                                                        >
+                                                            + Add Parameter
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Raw Body Content */}
+                                            {(config.bodyType !== 'json' || config.specifyBody === 'raw') && (
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        {config.bodyType === 'json' ? 'Raw Body Content' : 'Body Content'}
+                                                    </label>
+                                                    <textarea
+                                                        value={config.bodyContent || ''}
+                                                        onChange={(e) => setConfig({ ...config, bodyContent: e.target.value })}
+                                                        placeholder="Enter body content"
+                                                        rows={5}
+                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                                                    />
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                 </div>
