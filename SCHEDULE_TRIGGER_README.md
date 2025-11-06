@@ -30,6 +30,19 @@ cd /var/www
 - Interval: Minutes  
 - Value: 30
 
+## Lịch sử chạy
+
+✅ **Tự động lưu vào History!**
+
+Mỗi lần Schedule Trigger chạy → Tạo execution record:
+- Trigger Type: `schedule`
+- Status: `running` → `completed`/`error`
+- Input/Output data đầy đủ
+
+**Xem trong UI:**
+- Tab **History** trong workflow editor
+- Lọc theo trigger type = schedule
+
 ## Verify
 
 ```bash
@@ -41,6 +54,10 @@ php artisan workflows:check-schedules
 
 # Monitor logs
 tail -f storage/logs/laravel.log | grep -i schedule
+
+# Check executions
+php artisan tinker
+>>> App\Models\WorkflowExecution::where('trigger_type', 'schedule')->latest()->get();
 ```
 
 ## Quan trọng

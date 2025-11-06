@@ -184,8 +184,9 @@ class CheckScheduledWorkflows extends Command
             
             $webhookController = new WebhookController();
             
-            // Execute workflow using public method
-            $result = $webhookController->executeWorkflowPublic($workflow, $webhookRequestData);
+            // Execute workflow using public method with trigger_type = 'schedule'
+            // This will create an execution record with trigger_type = 'schedule'
+            $result = $webhookController->executeWorkflowPublic($workflow, $webhookRequestData, 'schedule');
             
             $this->info("✅ Workflow executed successfully: {$workflow->name}");
             

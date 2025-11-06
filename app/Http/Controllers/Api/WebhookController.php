@@ -143,14 +143,32 @@ class WebhookController extends Controller
     }
 
     // Public wrapper for Job to call
-    public function executeWorkflowPublic($workflow, $webhookRequestData)
+    public function executeWorkflowPublic($workflow, $webhookRequestData, $triggerType = 'schedule')
     {
         Log::info('executeWorkflowPublic called', [
+            'trigger_type' => $triggerType,
             'webhook_data_keys' => array_keys($webhookRequestData),
-            'all_count' => count($webhookRequestData['all'] ?? []),
-            'body_count' => count($webhookRequestData['body'] ?? []),
-            'all_data' => $webhookRequestData['all'] ?? [],
-            'body_data' => $webhookRequestData['body'] ?? [],
+            'workflow_id' => $workflow->id,
+        ]);
+        
+        // Create execution record
+        $workflowSnapshot = [
+            'nodes' => json_decode($workflow->nodes, true),
+            'edges' => json_decode($workflow->edges, true),
+        ];
+        
+        $execution = WorkflowExecution::create([
+            'workflow_id' => $workflow->id,
+            'trigger_type' => $triggerType,
+            'status' => 'running',
+            'input_data' => $webhookRequestData,
+            'workflow_snapshot' => $workflowSnapshot,
+            'started_at' => now(),
+        ]);
+        
+        Log::info('Execution record created', [
+            'execution_id' => $execution->id,
+            'trigger_type' => $triggerType,
         ]);
         
         // Merge body into all if body exists and is different
@@ -190,13 +208,35 @@ class WebhookController extends Controller
             }
         }
         
-        Log::info('Mock request created', [
-            'request_all' => $request->all(),
-            'request_input' => $request->input(),
-            'request_body' => $request->getContent(),
-        ]);
-        
-        return $this->executeWorkflow($workflow, $request);
+        try {
+            $result = $this->executeWorkflow($workflow, $request);
+            
+            // Update execution as completed
+            $execution->update([
+                'status' => 'completed',
+                'output_data' => $result,
+                'completed_at' => now(),
+            ]);
+            
+            Log::info('Workflow execution completed', [
+                'execution_id' => $execution->id,
+            ]);
+            
+            return $result;
+            
+        } catch (\Exception $e) {
+            // Update execution as failed
+            $execution->update([
+                'status' => 'error',
+                'output_data' => [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ],
+                'completed_at' => now(),
+            ]);
+            
+            throw $e;
+        }
     }
 
     private function executeWorkflow($workflow, $webhookRequest)

@@ -72,12 +72,41 @@ php artisan workflows:check-schedules
 - `0 9 * * 1`: Mỗi thứ 2 lúc 9:00
 - `0 9 1 * *`: Ngày đầu tháng lúc 9:00
 
+## Lịch sử chạy (Execution History)
+
+✅ **Schedule Trigger tự động lưu vào lịch sử!**
+
+Mỗi lần workflow được trigger bởi schedule, hệ thống sẽ tạo execution record với:
+- `trigger_type` = `'schedule'`
+- `status` = `'running'` → `'completed'` hoặc `'error'`
+- `input_data` = Thông tin trigger (thời gian, lịch trình...)
+- `output_data` = Kết quả từ workflow
+- Timestamps: `started_at`, `completed_at`
+
+**Xem lịch sử trong UI:**
+1. Vào workflow editor
+2. Click tab **"History"** (bên cạnh Editor)
+3. Xem tất cả lần chạy, lọc theo trigger type
+
+**Hoặc query database:**
+```sql
+SELECT * FROM workflow_executions 
+WHERE trigger_type = 'schedule' 
+ORDER BY created_at DESC;
+```
+
 ## Monitoring
 
-Check logs:
+**Check logs:**
 
 ```bash
 tail -f /var/www/laravel-react-app-n8n-administrator/storage/logs/laravel.log | grep -i schedule
+```
+
+**Check executions:**
+```bash
+php artisan tinker
+>>> App\Models\WorkflowExecution::where('trigger_type', 'schedule')->latest()->take(5)->get();
 ```
 
 ## Troubleshooting
