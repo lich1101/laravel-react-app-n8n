@@ -1104,7 +1104,7 @@ function WorkflowEditor() {
     };
 
     const handleConfigureNode = () => {
-        if (selectedNode && (selectedNode.type === 'webhook' || selectedNode.type === 'http' || selectedNode.type === 'perplexity' || selectedNode.type === 'code' || selectedNode.type === 'escape' || selectedNode.type === 'if')) {
+        if (selectedNode && (selectedNode.type === 'webhook' || selectedNode.type === 'schedule' || selectedNode.type === 'http' || selectedNode.type === 'perplexity' || selectedNode.type === 'code' || selectedNode.type === 'escape' || selectedNode.type === 'if')) {
             setShowConfigModal(true);
             setShowNodeContextMenu(false);
         } else if (selectedNode) {
@@ -1303,7 +1303,7 @@ function WorkflowEditor() {
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
-        if (node.type === 'webhook' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'gemini' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
+        if (node.type === 'webhook' || node.type === 'schedule' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'gemini' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
             setShowConfigModal(true);
         }
     };
@@ -2543,7 +2543,7 @@ function WorkflowEditor() {
                             top: `${contextMenuPosition.y}px`,
                         }}
                     >
-                        {(selectedNode.type === 'webhook' || selectedNode.type === 'http' || selectedNode.type === 'perplexity' || selectedNode.type === 'code' || selectedNode.type === 'escape' || selectedNode.type === 'if') && (
+                        {(selectedNode.type === 'webhook' || selectedNode.type === 'schedule' || selectedNode.type === 'http' || selectedNode.type === 'perplexity' || selectedNode.type === 'code' || selectedNode.type === 'escape' || selectedNode.type === 'if') && (
                             <button
                                 onClick={handleConfigureNode}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center space-x-2"
