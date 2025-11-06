@@ -1595,8 +1595,17 @@ class WebhookController extends Controller
                     $value2 = filter_var($value2, FILTER_VALIDATE_BOOLEAN);
                 } elseif ($dataType === 'dateTime') {
                     try {
-                        $value1 = new \DateTime($value1);
-                        $value2 = $value2 ? new \DateTime($value2) : null;
+                        // Try multiple date formats (Vietnamese format first, then ISO)
+                        $formats = [
+                            'd/m/Y H:i:s',  // Vietnamese format: 06/11/2025 09:18:14
+                            'd/m/Y H:i',    // Vietnamese format without seconds: 05/12/2025 14:21
+                            'Y-m-d H:i:s',  // ISO format: 2025-11-06 09:18:14
+                            'Y-m-d\TH:i:s', // ISO with T: 2025-11-06T09:18:14
+                            'Y-m-d\TH:i:s.uP', // ISO with microseconds: 2025-11-05T07:21:42.000000Z
+                        ];
+                        
+                        $value1 = $this->parseDateTime($value1, $formats);
+                        $value2 = $value2 ? $this->parseDateTime($value2, $formats) : null;
                     } catch (\Exception $e) {
                         Log::error('DateTime conversion failed', ['error' => $e->getMessage()]);
                         $value1 = null;
@@ -1768,6 +1777,47 @@ class WebhookController extends Controller
     public function testEscapeNode($config, $inputData)
     {
         return $this->executeEscapeNode($config, $inputData);
+    }
+
+    /**
+     * Parse datetime string with multiple format support
+     * Try Vietnamese format first (d/m/Y), then ISO formats
+     */
+    private function parseDateTime($dateString, $formats)
+    {
+        if (!is_string($dateString)) {
+            return null;
+        }
+        
+        // Try each format
+        foreach ($formats as $format) {
+            $date = \DateTime::createFromFormat($format, $dateString);
+            if ($date !== false) {
+                Log::info('DateTime parsed successfully', [
+                    'input' => $dateString,
+                    'format' => $format,
+                    'result' => $date->format('Y-m-d H:i:s'),
+                ]);
+                return $date;
+            }
+        }
+        
+        // Fallback: try default PHP parsing (may cause issues with d/m/Y format)
+        try {
+            $date = new \DateTime($dateString);
+            Log::warning('DateTime parsed with fallback method', [
+                'input' => $dateString,
+                'result' => $date->format('Y-m-d H:i:s'),
+            ]);
+            return $date;
+        } catch (\Exception $e) {
+            Log::error('All DateTime parsing attempts failed', [
+                'input' => $dateString,
+                'tried_formats' => $formats,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     private function executeScheduleTriggerNode($config, $inputData)
