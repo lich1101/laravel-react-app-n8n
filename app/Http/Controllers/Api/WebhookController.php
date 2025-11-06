@@ -919,8 +919,12 @@ class WebhookController extends Controller
         // Build body for POST, PUT, PATCH
         $body = null;
         if (in_array(strtoupper($config['method'] ?? 'GET'), ['POST', 'PUT', 'PATCH'])) {
-            // Check if sendBody is enabled
-            if (!empty($config['sendBody'])) {
+            // Check if sendBody is enabled OR if bodyContent/bodyParams exists (backward compat)
+            $shouldSendBody = !empty($config['sendBody']) || 
+                             !empty($config['bodyContent']) || 
+                             !empty($config['bodyParams']);
+            
+            if ($shouldSendBody) {
                 // Priority 1: Use bodyParams (key-value fields) if available
                 if (!empty($config['bodyParams']) && is_array($config['bodyParams'])) {
                     $bodyData = [];
