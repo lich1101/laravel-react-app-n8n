@@ -143,7 +143,7 @@ class WebhookController extends Controller
     }
 
     // Public wrapper for Job to call
-    public function executeWorkflowPublic($workflow, $webhookRequestData, $triggerType = 'schedule')
+    public function executeWorkflowPublic($workflow, $webhookRequestData, $triggerType = 'webhook', $existingExecution = null)
     {
         Log::info('executeWorkflowPublic called', [
             'trigger_type' => $triggerType,
@@ -151,25 +151,37 @@ class WebhookController extends Controller
             'workflow_id' => $workflow->id,
         ]);
         
-        // Create execution record
-        $workflowSnapshot = [
-            'nodes' => is_array($workflow->nodes) ? $workflow->nodes : json_decode($workflow->nodes, true),
-            'edges' => is_array($workflow->edges) ? $workflow->edges : json_decode($workflow->edges, true),
-        ];
-        
-        $execution = WorkflowExecution::create([
-            'workflow_id' => $workflow->id,
-            'trigger_type' => $triggerType,
-            'status' => 'running',
-            'input_data' => $webhookRequestData,
-            'workflow_snapshot' => $workflowSnapshot,
-            'started_at' => now(),
-        ]);
-        
-        Log::info('Execution record created', [
-            'execution_id' => $execution->id,
-            'trigger_type' => $triggerType,
-        ]);
+        if ($existingExecution instanceof WorkflowExecution) {
+            $execution = $existingExecution;
+
+            if ($execution->trigger_type !== $triggerType) {
+                $execution->update(['trigger_type' => $triggerType]);
+            }
+
+            Log::info('Using existing execution record', [
+                'execution_id' => $execution->id,
+                'trigger_type' => $triggerType,
+            ]);
+        } else {
+            $workflowSnapshot = [
+                'nodes' => is_array($workflow->nodes) ? $workflow->nodes : json_decode($workflow->nodes, true),
+                'edges' => is_array($workflow->edges) ? $workflow->edges : json_decode($workflow->edges, true),
+            ];
+            
+            $execution = WorkflowExecution::create([
+                'workflow_id' => $workflow->id,
+                'trigger_type' => $triggerType,
+                'status' => 'running',
+                'input_data' => $webhookRequestData,
+                'workflow_snapshot' => $workflowSnapshot,
+                'started_at' => now(),
+            ]);
+            
+            Log::info('Execution record created', [
+                'execution_id' => $execution->id,
+                'trigger_type' => $triggerType,
+            ]);
+        }
         
         // Merge body into all if body exists and is different
         $requestData = $webhookRequestData['all'] ?? [];

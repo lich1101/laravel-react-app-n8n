@@ -32,10 +32,14 @@ class CheckScheduledWorkflows extends Command
     {
         $this->info('Checking for scheduled workflows...');
         
-        // Get all active workflows
-        $workflows = Workflow::where('active', true)->get();
+        // Chỉ lấy các workflow active có chứa schedule trigger
+        $workflows = Workflow::where('active', true)
+            ->whereHas('workflowNodes', function ($query) {
+                $query->where('type', 'schedule');
+            })
+            ->get();
         
-        $this->info("Found {$workflows->count()} active workflows");
+        $this->info("Found {$workflows->count()} active workflows with schedule trigger");
         
         $triggered = 0;
         $checked = 0;
@@ -64,6 +68,11 @@ class CheckScheduledWorkflows extends Command
                     
                     $config = $node['data']['config'] ?? [];
                     $this->info("  Config: " . json_encode($config));
+
+                    if (isset($config['enabled']) && $config['enabled'] === false) {
+                        $this->info('  ⚠️ Schedule trigger is disabled, skipping');
+                        continue;
+                    }
                     
                     if ($this->shouldTrigger($config, $workflow)) {
                         $this->info("  🚀 Triggering workflow: {$workflow->name}");

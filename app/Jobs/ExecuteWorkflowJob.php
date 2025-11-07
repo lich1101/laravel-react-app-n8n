@@ -68,7 +68,12 @@ class ExecuteWorkflowJob implements ShouldQueue
             
             // Execute workflow
             $startTime = microtime(true);
-            $executionResult = $webhookController->executeWorkflowPublic($this->workflow, $this->webhookRequest);
+            $executionResult = $webhookController->executeWorkflowPublic(
+                $this->workflow,
+                $this->webhookRequest,
+                'webhook',
+                $this->execution
+            );
             $endTime = microtime(true);
             $duration = round(($endTime - $startTime) * 1000);
 
