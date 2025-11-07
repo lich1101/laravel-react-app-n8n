@@ -2390,6 +2390,14 @@ function WorkflowEditor() {
                                 const expectedHandle = ifOutput.result ? 'true' : 'false';
                                 isActive = edge.sourceHandle === expectedHandle;
                             }
+                        } else if (sourceNode?.type === 'switch' && nodeOutputData[edge.source]) {
+                            const switchOutput = nodeOutputData[edge.source];
+                            if (switchOutput.matchedOutput !== undefined) {
+                                const expectedHandle = switchOutput.matchedOutput >= 0
+                                    ? `output${switchOutput.matchedOutput}`
+                                    : 'fallback';
+                                isActive = edge.sourceHandle === expectedHandle;
+                            }
                         } else if (nodeOutputData[edge.source]) {
                             // For non-If nodes, edge is active if source has output
                             isActive = true;

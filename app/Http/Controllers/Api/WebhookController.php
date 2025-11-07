@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Exceptions\WorkflowCancelledException;
+use Illuminate\Support\Facades\Queue;
 
 class WebhookController extends Controller
 {
@@ -127,7 +128,7 @@ class WebhookController extends Controller
                 $webhookData
             );
 
-            $jobId = dispatch($job);
+            $jobId = Queue::push($job);
 
             if ($jobId) {
                 $execution->update([
@@ -359,6 +360,29 @@ class WebhookController extends Controller
                     'input_count' => count($inputData),
                     'input_preview' => json_encode(array_slice($inputData, 0, 1)),
                 ]);
+
+                // Determine if node should execute (skip branches without matched input)
+                $hasParentEdges = collect($edges)
+                    ->contains(function ($edge) use ($node) {
+                        return $edge['target'] === $node['id'];
+                    });
+
+                $positionalInputCount = 0;
+                foreach ($inputData as $key => $value) {
+                    if (is_int($key)) {
+                        $positionalInputCount++;
+                    }
+                }
+
+                if ($hasParentEdges && $positionalInputCount === 0) {
+                    Log::info('Skipping node due to no matched branch input', [
+                        'workflow_id' => $workflow->id,
+                        'node_id' => $node['id'],
+                        'node_type' => $node['type'] ?? 'unknown',
+                    ]);
+
+                    continue;
+                }
 
                 // Execute the node
                 $output = $this->executeNode($node, $inputData, $webhookRequest);
@@ -2633,15 +2657,16 @@ JS;
             $path = trim($matches[2]);
             $fullPath = $nodeName . '.' . $path;
             
-            $value = $this->getValueFromPath($fullPath, $inputData, $workflow);
+            $result = $this->getValueFromPathWithExists($fullPath, $inputData, $workflow);
             
-            if ($value !== null) {
+            if ($result['exists']) {
                 Log::info('n8n syntax resolution - SUCCESS', [
                     'original' => $matches[0],
                     'node_name' => $nodeName,
                     'path' => $path,
+                    'value_was_null' => $result['value'] === null,
                 ]);
-                return $value;
+                return $this->stringifyResolvedValue($result['value']);
             }
             
             // Variable not found - THROW ERROR
@@ -2662,15 +2687,17 @@ JS;
         // Then, replace {{variable}} patterns (preg_replace_callback replaces ALL matches)
         return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData, $workflow, $template) {
             $path = trim($matches[1]);
-            $value = $this->getValueFromPath($path, $inputData, $workflow);
+            $result = $this->getValueFromPathWithExists($path, $inputData, $workflow);
 
-            if ($value !== null) {
+            if ($result['exists']) {
+                $value = $result['value'];
                 Log::info('Variable resolution - SUCCESS', [
                     'original' => $matches[0],
                     'path' => $path,
                     'value_preview' => is_string($value) ? substr($value, 0, 100) : gettype($value),
+                    'value_was_null' => $value === null,
                 ]);
-                return $value;
+                return $this->stringifyResolvedValue($value);
             }
 
             // Variable not found - THROW ERROR to stop workflow
@@ -2687,6 +2714,31 @@ JS;
             
             throw new \Exception("Variable not found: {$matches[0]}. Available nodes: " . implode(', ', $availableNodes));
         }, $template);
+    }
+
+    private function stringifyResolvedValue($value)
+    {
+        if ($value === null) {
+            return 'null';
+        }
+
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (is_numeric($value)) {
+            return (string) $value;
+        }
+
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        return (string) $value;
     }
 
     /**
@@ -2733,10 +2785,10 @@ JS;
                 // Resolve all variables in this string
                 return preg_replace_callback('/\{\{([^}]+)\}\}/', function ($matches) use ($inputData, $data) {
                     $path = trim($matches[1]);
-                    $value = $this->getValueFromPath($path, $inputData);
+                    $result = $this->getValueFromPathWithExists($path, $inputData);
                     
-                    if ($value !== null) {
-                        return $value;
+                    if ($result['exists']) {
+                        return $this->stringifyResolvedValue($result['value']);
                     }
                     
                     // Variable not found - THROW ERROR

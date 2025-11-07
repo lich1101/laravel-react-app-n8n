@@ -70,7 +70,10 @@ function ExpandableTextarea({
             const trimmedPath = path.trim();
             const value = getValueFromPath(trimmedPath, inputData);
             
-            if (value !== undefined && value !== null) {
+            if (value !== undefined) {
+                if (value === null) {
+                    return 'null';
+                }
                 return typeof value === 'string' ? value : JSON.stringify(value);
             }
             
@@ -197,16 +200,25 @@ function ExpandableTextarea({
             if (mode === 'resolved') {
                 const path = match[1].trim();
                 const value = getValueFromPath(path, inputData);
-                const displayValue = value !== undefined && value !== null 
-                    ? (typeof value === 'string' ? value : JSON.stringify(value))
-                    : match[0]; // Keep template if not resolved
+                if (value !== undefined) {
+                    const displayValue = value === null
+                        ? 'null'
+                        : (typeof value === 'string' ? value : JSON.stringify(value));
                 
                 parts.push({
-                    type: value !== undefined && value !== null ? 'resolved' : 'variable',
+                        type: 'resolved',
                     content: displayValue,
                     key: `var-${match.index}`,
-                    exists: value !== undefined && value !== null // Track if variable exists
-                });
+                        exists: true,
+                    });
+                } else {
+                    parts.push({
+                        type: 'variable',
+                        content: match[0],
+                        key: `var-${match.index}`,
+                        exists: false,
+                    });
+                }
             } else {
                 // Check if variable exists in inputData
                 const path = match[1].trim();
@@ -217,7 +229,7 @@ function ExpandableTextarea({
                 // For built-in variables, always exists
                 // For regular variables, check inputData
                 const value = isBuiltIn ? getValueFromPath(path, {}) : getValueFromPath(path, inputData);
-                const exists = isBuiltIn || (value !== undefined && value !== null);
+                const exists = isBuiltIn || value !== undefined;
                 
                 parts.push({
                     type: 'variable',
@@ -341,7 +353,20 @@ function ExpandableTextarea({
     // Render draggable data fields
     const renderDraggableData = (obj, prefix = '', depth = 0) => {
         if (obj === null || obj === undefined) {
+            if (!prefix) {
             return <span className="text-xs text-gray-500 dark:text-gray-400">null</span>;
+            }
+
+            return (
+                <div 
+                    className="text-xs text-gray-700 dark:text-gray-300 cursor-move p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                    draggable="true"
+                    onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${prefix}}}`)}
+                    title={`Drag {{${prefix}}}`}
+                >
+                    null
+                </div>
+            );
         }
 
         if (typeof obj !== 'object') {
