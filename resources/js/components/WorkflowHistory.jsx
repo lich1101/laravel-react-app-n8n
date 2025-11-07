@@ -619,9 +619,9 @@ const WorkflowHistory = () => {
     if (error) return <div className="p-4 text-red-500">{error}</div>;
 
     return (
-        <div className="h-full flex bg-gray-900">
+        <div className="flex h-screen bg-gray-900 overflow-hidden">
             {/* Left sidebar - Execution list */}
-            <div className="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto">
+            <div className="w-80 h-full bg-gray-800 border-r border-gray-700 overflow-y-auto">
                 <div className="p-4">
                     <div className="flex items-center justify-between gap-2 mb-4">
                         <h2 className="text-lg font-semibold text-white">Lịch sử thực thi</h2>
@@ -698,7 +698,7 @@ const WorkflowHistory = () => {
             </div>
 
             {/* Right panel - Execution details */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col overflow-hidden">
                 {selectedExecution ? (
                     detailsLoading ? (
                         <div className="flex items-center justify-center h-full">
@@ -717,7 +717,7 @@ const WorkflowHistory = () => {
                             </div>
 
                             {/* Workflow canvas */}
-                            <div className="flex-1 relative">
+                            <div className="flex-1 relative overflow-hidden">
                                 <ReactFlow
                                     nodes={createReactFlowNodes()}
                                     edges={createReactFlowEdges()}
