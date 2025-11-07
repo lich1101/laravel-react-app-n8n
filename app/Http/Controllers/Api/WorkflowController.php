@@ -244,6 +244,7 @@ class WorkflowController extends Controller
 
         $executions = $workflow->executions()
             ->where('status', '!=', 'running')
+            ->where('status', '!=', 'queued')
             ->get();
 
         if ($executions->isEmpty()) {
