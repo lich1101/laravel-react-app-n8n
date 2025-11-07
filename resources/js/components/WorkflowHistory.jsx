@@ -243,6 +243,7 @@ const WorkflowHistory = () => {
     const [selectedNode, setSelectedNode] = useState(null);
     const [showConfigModal, setShowConfigModal] = useState(false);
     const [bulkDeleting, setBulkDeleting] = useState(false);
+    const [resuming, setResuming] = useState(false);
     const pendingDeletionRef = useRef(new Set());
 
     useEffect(() => {
@@ -304,11 +305,9 @@ const WorkflowHistory = () => {
                     const updatedExecution = filteredExecutions.find(e => e.id === selectedExecution.id);
                     if (updatedExecution) {
                         const statusChanged = updatedExecution.status !== selectedExecution.status;
-                        const isRunning = updatedExecution.status === 'running' || updatedExecution.status === 'queued';
-                        
-                        if (statusChanged || isRunning) {
-                        setSelectedExecution(updatedExecution);
-                        fetchExecutionDetails(updatedExecution.id);
+                        if (statusChanged) {
+                            setSelectedExecution(updatedExecution);
+                            fetchExecutionDetails(updatedExecution.id);
                         }
                     }
                 }
@@ -453,22 +452,16 @@ const WorkflowHistory = () => {
             return;
         }
 
-        pendingDeletionRef.current.add(execution.id);
+        if (pendingDeletionRef.current.has(execution.id)) {
+            return;
+        }
 
-        setExecutions(prev => prev.map(e => (
-            e.id === execution.id
-                ? {
-                    ...e,
-                    status: isRunning ? 'cancelling' : e.status,
-                    cancel_requested_at: isRunning ? new Date().toISOString() : e.cancel_requested_at,
-                }
-                : e
-        )));
+        pendingDeletionRef.current.add(execution.id);
 
         try {
             const response = await axios.delete(`/workflows/${workflowId}/executions/${execution.id}`);
-            const data = response?.data || {};
 
+            const data = response.data || {};
             const message = data.message || '';
             const wasCancellation = message.toLowerCase().includes('cancellation');
             const wasDeleted = message.toLowerCase().includes('deleted');
@@ -507,6 +500,47 @@ const WorkflowHistory = () => {
         }
     };
 
+    const handleResumeExecution = async () => {
+        if (!executionDetails || !selectedExecution || resuming) {
+            return;
+        }
+
+        if (!canResumeSelectedExecution()) {
+            return;
+        }
+
+        if (!confirm('Bạn có chắc muốn chạy lại từ node lỗi này?')) {
+            return;
+        }
+
+        setResuming(true);
+
+        try {
+            const response = await axios.post(`/workflows/${workflowId}/executions/${executionDetails.id}/resume`, {
+                start_node_id: executionDetails.error_node,
+            });
+
+            const newExecution = response.data?.execution;
+
+            if (newExecution) {
+                const normalized = normalizeExecution(newExecution);
+                setSelectedExecution(normalized);
+                setExecutionDetails(null);
+                await fetchExecutions(true);
+                await fetchExecutionDetails(normalized.id);
+            } else {
+                await fetchExecutions(true);
+            }
+        } catch (err) {
+            console.error('Error resuming execution:', err);
+            const message = err.response?.data?.message || 'Không thể chạy lại execution. Vui lòng thử lại.';
+            alert(message);
+            await fetchExecutions(true);
+        } finally {
+            setResuming(false);
+        }
+    };
+
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
         setShowConfigModal(true);
@@ -542,6 +576,16 @@ const WorkflowHistory = () => {
                 return 'text-gray-400';
         }
     };
+
+    const canResumeSelectedExecution = () => {
+        if (!executionDetails) return false;
+        if (executionDetails.status !== 'error') return false;
+        if (!executionDetails.error_node) return false;
+        if (executionDetails.resumed_at || executionDetails.resumed_to_execution_id) return false;
+        return true;
+    };
+
+    const isExecutionActive = (status) => ['running', 'queued', 'cancelling'].includes(status);
 
     // Lấy input/output data cho modal
     const getNodeInputData = (nodeId) => {
@@ -707,223 +751,258 @@ const WorkflowHistory = () => {
                     ) : executionDetails ? (
                         <>
                             {/* Header */}
-                            <div className="bg-gray-800 border-b border-gray-700 px-6 py-4">
-                                <h3 className="text-lg font-semibold text-white">
-                                    Chi tiết thực thi #{selectedExecution.id}
-                                </h3>
-                                <p className="text-sm text-gray-400 mt-1">
-                                    {formatDate(executionDetails.started_at)} - Status: <span className={getStatusColor(executionDetails.status)}>{executionDetails.status}</span>
-                                </p>
+                            <div className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white">
+                                        Chi tiết thực thi #{selectedExecution.id}
+                                    </h3>
+                                    <p className="text-sm text-gray-400 mt-1">
+                                        {formatDate(executionDetails.started_at)} - Status: <span className={getStatusColor(executionDetails.status)}>{executionDetails.status}</span>
+                                    </p>
+                                    {executionDetails.error_node && (
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Node lỗi: <span className="text-red-400 font-semibold">{executionDetails.error_node}</span>
+                                        </p>
+                                    )}
+                                    {executionDetails.resumed_to_execution_id && (
+                                        <p className="text-xs text-blue-400 mt-1">
+                                            Đã chạy lại thành lần thực thi #{executionDetails.resumed_to_execution_id}
+                                        </p>
+                                    )}
+                                </div>
+                                {canResumeSelectedExecution() && (
+                                    <button
+                                        onClick={handleResumeExecution}
+                                        disabled={resuming}
+                                        className={`px-4 py-2 rounded text-sm font-semibold transition-colors ${
+                                            resuming
+                                                ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                                : 'bg-green-600 hover:bg-green-500 text-white'
+                                        }`}
+                                    >
+                                        {resuming ? 'Đang chạy lại...' : 'Chạy lại từ node lỗi'}
+                                    </button>
+                                )}
                             </div>
 
-                            {/* Workflow canvas */}
-                            <div className="flex-1 relative overflow-hidden">
-                                <ReactFlow
-                                    nodes={createReactFlowNodes()}
-                                    edges={createReactFlowEdges()}
-                                    nodeTypes={nodeTypes}
-                                    onNodeClick={handleNodeDoubleClick}
-                                    fitView
-                                    panOnDrag={true}
-                                    panOnScroll={true}
-                                    zoomOnScroll={true}
-                                    zoomOnPinch={true}
-                                    nodesConnectable={false}
-                                    nodesDraggable={true}
-                                    elementsSelectable={true}
-                                    className="bg-gray-900"
-                                >
-                                    <Background />
-                                    <Controls />
-                                    <MiniMap />
-                                </ReactFlow>
-                            </div>
+                            {isExecutionActive(executionDetails.status) ? (
+                                <div className="flex-1 flex flex-col items-center justify-center bg-gray-900 text-gray-300 gap-4">
+                                    <div className="w-14 h-14 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                    <div className="text-sm text-center">
+                                        Workflow đang chạy, vui lòng chờ hoàn tất để xem chi tiết.
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex-1 relative overflow-hidden">
+                                        <ReactFlow
+                                            nodes={createReactFlowNodes()}
+                                            edges={createReactFlowEdges()}
+                                            nodeTypes={nodeTypes}
+                                            onNodeClick={handleNodeDoubleClick}
+                                            fitView
+                                            panOnDrag={true}
+                                            panOnScroll={true}
+                                            zoomOnScroll={true}
+                                            zoomOnPinch={true}
+                                            nodesConnectable={false}
+                                            nodesDraggable={true}
+                                            elementsSelectable={true}
+                                            className="bg-gray-900"
+                                        >
+                                            <Background />
+                                            <Controls />
+                                            <MiniMap />
+                                        </ReactFlow>
+                                    </div>
 
-                            {/* Config Modals (READ-ONLY) */}
-                            {showConfigModal && selectedNode && selectedNode.type === 'webhook' && (
-                                <WebhookConfigModal
-                                    node={selectedNode}
-                                    workflowId={workflowId}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onRename={() => {}} // No-op
-                                    onTestResult={() => {}} // No-op
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {/* Config Modals (READ-ONLY) */}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'webhook' && (
+                                        <WebhookConfigModal
+                                            node={selectedNode}
+                                            workflowId={workflowId}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onRename={() => {}} // No-op
+                                            onTestResult={() => {}} // No-op
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'schedule' && (
-                                <ScheduleTriggerConfigModal
-                                    node={selectedNode}
-                                    workflowId={workflowId}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onRename={() => {}} // No-op
-                                    onTestResult={() => {}} // No-op
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'schedule' && (
+                                        <ScheduleTriggerConfigModal
+                                            node={selectedNode}
+                                            workflowId={workflowId}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onRename={() => {}} // No-op
+                                            onTestResult={() => {}} // No-op
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'http' && (
-                                <HttpRequestConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'http' && (
+                                        <HttpRequestConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'perplexity' && (
-                                <PerplexityConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'perplexity' && (
+                                        <PerplexityConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'code' && (
-                                <CodeConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'code' && (
+                                        <CodeConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'escape' && (
-                                <EscapeConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'escape' && (
+                                        <EscapeConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'if' && (
-                                <IfConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'if' && (
+                                        <IfConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'switch' && (
-                                <SwitchConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'switch' && (
+                                        <SwitchConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'claude' && (
-                                <ClaudeConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'claude' && (
+                                        <ClaudeConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'gemini' && (
-                                <GeminiConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'gemini' && (
+                                        <GeminiConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'googledocs' && (
-                                <GoogleDocsConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
-                            )}
+                                    {showConfigModal && selectedNode && selectedNode.type === 'googledocs' && (
+                                        <GoogleDocsConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
 
-                            {showConfigModal && selectedNode && selectedNode.type === 'googlesheets' && (
-                                <GoogleSheetsConfigModal
-                                    node={selectedNode}
-                                    onSave={() => {}} // No-op
-                                    onClose={() => setShowConfigModal(false)}
-                                    onTest={() => {}} // No-op
-                                    onRename={() => {}} // No-op
-                                    inputData={getNodeInputData(selectedNode.id)}
-                                    outputData={getNodeOutputData(selectedNode.id)}
-                                    onTestResult={() => {}} // No-op
-                                    allEdges={workflowEdges}
-                                    allNodes={workflowNodes}
-                                    readOnly={true}
-                                />
+                                    {showConfigModal && selectedNode && selectedNode.type === 'googlesheets' && (
+                                        <GoogleSheetsConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
+                                </>
                             )}
                         </>
                     ) : null

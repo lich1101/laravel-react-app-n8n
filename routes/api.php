@@ -32,6 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/workflows/{workflow}/nodes', [WorkflowController::class, 'saveNode']);
     Route::get('/workflows/{workflow}/executions', [WorkflowController::class, 'executions']);
     Route::get('/workflows/{workflow}/executions/{execution}', [WorkflowController::class, 'execution']);
+    Route::post('/workflows/{workflow}/executions/{execution}/resume', [WorkflowController::class, 'resumeExecution']);
     Route::delete('/workflows/{workflow}/executions', [WorkflowController::class, 'bulkDeleteExecutions']);
     Route::delete('/workflows/{workflow}/executions/{execution}', [WorkflowController::class, 'deleteExecution']);
     

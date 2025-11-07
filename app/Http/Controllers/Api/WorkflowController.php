@@ -9,6 +9,9 @@ use App\Models\WorkflowExecution;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Log;
+use App\Jobs\ExecuteWorkflowJob;
 
 class WorkflowController extends Controller
 {
@@ -188,6 +191,117 @@ class WorkflowController extends Controller
         $execution = $workflow->executions()->findOrFail($executionId);
 
         return response()->json($execution);
+    }
+
+    /**
+     * Resume a failed execution from its error node
+     */
+    public function resumeExecution(Request $request, string $workflowId, string $executionId): JsonResponse
+    {
+        $user = auth()->user();
+        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+
+        $execution = $workflow->executions()->findOrFail($executionId);
+
+        if ($execution->status !== 'error') {
+            return response()->json([
+                'message' => 'Chỉ có thể chạy lại các lần thực thi ở trạng thái error.',
+            ], 422);
+        }
+
+        if ($execution->resumed_to_execution_id) {
+            return response()->json([
+                'message' => 'Lần thực thi này đã được chạy lại trước đó.',
+            ], 409);
+        }
+
+        $request->validate([
+            'start_node_id' => 'nullable|string',
+        ]);
+
+        $startNodeId = $request->input('start_node_id', $execution->error_node);
+
+        if (!$startNodeId) {
+            return response()->json([
+                'message' => 'Không xác định được node bắt đầu để chạy lại.',
+            ], 422);
+        }
+
+        $nodeResults = $execution->node_results ?? [];
+
+        if (empty($nodeResults) || !is_array($nodeResults)) {
+            return response()->json([
+                'message' => 'Không có dữ liệu node trước đó để tiếp tục.',
+            ], 422);
+        }
+
+        $currentNodes = is_array($workflow->nodes) ? $workflow->nodes : json_decode($workflow->nodes, true);
+        $nodeExists = collect($currentNodes)->contains(function ($node) use ($startNodeId) {
+            return isset($node['id']) && $node['id'] === $startNodeId;
+        });
+
+        if (!$nodeExists) {
+            return response()->json([
+                'message' => 'Node bắt đầu không tồn tại trong workflow hiện tại.',
+            ], 404);
+        }
+
+        $inputData = $execution->input_data ?? [];
+        if (!is_array($inputData)) {
+            $inputData = [];
+        }
+
+        $resumeContext = [
+            'source_execution_id' => $execution->id,
+            'node_results' => $nodeResults,
+            'execution_order' => $execution->execution_order ?? [],
+            'start_node_id' => $startNodeId,
+        ];
+
+        $newExecution = DB::transaction(function () use ($workflow, $execution, $inputData) {
+            $snapshot = [
+                'nodes' => is_array($workflow->nodes) ? $workflow->nodes : json_decode($workflow->nodes, true),
+                'edges' => is_array($workflow->edges) ? $workflow->edges : json_decode($workflow->edges, true),
+            ];
+
+            $created = WorkflowExecution::create([
+                'workflow_id' => $workflow->id,
+                'trigger_type' => $execution->trigger_type ?? 'webhook',
+                'status' => 'queued',
+                'input_data' => $inputData,
+                'workflow_snapshot' => $snapshot,
+                'started_at' => now(),
+                'resumed_from_execution_id' => $execution->id,
+            ]);
+
+            $execution->update([
+                'resumed_at' => now(),
+                'resumed_to_execution_id' => $created->id,
+            ]);
+
+            return $created;
+        });
+
+        $job = new ExecuteWorkflowJob($newExecution, $workflow, $inputData, $resumeContext);
+        $jobId = Queue::push($job);
+
+        if ($jobId) {
+            $newExecution->update([
+                'queue_job_id' => $jobId,
+            ]);
+        }
+
+        Log::info('Resume execution queued', [
+            'workflow_id' => $workflow->id,
+            'previous_execution_id' => $execution->id,
+            'new_execution_id' => $newExecution->id,
+            'start_node_id' => $startNodeId,
+        ]);
+
+        return response()->json([
+            'message' => 'Workflow đã được đưa vào hàng đợi để chạy lại.',
+            'execution' => $newExecution->fresh(),
+        ], 202);
     }
 
     /**

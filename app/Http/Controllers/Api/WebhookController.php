@@ -153,7 +153,7 @@ class WebhookController extends Controller
     }
 
     // Public wrapper for Job to call
-    public function executeWorkflowPublic($workflow, $webhookRequestData, $triggerType = 'webhook', $existingExecution = null)
+    public function executeWorkflowPublic($workflow, $webhookRequestData, $triggerType = 'webhook', $existingExecution = null, ?array $resumeContext = null)
     {
         Log::info('executeWorkflowPublic called', [
             'trigger_type' => $triggerType,
@@ -237,7 +237,7 @@ class WebhookController extends Controller
                 throw new WorkflowCancelledException('Workflow execution was cancelled before start');
             }
 
-            $result = $this->executeWorkflow($workflow, $request, $execution);
+            $result = $this->executeWorkflow($workflow, $request, $execution, $resumeContext);
             
             // Extract execution details from result
             $nodeResults = $result['node_results'] ?? [];
@@ -298,7 +298,7 @@ class WebhookController extends Controller
         }
     }
 
-    private function executeWorkflow($workflow, $webhookRequest, ?WorkflowExecution $executionRecord = null)
+    private function executeWorkflow($workflow, $webhookRequest, ?WorkflowExecution $executionRecord = null, ?array $resumeContext = null)
     {
         $nodes = $workflow->nodes ?? [];
         $edges = $workflow->edges ?? [];
@@ -309,12 +309,14 @@ class WebhookController extends Controller
             ->keyBy('node_id')
             ->toArray();
 
-        // Merge configs from database into nodes array
+        $nodeTypeMap = [];
         foreach ($nodes as &$node) {
             if (isset($nodeConfigs[$node['id']])) {
                 $node['data']['config'] = $nodeConfigs[$node['id']]['config'];
             }
+            $nodeTypeMap[$node['id']] = $node['type'] ?? null;
         }
+        unset($node);
 
         // Build execution order from edges
         $executionOrder = $this->buildExecutionOrder($nodes, $edges);
@@ -329,9 +331,79 @@ class WebhookController extends Controller
         $nodeResults = [];
         // Store execution order để hiển thị đúng thứ tự trong History
         $executionOrderList = [];
+        $prefilledOrder = [];
         // Track error
         $errorNode = null;
         $hasError = false;
+
+        $resumeMode = is_array($resumeContext) && !empty($resumeContext);
+        $resumeStartNodeId = $resumeMode ? ($resumeContext['start_node_id'] ?? null) : null;
+        $resumeSourceExecutionId = $resumeMode ? ($resumeContext['source_execution_id'] ?? null) : null;
+        $resumeSkipNodes = [];
+
+        if ($resumeMode) {
+            $previousResults = $resumeContext['node_results'] ?? [];
+            $startNodeIndex = null;
+            if ($resumeStartNodeId && isset($previousResults[$resumeStartNodeId])) {
+                $startNodeIndex = $previousResults[$resumeStartNodeId]['execution_index'] ?? null;
+            }
+
+            if (is_array($previousResults)) {
+                uasort($previousResults, function ($a, $b) {
+                    $indexA = $a['execution_index'] ?? -1;
+                    $indexB = $b['execution_index'] ?? -1;
+                    return $indexA <=> $indexB;
+                });
+
+                foreach ($previousResults as $prevNodeId => $result) {
+                    $status = $result['status'] ?? null;
+                    if ($status !== 'success') {
+                        continue;
+                    }
+
+                    $prefilledOrder[] = $prevNodeId;
+                    $executionIndex = $result['execution_index'] ?? null;
+
+                    $nodeOutputs[$prevNodeId] = $result['output'] ?? [];
+                    $nodeResults[$prevNodeId] = [
+                        'input' => $result['input'] ?? [],
+                        'output' => $result['output'] ?? [],
+                        'execution_index' => $executionIndex,
+                        'status' => 'success',
+                        'resume_carried' => true,
+                        'resume_source_execution_id' => $resumeSourceExecutionId,
+                    ];
+
+                    if ($resumeStartNodeId && $prevNodeId !== $resumeStartNodeId) {
+                        if ($startNodeIndex !== null && $executionIndex !== null) {
+                            if ($executionIndex < $startNodeIndex) {
+                                $resumeSkipNodes[$prevNodeId] = true;
+                            }
+                        } else {
+                            $resumeSkipNodes[$prevNodeId] = true;
+                        }
+                    }
+
+                    $nodeType = $nodeTypeMap[$prevNodeId] ?? null;
+                    $nodeOutput = $result['output'] ?? [];
+
+                    if ($nodeType === 'if' && is_array($nodeOutput) && array_key_exists('result', $nodeOutput)) {
+                        $ifResults[$prevNodeId] = $nodeOutput['result'];
+                    }
+
+                    if ($nodeType === 'switch' && is_array($nodeOutput) && array_key_exists('matchedOutput', $nodeOutput)) {
+                        $switchResults[$prevNodeId] = $nodeOutput['matchedOutput'];
+                    }
+                }
+            }
+
+            Log::info('Resume context prepared', [
+                'workflow_id' => $workflow->id,
+                'execution_id' => $executionRecord?->id,
+                'resume_start_node_id' => $resumeStartNodeId,
+                'prefilled_nodes' => $prefilledOrder,
+            ]);
+        }
 
         // Execute each node in order
         foreach ($executionOrder as $index => $node) {
@@ -347,6 +419,15 @@ class WebhookController extends Controller
 
                     throw new WorkflowCancelledException('Workflow execution cancelled during processing');
                 }
+            }
+
+            if ($resumeMode && isset($resumeSkipNodes[$node['id']])) {
+                Log::info('Skipping node due to resume context', [
+                    'workflow_id' => $workflow->id,
+                    'node_id' => $node['id'],
+                    'reason' => 'previously completed before resume',
+                ]);
+                continue;
             }
 
             try {
@@ -462,6 +543,10 @@ class WebhookController extends Controller
                 // STOP execution - không chạy các node tiếp theo
                 break;
             }
+        }
+
+        if (!empty($prefilledOrder)) {
+            $executionOrderList = array_values(array_unique(array_merge($prefilledOrder, $executionOrderList)));
         }
 
         return [

@@ -24,12 +24,14 @@ class ExecuteWorkflowJob implements ShouldQueue
     protected $execution;
     protected $workflow;
     protected $webhookRequest;
+    protected $resumeContext;
 
-    public function __construct(WorkflowExecution $execution, Workflow $workflow, array $webhookRequest)
+    public function __construct(WorkflowExecution $execution, Workflow $workflow, array $webhookRequest, ?array $resumeContext = null)
     {
         $this->execution = $execution;
         $this->workflow = $workflow;
         $this->webhookRequest = $webhookRequest;
+        $this->resumeContext = $resumeContext;
     }
 
     public function handle()
@@ -103,7 +105,8 @@ class ExecuteWorkflowJob implements ShouldQueue
                 $this->workflow,
                 $this->webhookRequest,
                 'webhook',
-                $this->execution
+                $this->execution,
+                $this->resumeContext
             );
             $endTime = microtime(true);
             $duration = round(($endTime - $startTime) * 1000);

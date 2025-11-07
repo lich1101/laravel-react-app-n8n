@@ -10,6 +10,8 @@ class WorkflowExecution extends Model
     protected $fillable = [
         'workflow_id',
         'trigger_type',
+        'resumed_from_execution_id',
+        'resumed_to_execution_id',
         'status',
         'queue_job_id',
         'input_data',
@@ -24,6 +26,7 @@ class WorkflowExecution extends Model
         'finished_at',
         'cancel_requested_at',
         'cancelled_at',
+        'resumed_at',
     ];
 
     protected $casts = [
@@ -36,6 +39,7 @@ class WorkflowExecution extends Model
         'finished_at' => 'datetime',
         'cancel_requested_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'resumed_at' => 'datetime',
     ];
 
     /**
