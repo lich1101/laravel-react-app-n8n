@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Workflow;
 use App\Models\WorkflowNode;
+use App\Models\WorkflowExecution;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class WorkflowController extends Controller
 {
@@ -197,10 +199,84 @@ class WorkflowController extends Controller
         $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
 
         $execution = $workflow->executions()->findOrFail($executionId);
+
+        if ($execution->status === 'running') {
+            $execution->update([
+                'status' => 'cancelled',
+                'queue_job_id' => null,
+                'cancel_requested_at' => now(),
+                'cancelled_at' => now(),
+                'finished_at' => now(),
+                'duration_ms' => $execution->started_at
+                    ? $execution->started_at->diffInMilliseconds(now())
+                    : 0,
+            ]);
+
+            return response()->json([
+                'message' => 'Cancellation requested. Workflow will stop shortly.',
+            ]);
+        }
+
+        if (in_array($execution->status, ['queued', 'cancelled', 'success', 'completed', 'error', 'failed'], true)) {
+            if ($execution->queue_job_id) {
+                DB::table('jobs')->where('id', $execution->queue_job_id)->delete();
+            }
+
         $execution->delete();
 
+            return response()->json([
+                'message' => 'Execution deleted successfully',
+            ]);
+        }
+
         return response()->json([
-            'message' => 'Execution deleted successfully'
+            'message' => 'Execution already processed.',
+        ]);
+    }
+
+    /**
+     * Delete all non-running executions for a workflow
+     */
+    public function bulkDeleteExecutions(Request $request, string $workflowId): JsonResponse
+    {
+        $user = auth()->user();
+        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+
+        $executions = $workflow->executions()
+            ->where('status', '!=', 'running')
+            ->get();
+
+        if ($executions->isEmpty()) {
+            return response()->json([
+                'deleted' => 0,
+                'message' => 'Không có execution nào cần xóa.',
+            ]);
+        }
+
+        $deletedCount = 0;
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($executions as $execution) {
+                if ($execution->queue_job_id) {
+                    DB::table('jobs')->where('id', $execution->queue_job_id)->delete();
+                }
+
+                $execution->delete();
+                $deletedCount++;
+            }
+
+            DB::commit();
+        } catch (\Throwable $throwable) {
+            DB::rollBack();
+
+            throw $throwable;
+        }
+
+        return response()->json([
+            'deleted' => $deletedCount,
+            'message' => 'Đã xóa tất cả executions không ở trạng thái running.',
         ]);
     }
 

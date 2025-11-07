@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from '../config/axios';
 import ReactFlow, { Background, Controls, MiniMap, Handle, Position } from 'reactflow';
@@ -242,10 +242,45 @@ const WorkflowHistory = () => {
     const [workflowEdges, setWorkflowEdges] = useState([]);
     const [selectedNode, setSelectedNode] = useState(null);
     const [showConfigModal, setShowConfigModal] = useState(false);
+    const [bulkDeleting, setBulkDeleting] = useState(false);
+    const pendingDeletionRef = useRef(new Set());
 
     useEffect(() => {
         fetchExecutions();
     }, [workflowId]);
+
+    const normalizeExecution = (execution) => {
+        let status = execution.status;
+
+        if (execution.cancelled_at) {
+            status = 'cancelled';
+        } else if (
+            (status === 'running' || status === 'queued') &&
+            execution.cancel_requested_at
+        ) {
+            status = 'cancelling';
+        }
+
+        return {
+            ...execution,
+            status,
+        };
+    };
+
+    const applyPendingDeletionFilter = (executionList) => {
+        return executionList.filter((execution) => {
+            if (pendingDeletionRef.current.has(execution.id)) {
+                if (['running', 'cancelling'].includes(execution.status)) {
+                    return true;
+                }
+
+                pendingDeletionRef.current.delete(execution.id);
+                return false;
+            }
+
+            return true;
+        });
+    };
 
     // Auto-refresh executions - ALWAYS poll to detect new executions
     useEffect(() => {
@@ -259,12 +294,14 @@ const WorkflowHistory = () => {
         const interval = setInterval(async () => {
             try {
                 const response = await axios.get(`/workflows/${workflowId}/executions`);
-                const newExecutions = response.data.data || response.data;
-                setExecutions(newExecutions);
+                const rawExecutions = response.data.data || response.data || [];
+                const normalizedExecutions = rawExecutions.map(normalizeExecution);
+                const filteredExecutions = applyPendingDeletionFilter(normalizedExecutions);
+                setExecutions(filteredExecutions);
                 
                 // Auto-refresh selected execution details if status changed or is running
-                if (selectedExecution && newExecutions.length > 0) {
-                    const updatedExecution = newExecutions.find(e => e.id === selectedExecution.id);
+                if (selectedExecution && filteredExecutions.length > 0) {
+                    const updatedExecution = filteredExecutions.find(e => e.id === selectedExecution.id);
                     if (updatedExecution) {
                         const statusChanged = updatedExecution.status !== selectedExecution.status;
                         const isRunning = updatedExecution.status === 'running' || updatedExecution.status === 'queued';
@@ -289,12 +326,14 @@ const WorkflowHistory = () => {
                 setLoading(true);
             }
             const response = await axios.get(`/workflows/${workflowId}/executions`);
-            const newExecutions = response.data.data || response.data;
-            setExecutions(newExecutions);
+            const rawExecutions = response.data.data || response.data || [];
+            const normalizedExecutions = rawExecutions.map(normalizeExecution);
+            const filteredExecutions = applyPendingDeletionFilter(normalizedExecutions);
+            setExecutions(filteredExecutions);
             
             // Auto-refresh selected execution details if it's running
-            if (selectedExecution && newExecutions.length > 0) {
-                const updatedExecution = newExecutions.find(e => e.id === selectedExecution.id);
+            if (selectedExecution && filteredExecutions.length > 0) {
+                const updatedExecution = filteredExecutions.find(e => e.id === selectedExecution.id);
                 if (updatedExecution && updatedExecution.status !== selectedExecution.status) {
                     // Status changed, refresh details
                     setSelectedExecution(updatedExecution);
@@ -360,21 +399,101 @@ const WorkflowHistory = () => {
         fetchExecutionDetails(execution.id);
     };
 
-    const handleDeleteExecution = async (executionId, event) => {
-        event.stopPropagation(); // Prevent selecting execution when clicking delete
-        
-        if (!confirm('Bạn có chắc muốn xóa execution này?')) {
+    const handleBulkDeleteExecutions = async () => {
+        if (bulkDeleting) {
             return;
         }
 
+        const deletableExecutions = executions.filter(execution => execution.status !== 'running');
+
+        if (deletableExecutions.length === 0) {
+            alert('Không có execution nào để xóa.');
+            return;
+        }
+
+        if (!confirm('Bạn có chắc muốn xóa tất cả executions không ở trạng thái running?')) {
+            return;
+        }
+
+        setBulkDeleting(true);
+
         try {
-            await axios.delete(`/workflows/${workflowId}/executions/${executionId}`);
+            await axios.delete(`/workflows/${workflowId}/executions`);
+
+            const shouldResetSelection = selectedExecution && selectedExecution.status !== 'running';
+
+            if (shouldResetSelection) {
+                setSelectedExecution(null);
+                setExecutionDetails(null);
+                setWorkflowNodes([]);
+                setWorkflowEdges([]);
+                setSelectedNode(null);
+                setShowConfigModal(false);
+            }
+
+            await fetchExecutions(true);
+        } catch (err) {
+            console.error('Error bulk deleting executions:', err);
+            alert('Không thể xóa các executions. Vui lòng thử lại.');
+        } finally {
+            setBulkDeleting(false);
+        }
+    };
+
+    const handleDeleteExecution = async (execution, event) => {
+        event.stopPropagation(); // Prevent selecting execution when clicking delete
+        
+        const status = execution.status;
+        const isRunning = status === 'running';
+        const message = isRunning
+            ? 'Execution đang chạy. Bạn có muốn hủy và xóa không?'
+            : 'Bạn có chắc muốn xóa execution này?';
+
+        if (!confirm(message)) {
+            return;
+        }
+
+        pendingDeletionRef.current.add(execution.id);
+
+        setExecutions(prev => prev.map(e => (
+            e.id === execution.id
+                ? {
+                    ...e,
+                    status: isRunning ? 'cancelling' : e.status,
+                    cancel_requested_at: isRunning ? new Date().toISOString() : e.cancel_requested_at,
+                }
+                : e
+        )));
+
+        try {
+            const response = await axios.delete(`/workflows/${workflowId}/executions/${execution.id}`);
+            const data = response?.data || {};
+
+            const message = data.message || '';
+            const wasCancellation = message.toLowerCase().includes('cancellation');
+            const wasDeleted = message.toLowerCase().includes('deleted');
+            const wasQueueCancel = message.toLowerCase().includes('cancelled from queue');
             
-            // Remove from list
-            setExecutions(prev => prev.filter(e => e.id !== executionId));
+            if (wasDeleted || wasQueueCancel) {
+                pendingDeletionRef.current.delete(execution.id);
+                setExecutions(prev => prev.filter(e => e.id !== execution.id));
+            } else if (wasCancellation) {
+                setExecutions(prev => prev.map(e => (
+                    e.id === execution.id
+                        ? {
+                            ...e,
+                            status: 'cancelling',
+                            cancel_requested_at: new Date().toISOString(),
+                        }
+                        : e
+                )));
+            } else {
+                // fallback refresh
+                fetchExecutions();
+            }
             
             // Clear selection if deleted execution was selected
-            if (selectedExecution?.id === executionId) {
+            if (wasDeleted && selectedExecution?.id === execution.id) {
                 setSelectedExecution(null);
                 setExecutionDetails(null);
                 setWorkflowNodes([]);
@@ -383,6 +502,8 @@ const WorkflowHistory = () => {
         } catch (err) {
             console.error('Error deleting execution:', err);
             alert('Không thể xóa execution. Vui lòng thử lại.');
+            pendingDeletionRef.current.delete(execution.id);
+            fetchExecutions();
         }
     };
 
@@ -492,6 +613,8 @@ const WorkflowHistory = () => {
         });
     };
 
+    const hasNonRunningExecutions = executions.some(execution => execution.status !== 'running');
+
     if (loading) return <div className="p-4 text-white">Đang tải lịch sử thực thi...</div>;
     if (error) return <div className="p-4 text-red-500">{error}</div>;
 
@@ -500,7 +623,20 @@ const WorkflowHistory = () => {
             {/* Left sidebar - Execution list */}
             <div className="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto">
                 <div className="p-4">
-                    <h2 className="text-lg font-semibold text-white mb-4">Lịch sử thực thi</h2>
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                        <h2 className="text-lg font-semibold text-white">Lịch sử thực thi</h2>
+                        <button
+                            onClick={handleBulkDeleteExecutions}
+                            disabled={bulkDeleting || !hasNonRunningExecutions}
+                            className={`text-xs font-semibold px-3 py-2 rounded transition-colors ${
+                                bulkDeleting || !hasNonRunningExecutions
+                                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                    : 'bg-red-600 hover:bg-red-500 text-white'
+                            }`}
+                        >
+                            {bulkDeleting ? 'Đang xóa...' : 'Xóa tất cả'}
+                        </button>
+                    </div>
                     {executions.length === 0 ? (
                         <p className="text-gray-400 text-sm">Chưa có lịch sử thực thi nào.</p>
                     ) : (
@@ -525,16 +661,20 @@ const WorkflowHistory = () => {
                                             execution.status === 'error' || execution.status === 'failed' ? 'bg-red-500 text-white' :
                                             execution.status === 'running' ? 'bg-blue-500 text-white' :
                                             execution.status === 'queued' ? 'bg-gray-500 text-white' :
-                                            'bg-yellow-500 text-white'
+                                            execution.status === 'cancelling' ? 'bg-yellow-500 text-white' :
+                                            execution.status === 'cancelled' ? 'bg-purple-500 text-white' :
+                                            'bg-gray-500 text-white'
                                         }`}>
                                             {execution.status === 'success' || execution.status === 'completed' ? 'Success' : 
                                              execution.status === 'error' || execution.status === 'failed' ? 'Error' :
                                              execution.status === 'running' ? 'Running' :
                                              execution.status === 'queued' ? 'Queued' :
-                                             'Unknown'}
+                                             execution.status === 'cancelling' ? 'Cancelling' :
+                                             execution.status === 'cancelled' ? 'Cancelled' :
+                                             (execution.status || 'Unknown')}
                                         </span>
                                             <button
-                                                onClick={(e) => handleDeleteExecution(execution.id, e)}
+                                                onClick={(e) => handleDeleteExecution(execution, e)}
                                                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-600 rounded"
                                                 title="Xóa execution"
                                             >

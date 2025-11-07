@@ -11,6 +11,7 @@ use App\Jobs\ExecuteWorkflowJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Exceptions\WorkflowCancelledException;
 
 class WebhookController extends Controller
 {
@@ -120,11 +121,19 @@ class WebhookController extends Controller
             
             // Dispatch job to execute workflow asynchronously
             // Concurrency limit will be checked in the Job itself
-            ExecuteWorkflowJob::dispatch(
+            $job = new ExecuteWorkflowJob(
                 $execution,
                 $workflow,
                 $webhookData
             );
+
+            $jobId = dispatch($job);
+
+            if ($jobId) {
+                $execution->update([
+                    'queue_job_id' => $jobId,
+                ]);
+            }
 
             // Return response immediately
             $responses[] = [
@@ -221,7 +230,13 @@ class WebhookController extends Controller
         }
         
         try {
-            $result = $this->executeWorkflow($workflow, $request);
+            $execution->refresh();
+
+            if ($execution->cancel_requested_at || $execution->status === 'cancelled') {
+                throw new WorkflowCancelledException('Workflow execution was cancelled before start');
+            }
+
+            $result = $this->executeWorkflow($workflow, $request, $execution);
             
             // Extract execution details from result
             $nodeResults = $result['node_results'] ?? [];
@@ -249,6 +264,22 @@ class WebhookController extends Controller
             
             return $result;
             
+        } catch (WorkflowCancelledException $e) {
+            $execution->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'finished_at' => now(),
+                'duration_ms' => $execution->started_at
+                    ? $execution->started_at->diffInMilliseconds(now())
+                    : 0,
+            ]);
+
+            Log::info('Workflow execution cancelled by user request', [
+                'execution_id' => $execution->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            throw $e;
         } catch (\Exception $e) {
             // Update execution as failed
             $execution->update([
@@ -266,7 +297,7 @@ class WebhookController extends Controller
         }
     }
 
-    private function executeWorkflow($workflow, $webhookRequest)
+    private function executeWorkflow($workflow, $webhookRequest, ?WorkflowExecution $executionRecord = null)
     {
         $nodes = $workflow->nodes ?? [];
         $edges = $workflow->edges ?? [];
@@ -303,6 +334,20 @@ class WebhookController extends Controller
 
         // Execute each node in order
         foreach ($executionOrder as $index => $node) {
+            if ($executionRecord) {
+                $executionRecord->refresh();
+
+                if ($executionRecord->cancel_requested_at || $executionRecord->status === 'cancelled') {
+                    Log::info('Cancellation detected during node execution', [
+                        'workflow_id' => $workflow->id,
+                        'execution_id' => $executionRecord->id,
+                        'node_id' => $node['id'],
+                    ]);
+
+                    throw new WorkflowCancelledException('Workflow execution cancelled during processing');
+                }
+            }
+
             try {
                 // Get input data for this node (with If/Switch branch filtering)
                 $inputData = $this->getNodeInputData($node['id'], $edges, $nodeOutputs, $ifResults, $nodes, $switchResults);

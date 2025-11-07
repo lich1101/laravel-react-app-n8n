@@ -11,6 +11,7 @@ class WorkflowExecution extends Model
         'workflow_id',
         'trigger_type',
         'status',
+        'queue_job_id',
         'input_data',
         'workflow_snapshot',
         'output_data',
@@ -21,6 +22,8 @@ class WorkflowExecution extends Model
         'duration_ms',
         'started_at',
         'finished_at',
+        'cancel_requested_at',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -31,6 +34,8 @@ class WorkflowExecution extends Model
         'execution_order' => 'array',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
+        'cancel_requested_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     /**

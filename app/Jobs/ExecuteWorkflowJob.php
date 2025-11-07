@@ -12,6 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Api\WebhookController;
+use App\Exceptions\WorkflowCancelledException;
 
 class ExecuteWorkflowJob implements ShouldQueue
 {
@@ -34,6 +35,16 @@ class ExecuteWorkflowJob implements ShouldQueue
     public function handle()
     {
         try {
+            $this->execution = $this->execution->fresh();
+
+            if ($this->execution->cancel_requested_at || $this->execution->status === 'cancelled') {
+                Log::info('Workflow execution cancelled before start', [
+                    'execution_id' => $this->execution->id,
+                ]);
+                $this->markCancelled();
+                return;
+            }
+
             // Check concurrent workflows limit
             $maxConcurrent = SystemSetting::get('max_concurrent_workflows', 5);
             $runningCount = WorkflowExecution::where('status', 'running')->count();
@@ -58,11 +69,31 @@ class ExecuteWorkflowJob implements ShouldQueue
                 'max_concurrent' => $maxConcurrent,
             ]);
 
+            $freshBeforeStart = $this->execution->fresh();
+
+            if ($freshBeforeStart->status === 'cancelled' || $freshBeforeStart->cancel_requested_at) {
+                Log::info('Workflow execution cancelled prior to start update', [
+                    'execution_id' => $this->execution->id,
+                ]);
+                $this->execution = $freshBeforeStart;
+                $this->markCancelled();
+                return;
+            }
+
             // Update status to running
             $this->execution->update([
                 'status' => 'running',
                 'started_at' => now(),
+                'queue_job_id' => null,
             ]);
+
+            if ($this->execution->fresh()->cancel_requested_at) {
+                Log::info('Workflow execution cancelled immediately after starting', [
+                    'execution_id' => $this->execution->id,
+                ]);
+                $this->markCancelled();
+                return;
+            }
 
             $webhookController = new WebhookController();
             
@@ -91,6 +122,7 @@ class ExecuteWorkflowJob implements ShouldQueue
                     : $lastNodeResult;
             }
 
+            if ($this->execution->fresh()->status !== 'cancelled') {
             // Update execution record
             $this->execution->update([
                 'status' => $hasError ? 'error' : 'success',
@@ -101,6 +133,7 @@ class ExecuteWorkflowJob implements ShouldQueue
                 'duration_ms' => $duration,
                 'finished_at' => now(),
             ]);
+            }
 
             Log::info('Workflow execution completed', [
                 'execution_id' => $this->execution->id,
@@ -109,6 +142,13 @@ class ExecuteWorkflowJob implements ShouldQueue
                 'error_node' => $errorNode,
             ]);
 
+        } catch (WorkflowCancelledException $e) {
+            Log::info('Workflow execution cancelled', [
+                'execution_id' => $this->execution->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            $this->markCancelled();
         } catch (\Exception $e) {
             Log::error('Workflow execution job failed', [
                 'execution_id' => $this->execution->id,
@@ -116,6 +156,7 @@ class ExecuteWorkflowJob implements ShouldQueue
                 'trace' => $e->getTraceAsString(),
             ]);
 
+            if ($this->execution->fresh()->status !== 'cancelled') {
             // Update execution as failed
             $this->execution->update([
                 'status' => 'error',
@@ -125,6 +166,7 @@ class ExecuteWorkflowJob implements ShouldQueue
                 ],
                 'finished_at' => now(),
             ]);
+            }
         }
     }
 
@@ -135,6 +177,7 @@ class ExecuteWorkflowJob implements ShouldQueue
             'error' => $exception->getMessage(),
         ]);
 
+        if ($this->execution->fresh()->status !== 'cancelled') {
         $this->execution->update([
             'status' => 'error',
             'output_data' => [
@@ -142,6 +185,27 @@ class ExecuteWorkflowJob implements ShouldQueue
                 'message' => $exception->getMessage(),
             ],
             'finished_at' => now(),
+            ]);
+        }
+    }
+
+    protected function markCancelled(): void
+    {
+        $now = now();
+        $execution = $this->execution->fresh();
+
+        $startedAt = $execution->started_at ?: $now;
+        $duration = $execution->started_at
+            ? $execution->started_at->diffInMilliseconds($now)
+            : 0;
+
+        $execution->update([
+            'status' => 'cancelled',
+            'cancel_requested_at' => $execution->cancel_requested_at ?: $now,
+            'cancelled_at' => $now,
+            'finished_at' => $now,
+            'duration_ms' => $duration,
+            'queue_job_id' => null,
         ]);
     }
 }
