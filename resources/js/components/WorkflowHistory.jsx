@@ -247,7 +247,24 @@ const WorkflowHistory = () => {
     const pendingDeletionRef = useRef(new Set());
 
     useEffect(() => {
-        fetchExecutions();
+        let isMounted = true;
+
+        const load = async () => {
+            try {
+                setLoading(true);
+                await fetchExecutions({ skipLoading: true });
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        load();
+
+        return () => {
+            isMounted = false;
+        };
     }, [workflowId]);
 
     const normalizeExecution = (execution) => {
@@ -319,9 +336,9 @@ const WorkflowHistory = () => {
         return () => clearInterval(interval);
     }, [executions, selectedExecution, workflowId]);
 
-    const fetchExecutions = async (skipLoadingState = false) => {
+    const fetchExecutions = async ({ skipLoading = false } = {}) => {
         try {
-            if (!skipLoadingState) {
+            if (!skipLoading) {
                 setLoading(true);
             }
             const response = await axios.get(`/workflows/${workflowId}/executions`);
@@ -330,22 +347,34 @@ const WorkflowHistory = () => {
             const filteredExecutions = applyPendingDeletionFilter(normalizedExecutions);
             setExecutions(filteredExecutions);
             
-            // Auto-refresh selected execution details if it's running
-            if (selectedExecution && filteredExecutions.length > 0) {
+            if (selectedExecution) {
                 const updatedExecution = filteredExecutions.find(e => e.id === selectedExecution.id);
-                if (updatedExecution && updatedExecution.status !== selectedExecution.status) {
-                    // Status changed, refresh details
-                    setSelectedExecution(updatedExecution);
-                    fetchExecutionDetails(updatedExecution.id);
+
+                if (!updatedExecution) {
+                    setSelectedExecution(null);
+                    setExecutionDetails(null);
+                    setWorkflowNodes([]);
+                    setWorkflowEdges([]);
+                } else {
+                    setSelectedExecution(prev => {
+                        if (!prev || prev.id !== updatedExecution.id) return prev;
+
+                        const statusChanged =
+                            prev.status !== updatedExecution.status ||
+                            prev.finished_at !== updatedExecution.finished_at ||
+                            prev.duration_ms !== updatedExecution.duration_ms;
+
+                        return statusChanged ? { ...prev, ...updatedExecution } : prev;
+                    });
                 }
             }
         } catch (err) {
-            if (!skipLoadingState) {
+            if (!skipLoading) {
                 setError('Failed to fetch workflow executions.');
             }
             console.error('Error fetching executions:', err);
         } finally {
-            if (!skipLoadingState) {
+            if (!skipLoading) {
                 setLoading(false);
             }
         }
@@ -394,7 +423,14 @@ const WorkflowHistory = () => {
     };
 
     const handleSelectExecution = (execution) => {
+        if (selectedExecution?.id === execution.id && executionDetails) {
+            return;
+        }
+
         setSelectedExecution(execution);
+        setExecutionDetails(null);
+        setWorkflowNodes([]);
+        setWorkflowEdges([]);
         fetchExecutionDetails(execution.id);
     };
 
@@ -430,7 +466,7 @@ const WorkflowHistory = () => {
                 setShowConfigModal(false);
             }
 
-            await fetchExecutions(true);
+            await fetchExecutions({ skipLoading: true });
         } catch (err) {
             console.error('Error bulk deleting executions:', err);
             alert('Không thể xóa các executions. Vui lòng thử lại.');
@@ -482,7 +518,7 @@ const WorkflowHistory = () => {
                 )));
             } else {
                 // fallback refresh
-                fetchExecutions();
+                fetchExecutions({ skipLoading: true });
             }
             
             // Clear selection if deleted execution was selected
@@ -496,7 +532,7 @@ const WorkflowHistory = () => {
             console.error('Error deleting execution:', err);
             alert('Không thể xóa execution. Vui lòng thử lại.');
             pendingDeletionRef.current.delete(execution.id);
-            fetchExecutions();
+            fetchExecutions({ skipLoading: true });
         }
     };
 
@@ -526,16 +562,16 @@ const WorkflowHistory = () => {
                 const normalized = normalizeExecution(newExecution);
                 setSelectedExecution(normalized);
                 setExecutionDetails(null);
-                await fetchExecutions(true);
+                await fetchExecutions({ skipLoading: true });
                 await fetchExecutionDetails(normalized.id);
             } else {
-                await fetchExecutions(true);
+                await fetchExecutions({ skipLoading: true });
             }
         } catch (err) {
             console.error('Error resuming execution:', err);
             const message = err.response?.data?.message || 'Không thể chạy lại execution. Vui lòng thử lại.';
             alert(message);
-            await fetchExecutions(true);
+            await fetchExecutions({ skipLoading: true });
         } finally {
             setResuming(false);
         }
