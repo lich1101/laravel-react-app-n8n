@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { normalizeVariablePrefix, buildVariablePath, buildArrayPath, resolveVariableValue } from '../utils/variablePath';
 
 /**
  * Expandable Textarea với syntax highlighting cho {{variables}}
@@ -68,8 +69,11 @@ function ExpandableTextarea({
         
         return text.replace(/\{\{([^}]+)\}\}/g, (fullMatch, path) => {
             const trimmedPath = path.trim();
+            if (!trimmedPath) {
+                return fullMatch;
+            }
+
             const value = getValueFromPath(trimmedPath, inputData);
-            
             if (value !== undefined) {
                 if (value === null) {
                     return 'null';
@@ -103,77 +107,8 @@ function ExpandableTextarea({
         
         if (!data) return undefined;
         
-        // Tokenize the path into segments
-        // Split by dots, but preserve array indices
-        // "a.b[0].c[1][2].d" -> ["a", "b", "[0]", "c", "[1]", "[2]", "d"]
-        const tokens = [];
-        let currentToken = '';
-        let i = 0;
-        
-        while (i < path.length) {
-            const char = path[i];
-            
-            if (char === '.') {
-                if (currentToken) {
-                    tokens.push(currentToken);
-                    currentToken = '';
-                }
-            } else if (char === '[') {
-                // Save current token if exists
-                if (currentToken) {
-                    tokens.push(currentToken);
-                    currentToken = '';
-                }
-                // Extract array index
-                const endBracket = path.indexOf(']', i);
-                if (endBracket === -1) {
-                    // Invalid syntax
-                    return undefined;
-                }
-                tokens.push(path.substring(i, endBracket + 1)); // Include '[' and ']'
-                i = endBracket + 1;
-                continue;
-            } else {
-                currentToken += char;
-            }
-            
-            i++;
-        }
-        
-        // Don't forget the last token
-        if (currentToken) {
-            tokens.push(currentToken);
-        }
-        
-        // Now traverse using tokens
-        let current = data;
-        
-        for (const token of tokens) {
-            if (!token) continue;
-            
-            // Check if token is an array index like "[0]"
-            const arrayIndexMatch = token.match(/^\[(\d+)\]$/);
-            
-            if (arrayIndexMatch) {
-                // Array index access
-                const index = parseInt(arrayIndexMatch[1]);
-                
-                if (Array.isArray(current) && index >= 0 && index < current.length) {
-                    current = current[index];
-                } else {
-                    return undefined;
-                }
-            } else {
-                // Object key access
-                if (current && typeof current === 'object' && token in current) {
-                    current = current[token];
-                } else {
-                    return undefined;
-                }
-            }
-        }
-        
-        return current;
+        const resolved = resolveVariableValue(path, data);
+        return resolved.exists ? resolved.value : undefined;
     };
 
     // Highlight {{variables}} trong text - mode = 'template' or 'resolved'
@@ -352,8 +287,10 @@ function ExpandableTextarea({
 
     // Render draggable data fields
     const renderDraggableData = (obj, prefix = '', depth = 0) => {
+        const currentPrefix = normalizeVariablePrefix(prefix, depth === 0);
+
         if (obj === null || obj === undefined) {
-            if (!prefix) {
+            if (!currentPrefix) {
             return <span className="text-xs text-gray-500 dark:text-gray-400">null</span>;
             }
 
@@ -361,8 +298,8 @@ function ExpandableTextarea({
                 <div 
                     className="text-xs text-gray-700 dark:text-gray-300 cursor-move p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
                     draggable="true"
-                    onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${prefix}}}`)}
-                    title={`Drag {{${prefix}}}`}
+                    onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${currentPrefix}}}`)}
+                    title={`Drag {{${currentPrefix}}}`}
                 >
                     null
                 </div>
@@ -374,8 +311,8 @@ function ExpandableTextarea({
                 <div 
                     className="text-xs text-gray-700 dark:text-gray-300 cursor-move p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
                     draggable="true"
-                    onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${prefix}}}`)}
-                    title={`Drag {{${prefix}}}`}
+                    onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${currentPrefix}}}`)}
+                    title={`Drag {{${currentPrefix}}}`}
                 >
                     {typeof obj === 'string' ? `"${obj.substring(0, 50)}${obj.length > 50 ? '...' : ''}"` : String(obj)}
                 </div>
@@ -383,24 +320,29 @@ function ExpandableTextarea({
         }
 
         if (Array.isArray(obj)) {
-            const isCollapsed = collapsedPaths.has(prefix);
+            const collapseKey = currentPrefix || prefix;
+            const isCollapsed = collapsedPaths.has(collapseKey);
             return (
                 <div className="text-xs">
                     <div 
                         className="flex items-center gap-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 p-1 rounded"
-                        onClick={() => toggleCollapse(prefix)}
+                        onClick={() => toggleCollapse(collapseKey)}
                     >
                         <span className="text-gray-500 dark:text-gray-400">{isCollapsed ? '▶' : '▼'}</span>
                         <span className="text-purple-600 dark:text-purple-400">Array ({obj.length} items)</span>
                     </div>
                     {!isCollapsed && (
                         <div className="ml-4 mt-1 space-y-1">
-                            {obj.map((item, index) => (
+                            {obj.map((item, index) => {
+                                const itemPath = buildArrayPath(currentPrefix, index);
+
+                                return (
                                 <div key={index}>
                                     <span className="text-gray-500 dark:text-gray-400">[{index}]:</span>
-                                    {renderDraggableData(item, `${prefix}[${index}]`, depth + 1)}
+                                    {renderDraggableData(item, itemPath, depth + 1)}
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -408,13 +350,14 @@ function ExpandableTextarea({
         }
 
         // Object
-        const isCollapsed = collapsedPaths.has(prefix);
+        const basePrefix = currentPrefix || prefix;
+        const isCollapsed = collapsedPaths.has(basePrefix);
         const keys = Object.keys(obj);
         
         return (
             <div className="space-y-1">
                 {keys.map(key => {
-                    const variablePath = prefix ? `${prefix}.${key}` : key;
+                    const variablePath = buildVariablePath(basePrefix, key);
                     const isPrimitive = typeof obj[key] !== 'object' || obj[key] === null;
                     const hasChildren = !isPrimitive && (Array.isArray(obj[key]) || Object.keys(obj[key]).length > 0);
                     const isChildCollapsed = collapsedPaths.has(variablePath);

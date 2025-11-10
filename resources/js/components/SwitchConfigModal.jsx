@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
+import ExpandableTextarea from './ExpandableTextarea';
 
 // Operators for Switch
 const OPERATORS = [
@@ -138,18 +140,23 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         });
     };
 
-    const renderDraggableJSON = (obj, prefix = '') => {
+    const renderDraggableJSON = (obj, prefix = '', depth = 0) => {
+        const currentPrefix = normalizeVariablePrefix(prefix, depth === 0);
+
         if (obj === null || obj === undefined) {
             return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">null</span>;
         }
 
         if (Array.isArray(obj)) {
             const typeInfo = getTypeInfo(obj);
-            const isCollapsed = collapsedPaths.has(prefix);
+            const collapseKey = currentPrefix || prefix;
+            const isCollapsed = collapsedPaths.has(collapseKey);
             return (
                 <div className="space-y-1">
-                    <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1" onClick={() => toggleCollapse(prefix)}>
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">{isCollapsed ? '▶' : '▼'}</span>
+                    <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1" onClick={() => toggleCollapse(collapseKey)}>
+                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {isCollapsed ? '▶' : '▼'}
+                        </span>
                         <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
@@ -160,7 +167,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                             {obj.map((item, index) => (
                                 <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
-                                    {renderDraggableJSON(item, `${prefix}[${index}]`)}
+                                    {renderDraggableJSON(item, buildArrayPath(currentPrefix, index), depth + 1)}
                                 </div>
                             ))}
                         </div>
@@ -171,55 +178,88 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
         if (typeof obj === 'object') {
             const keys = Object.keys(obj);
+            const typeInfo = getTypeInfo(obj);
+            const basePath = currentPrefix || prefix;
+            const baseCollapsed = collapsedPaths.has(basePath);
+
+            if (keys.length === 0) {
+                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">empty object</span>;
+            }
+
             return (
                 <div className="space-y-1">
-                    {keys.map((key) => {
-                        const value = obj[key];
-                        const isPrimitive = typeof value !== 'object' || value === null;
-                        const variablePath = prefix ? `${prefix}.${key}` : key;
-                        const typeInfo = getTypeInfo(value);
-                        const isCollapsed = collapsedPaths.has(variablePath);
+                    <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1" onClick={() => toggleCollapse(basePath)}>
+                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {baseCollapsed ? '▶' : '▼'}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                            {typeInfo.icon}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{keys.length} keys</span>
+                    </div>
+                    {!baseCollapsed && (
+                        <div className="ml-4 space-y-1">
+                            {keys.map((key) => {
+                                const value = obj[key];
+                                const variablePath = buildVariablePath(basePath, key);
+                                const isPrimitive = value === null || value === undefined || (typeof value !== 'object' && !Array.isArray(value));
+                                const childCollapsed = collapsedPaths.has(variablePath);
 
-                        return (
-                            <div key={key} className="group">
-                                <div className="flex items-start gap-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 -mx-2">
-                                    {!isPrimitive && (
-                                        <span className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer mt-1" onClick={() => toggleCollapse(variablePath)}>
-                                            {isCollapsed ? '▶' : '▼'}
-                                        </span>
-                                    )}
-                                    <div className="flex-1 min-w-0 cursor-move" draggable="true" onDragStart={(e) => {
-                                        e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
-                                        e.dataTransfer.effectAllowed = 'copy';
-                                    }} title={`Kéo thả để sử dụng {{${variablePath}}}`}>
-                                        <div className="flex items-center gap-2">
-                                            <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono flex-shrink-0`}>
-                                                {typeInfo.icon}
-                                            </span>
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{key}</span>
+                                return (
+                                    <div key={key} className="group">
+                                        <div className="flex items-start gap-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 -mx-2">
+                                            {!isPrimitive && (
+                                                <span 
+                                                    className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer mt-1"
+                                                    onClick={() => toggleCollapse(variablePath)}
+                                                >
+                                                    {childCollapsed ? '▶' : '▼'}
+                                                </span>
+                                            )}
+                                            <div 
+                                                className="flex-1 min-w-0 cursor-move"
+                                                draggable="true"
+                                                onDragStart={(e) => {
+                                                    e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
+                                                }}
+                                                title={`Kéo thả để sử dụng {{${variablePath}}}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                                                        {typeInfo.icon}
+                                                    </span>
+                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                                                        {key}
+                                                    </span>
+                                                </div>
+                                                {isPrimitive && (
+                                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono break-all">
+                                                        {typeof value === 'string' ? `"${truncateText(value)}"` : String(value)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    const variable = `{{${variablePath}}}`;
+                                                    navigator.clipboard.writeText(variable);
+                                                    alert(`✓ Đã copy: ${variable}`);
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-opacity flex-shrink-0"
+                                                title="Copy variable"
+                                            >
+                                                📋
+                                            </button>
                                         </div>
-                                        {isPrimitive && (
-                                            <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono break-all">
-                                                {typeof value === 'string' ? `"${truncateText(value)}"` : String(value)}
+                                        {!isPrimitive && !childCollapsed && (
+                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                                {renderDraggableJSON(value, variablePath, depth + 1)}
                                             </div>
                                         )}
                                     </div>
-                                    <button onClick={() => {
-                                        const variable = `{{${variablePath}}}`;
-                                        navigator.clipboard.writeText(variable);
-                                        alert(`✓ Đã copy: ${variable}`);
-                                    }} className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-opacity flex-shrink-0">
-                                        📋
-                                    </button>
-                                </div>
-                                {!isPrimitive && !isCollapsed && (
-                                    <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                        {renderDraggableJSON(value, variablePath)}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -343,11 +383,13 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                     Value
                                                 </label>
-                                                <input type="text" value={rule.value} onChange={(e) => updateRule(index, 'value', e.target.value)} onDrop={(e) => {
-                                                    e.preventDefault();
-                                                    const variable = e.dataTransfer.getData('text/plain');
-                                                    updateRule(index, 'value', variable);
-                                                }} onDragOver={(e) => e.preventDefault()} placeholder="{{variable}} or value" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm" />
+                                                <ExpandableTextarea
+                                                    value={rule.value}
+                                                    onChange={(newValue) => updateRule(index, 'value', newValue)}
+                                                    inputData={inputData}
+                                                    rows={1}
+                                                    placeholder="{{variable}} or value"
+                                                />
                                             </div>
 
                                             {/* Operator */}
@@ -368,11 +410,13 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                     <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                         Compare to
                                                     </label>
-                                                    <input type="text" value={rule.value2} onChange={(e) => updateRule(index, 'value2', e.target.value)} onDrop={(e) => {
-                                                        e.preventDefault();
-                                                        const variable = e.dataTransfer.getData('text/plain');
-                                                        updateRule(index, 'value2', variable);
-                                                    }} onDragOver={(e) => e.preventDefault()} placeholder="value or {{variable}}" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm" />
+                                                    <ExpandableTextarea
+                                                        value={rule.value2}
+                                                        onChange={(newValue) => updateRule(index, 'value2', newValue)}
+                                                        inputData={inputData}
+                                                        rows={1}
+                                                        placeholder="value or {{variable}}"
+                                                    />
                                                 </div>
                                             )}
 
@@ -381,7 +425,12 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                     Output Name
                                                 </label>
-                                                <input type="text" value={rule.outputName} onChange={(e) => updateRule(index, 'outputName', e.target.value)} placeholder="Output name" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+                                                <ExpandableTextarea
+                                                    value={rule.outputName}
+                                                    onChange={(newValue) => updateRule(index, 'outputName', newValue)}
+                                                    rows={1}
+                                                    placeholder="Output name"
+                                                />
                                             </div>
                                         </div>
                                     ))}
@@ -393,7 +442,12 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Fallback Output Name
                                 </label>
-                                <input type="text" value={config.fallbackOutput} onChange={(e) => setConfig({ ...config, fallbackOutput: e.target.value })} placeholder="No Match" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                <ExpandableTextarea
+                                    value={config.fallbackOutput}
+                                    onChange={(newValue) => setConfig({ ...config, fallbackOutput: newValue })}
+                                    rows={1}
+                                    placeholder="No Match"
+                                />
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                     Tên output khi không có rule nào match
                                 </p>

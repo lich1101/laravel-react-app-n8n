@@ -4,6 +4,7 @@ import CredentialModal from './CredentialModal';
 import axios from '../config/axios';
 import ExpandableTextarea from './ExpandableTextarea';
 import ResultDisplay from './ResultDisplay';
+import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
 function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
@@ -221,6 +222,8 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
     // Render draggable JSON - n8n style
     const renderDraggableJSON = (obj, prefix = '', indent = 0) => {
+        const currentPrefix = normalizeVariablePrefix(prefix, indent === 0);
+
         if (obj === null || obj === undefined) {
             return (
                 <div className="flex items-center gap-2 py-1">
@@ -231,12 +234,13 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
         if (Array.isArray(obj)) {
             const typeInfo = getTypeInfo(obj);
-            const isCollapsed = collapsedPaths.has(prefix);
+            const collapseKey = currentPrefix || prefix;
+            const isCollapsed = collapsedPaths.has(collapseKey);
             return (
                 <div className="space-y-1">
                     <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(prefix)}
+                        onClick={() => toggleCollapse(collapseKey)}
                     >
                         <span className="text-gray-500 dark:text-gray-400 text-xs">
                             {isCollapsed ? '▶' : '▼'}
@@ -249,7 +253,7 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => {
-                                const itemPath = `${prefix}[${index}]`;
+                                const itemPath = buildArrayPath(currentPrefix, index);
                                 return (
                                     <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
                                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
@@ -270,7 +274,7 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                     {keys.map((key) => {
                         const value = obj[key];
                         const isPrimitive = typeof value !== 'object' || value === null;
-                        const variablePath = prefix ? `${prefix}.${key}` : key;
+                        const variablePath = buildVariablePath(currentPrefix, key);
                         const typeInfo = getTypeInfo(value);
                         const isCollapsed = collapsedPaths.has(variablePath);
 
@@ -757,19 +761,16 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
                                                         </label>
                                                     ) : (
-                                                        <input
-                                                            type="number"
-                                                            step={optionDef.step}
-                                                            min={optionDef.min}
-                                                            max={optionDef.max}
-                                                            value={optionValue}
-                                                            onChange={(e) => {
-                                                                const val = optionDef.step < 1 
-                                                                    ? parseFloat(e.target.value) 
-                                                                    : parseInt(e.target.value);
-                                                                updateAdvancedOption(optionKey, val || optionDef.default);
+                                                        <ExpandableTextarea
+                                                            value={optionValue !== undefined ? String(optionValue) : ''}
+                                                            onChange={(newValue) => {
+                                                                const parsed = optionDef.step < 1
+                                                                    ? parseFloat(newValue)
+                                                                    : parseInt(newValue, 10);
+                                                                updateAdvancedOption(optionKey, Number.isNaN(parsed) ? optionDef.default : parsed);
                                                             }}
-                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                            rows={1}
+                                                            placeholder={String(optionDef.default)}
                                                         />
                                                     )}
                                                     

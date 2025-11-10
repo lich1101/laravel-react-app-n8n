@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import VariableInput from './VariableInput';
 import CredentialModal from './CredentialModal';
 import axios from '../config/axios';
+import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
+import ExpandableTextarea from './ExpandableTextarea';
 
 function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
@@ -110,6 +112,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
     };
 
     const renderDraggableJSON = (obj, prefix = '', indent = 0) => {
+        const currentPrefix = normalizeVariablePrefix(prefix, indent === 0);
+
         if (obj === null || obj === undefined) {
             return (
                 <div className="flex items-center gap-2 py-1">
@@ -120,12 +124,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
         if (Array.isArray(obj)) {
             const typeInfo = getTypeInfo(obj);
-            const isCollapsed = collapsedPaths.has(prefix);
+            const collapseKey = currentPrefix || prefix;
+            const isCollapsed = collapsedPaths.has(collapseKey);
             return (
                 <div className="space-y-1">
                     <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(prefix)}
+                        onClick={() => toggleCollapse(collapseKey)}
                     >
                         <span className="text-gray-500 dark:text-gray-400 text-xs">
                             {isCollapsed ? '▶' : '▼'}
@@ -138,7 +143,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => {
-                                const itemPath = `${prefix}[${index}]`;
+                                const itemPath = buildArrayPath(currentPrefix, index);
                                 return (
                                     <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
                                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
@@ -159,7 +164,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                     {keys.map((key) => {
                         const value = obj[key];
                         const isPrimitive = typeof value !== 'object' || value === null;
-                        const variablePath = prefix ? `${prefix}.${key}` : key;
+                        const variablePath = buildVariablePath(currentPrefix, key);
                         const typeInfo = getTypeInfo(value);
                         const isCollapsed = collapsedPaths.has(variablePath);
 
@@ -578,24 +583,11 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     URL
                                 </label>
                                 <VariableInput
-                                    type="text"
                                     name="url"
                                     value={config.url}
                                     inputData={inputData}
-                                    onChange={(e) => setConfig({ ...config, url: e.target.value })}
-                                    onDrop={(e) => {
-                                        e.preventDefault();
-                                        const variable = e.dataTransfer.getData('text/plain');
-                                        const start = e.target.selectionStart;
-                                        const end = e.target.selectionEnd;
-                                        const currentValue = e.target.value;
-                                        const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                        setConfig(prev => ({ ...prev, url: newValue }));
-                                        setTimeout(() => {
-                                            e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                        }, 0);
-                                    }}
-                                    onDragOver={(e) => e.preventDefault()}
+                                    rows={1}
+                                    onChange={(newValue) => setConfig({ ...config, url: newValue })}
                                     placeholder="https://example.com/api"
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 />
@@ -675,23 +667,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         Custom Credential Value
                                     </label>
                                     <VariableInput
-                                        type="text"
-                                        name="credential"
-                                        value={config.credential || ''}
-                                        onChange={(e) => setConfig({ ...config, credential: e.target.value })}
-                                        onDrop={(e) => {
-                                            e.preventDefault();
-                                            const variable = e.dataTransfer.getData('text/plain');
-                                            const start = e.target.selectionStart;
-                                            const end = e.target.selectionEnd;
-                                            const currentValue = e.target.value;
-                                            const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                            setConfig(prev => ({ ...prev, credential: newValue }));
-                                            setTimeout(() => {
-                                                e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                            }, 0);
-                                        }}
-                                        onDragOver={(e) => e.preventDefault()}
+                                        rows={1}
+                                        onChange={(newValue) => setConfig({ ...config, credential: newValue })}
                                         placeholder="Enter credential"
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     />
@@ -722,48 +699,24 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 </div>
                                 {config.queryParams.map((param, index) => (
                                     <div key={index} className="flex space-x-2 mb-2">
-                                        <input
-                                            type="text"
-                                            name={`queryParam-${index}-name`}
-                                            placeholder="Name"
-                                            value={param.name}
-                                            onChange={(e) => updateParam('queryParams', index, 'name', e.target.value)}
-                                            onDrop={(e) => {
-                                                e.preventDefault();
-                                                const variable = e.dataTransfer.getData('text/plain');
-                                                const start = e.target.selectionStart;
-                                                const end = e.target.selectionEnd;
-                                                const currentValue = e.target.value;
-                                                const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                                updateParam('queryParams', index, 'name', newValue);
-                                                setTimeout(() => {
-                                                    e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                                }, 0);
-                                            }}
-                                            onDragOver={(e) => e.preventDefault()}
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                        />
-                                        <input
-                                            type="text"
-                                            name={`queryParam-${index}-value`}
-                                            placeholder="Value"
-                                            value={param.value}
-                                            onChange={(e) => updateParam('queryParams', index, 'value', e.target.value)}
-                                            onDrop={(e) => {
-                                                e.preventDefault();
-                                                const variable = e.dataTransfer.getData('text/plain');
-                                                const start = e.target.selectionStart;
-                                                const end = e.target.selectionEnd;
-                                                const currentValue = e.target.value;
-                                                const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                                updateParam('queryParams', index, 'value', newValue);
-                                                setTimeout(() => {
-                                                    e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                                }, 0);
-                                            }}
-                                            onDragOver={(e) => e.preventDefault()}
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                        />
+                                        <div className="flex-1">
+                                            <ExpandableTextarea
+                                                value={param.name}
+                                                onChange={(newValue) => updateParam('queryParams', index, 'name', newValue)}
+                                                inputData={inputData}
+                                                rows={1}
+                                                placeholder="Name"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <ExpandableTextarea
+                                                value={param.value}
+                                                onChange={(newValue) => updateParam('queryParams', index, 'value', newValue)}
+                                                inputData={inputData}
+                                                rows={1}
+                                                placeholder="Value"
+                                            />
+                                        </div>
                                         <button
                                             onClick={() => removeParam('queryParams', index)}
                                             className="text-red-600 hover:text-red-700"
@@ -808,48 +761,24 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 </div>
                                 {config.headers.map((header, index) => (
                                     <div key={index} className="flex space-x-2 mb-2">
-                                        <input
-                                            type="text"
-                                            name={`header-${index}-name`}
-                                            placeholder="Name"
-                                            value={header.name}
-                                            onChange={(e) => updateParam('headers', index, 'name', e.target.value)}
-                                            onDrop={(e) => {
-                                                e.preventDefault();
-                                                const variable = e.dataTransfer.getData('text/plain');
-                                                const start = e.target.selectionStart;
-                                                const end = e.target.selectionEnd;
-                                                const currentValue = e.target.value;
-                                                const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                                updateParam('headers', index, 'name', newValue);
-                                                setTimeout(() => {
-                                                    e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                                }, 0);
-                                            }}
-                                            onDragOver={(e) => e.preventDefault()}
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                        />
-                                        <input
-                                            type="text"
-                                            name={`header-${index}-value`}
-                                            placeholder="Value"
-                                            value={header.value}
-                                            onChange={(e) => updateParam('headers', index, 'value', e.target.value)}
-                                            onDrop={(e) => {
-                                                e.preventDefault();
-                                                const variable = e.dataTransfer.getData('text/plain');
-                                                const start = e.target.selectionStart;
-                                                const end = e.target.selectionEnd;
-                                                const currentValue = e.target.value;
-                                                const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                                updateParam('headers', index, 'value', newValue);
-                                                setTimeout(() => {
-                                                    e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                                }, 0);
-                                            }}
-                                            onDragOver={(e) => e.preventDefault()}
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                        />
+                                        <div className="flex-1">
+                                            <ExpandableTextarea
+                                                value={header.name}
+                                                onChange={(newValue) => updateParam('headers', index, 'name', newValue)}
+                                                inputData={inputData}
+                                                rows={1}
+                                                placeholder="Name"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <ExpandableTextarea
+                                                value={header.value}
+                                                onChange={(newValue) => updateParam('headers', index, 'value', newValue)}
+                                                inputData={inputData}
+                                                rows={1}
+                                                placeholder="Value"
+                                            />
+                                        </div>
                                         <button
                                             onClick={() => removeParam('headers', index)}
                                             className="text-red-600 hover:text-red-700"
@@ -875,13 +804,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Timeout (seconds)
                                 </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="300"
-                                    value={config.timeout || 30}
-                                    onChange={(e) => setConfig({ ...config, timeout: parseInt(e.target.value) || 30 })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                <ExpandableTextarea
+                                    value={config.timeout !== undefined ? String(config.timeout) : '30'}
+                                    onChange={(newValue) => {
+                                        const parsed = parseInt(newValue, 10);
+                                        setConfig({ ...config, timeout: Number.isNaN(parsed) ? 30 : parsed });
+                                    }}
+                                    rows={1}
                                     placeholder="30"
                                 />
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -963,43 +892,32 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                     <div className="space-y-2">
                                                         {(config.bodyParams || []).map((param, index) => (
                                                             <div key={index} className="flex gap-2 items-center">
-                                                                <input
-                                                                    type="text"
-                                                                    value={param.name || ''}
-                                                                    onChange={(e) => {
-                                                                        const newParams = [...(config.bodyParams || [])];
-                                                                        newParams[index] = { ...newParams[index], name: e.target.value };
-                                                                        setConfig({ ...config, bodyParams: newParams });
-                                                                    }}
-                                                                    placeholder="Name"
-                                                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                                                />
-                                                                <input
-                                                                    type="text"
-                                                                    value={param.value || ''}
-                                                                    onChange={(e) => {
-                                                                        const newParams = [...(config.bodyParams || [])];
-                                                                        newParams[index] = { ...newParams[index], value: e.target.value };
-                                                                        setConfig({ ...config, bodyParams: newParams });
-                                                                    }}
-                                                                    onDrop={(e) => {
-                                                                        e.preventDefault();
-                                                                        const variable = e.dataTransfer.getData('text/plain');
-                                                                        const start = e.target.selectionStart;
-                                                                        const end = e.target.selectionEnd;
-                                                                        const currentValue = e.target.value;
-                                                                        const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                                                        const newParams = [...(config.bodyParams || [])];
-                                                                        newParams[index] = { ...newParams[index], value: newValue };
-                                                                        setConfig({ ...config, bodyParams: newParams });
-                                                                        setTimeout(() => {
-                                                                            e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                                                        }, 0);
-                                                                    }}
-                                                                    onDragOver={(e) => e.preventDefault()}
-                                                                    placeholder="Value"
-                                                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                                                />
+                                                                <div className="flex-1">
+                                                                    <ExpandableTextarea
+                                                                        value={param.name || ''}
+                                                                        onChange={(newValue) => {
+                                                                            const newParams = [...(config.bodyParams || [])];
+                                                                            newParams[index] = { ...newParams[index], name: newValue };
+                                                                            setConfig({ ...config, bodyParams: newParams });
+                                                                        }}
+                                                                        inputData={inputData}
+                                                                        rows={1}
+                                                                        placeholder="Name"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <ExpandableTextarea
+                                                                        value={param.value || ''}
+                                                                        onChange={(newValue) => {
+                                                                            const newParams = [...(config.bodyParams || [])];
+                                                                            newParams[index] = { ...newParams[index], value: newValue };
+                                                                            setConfig({ ...config, bodyParams: newParams });
+                                                                        }}
+                                                                        inputData={inputData}
+                                                                        rows={1}
+                                                                        placeholder="Value"
+                                                                    />
+                                                                </div>
                                                                 <button
                                                                     onClick={() => {
                                                                         const newParams = config.bodyParams.filter((_, i) => i !== index);
@@ -1035,12 +953,12 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                         {config.bodyType === 'json' ? 'Raw Body Content' : 'Body Content'}
                                                     </label>
-                                                    <textarea
+                                                    <ExpandableTextarea
                                                         value={config.bodyContent || ''}
-                                                        onChange={(e) => setConfig({ ...config, bodyContent: e.target.value })}
+                                                        onChange={(newValue) => setConfig({ ...config, bodyContent: newValue })}
                                                         placeholder="Enter body content"
                                                         rows={5}
-                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                                                        inputData={inputData}
                                                     />
                                                 </div>
                                             )}

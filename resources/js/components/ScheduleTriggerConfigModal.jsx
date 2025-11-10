@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import axios from '../config/axios';
+import ExpandableTextarea from './ExpandableTextarea';
 import ResultDisplay from './ResultDisplay';
 
 const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, onRename, outputData, readOnly = false }) => {
@@ -147,14 +149,16 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                                             {config.interval === 'weeks' && 'Mỗi bao nhiêu tuần? *'}
                                             {config.interval === 'months' && 'Mỗi bao nhiêu tháng? *'}
                                         </label>
-                                        <input
-                                            type="number"
-                                            min={currentIntervalOption.min}
-                                            max={currentIntervalOption.max}
-                                            value={config.intervalValue}
-                                            onChange={(e) => setConfig({ ...config, intervalValue: parseInt(e.target.value) || 1 })}
+                                        <ExpandableTextarea
+                                            value={config.intervalValue !== undefined ? String(config.intervalValue) : '1'}
+                                            onChange={(newValue) => {
+                                                const parsed = parseInt(newValue, 10);
+                                                let clamped = Number.isNaN(parsed) ? currentIntervalOption.min : parsed;
+                                                clamped = Math.max(currentIntervalOption.min, Math.min(currentIntervalOption.max, clamped));
+                                                setConfig({ ...config, intervalValue: clamped });
+                                            }}
                                             disabled={readOnly}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            rows={1}
                                         />
                                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                             Min: {currentIntervalOption.min}, Max: {currentIntervalOption.max}
@@ -168,34 +172,36 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                     Trigger at Hour (0-23)
                                                 </label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="23"
-                                                    value={config.triggerAt.hour}
-                                                    onChange={(e) => setConfig({ 
-                                                        ...config, 
-                                                        triggerAt: { ...config.triggerAt, hour: parseInt(e.target.value) || 0 }
-                                                    })}
+                                                <ExpandableTextarea
+                                                    value={config.triggerAt.hour !== undefined ? String(config.triggerAt.hour) : '0'}
+                                                    onChange={(newValue) => {
+                                                        const parsed = parseInt(newValue, 10);
+                                                        const clamped = Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(23, parsed));
+                                                        setConfig({
+                                                            ...config,
+                                                            triggerAt: { ...config.triggerAt, hour: clamped }
+                                                        });
+                                                    }}
                                                     disabled={readOnly}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                    rows={1}
                                                 />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                     Trigger at Minute (0-59)
                                                 </label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="59"
-                                                    value={config.triggerAt.minute}
-                                                    onChange={(e) => setConfig({ 
-                                                        ...config, 
-                                                        triggerAt: { ...config.triggerAt, minute: parseInt(e.target.value) || 0 }
-                                                    })}
+                                                <ExpandableTextarea
+                                                    value={config.triggerAt.minute !== undefined ? String(config.triggerAt.minute) : '0'}
+                                                    onChange={(newValue) => {
+                                                        const parsed = parseInt(newValue, 10);
+                                                        const clamped = Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(59, parsed));
+                                                        setConfig({
+                                                            ...config,
+                                                            triggerAt: { ...config.triggerAt, minute: clamped }
+                                                        });
+                                                    }}
                                                     disabled={readOnly}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                    rows={1}
                                                 />
                                             </div>
                                         </div>
@@ -224,13 +230,13 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                             Cron Expression *
                                         </label>
-                                        <input
-                                            type="text"
-                                            value={config.cronExpression}
-                                            onChange={(e) => setConfig({ ...config, cronExpression: e.target.value })}
+                                        <ExpandableTextarea
+                                            value={config.cronExpression || ''}
+                                            onChange={(newValue) => setConfig({ ...config, cronExpression: newValue })}
                                             disabled={readOnly}
+                                            rows={1}
                                             placeholder="0 * * * *"
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
+                                            className="font-mono"
                                         />
                                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                             Format: minute hour day month weekday

@@ -3082,13 +3082,61 @@ JS;
         return ['exists' => true, 'value' => $value];
     }
     
+    private function splitPathSegments(string $path): array
+    {
+        if ($path === '') {
+            return [];
+        }
+
+        $path = trim($path);
+
+        if (str_starts_with($path, '"')) {
+            $length = strlen($path);
+            $segment = '';
+            $segments = [];
+            $escaped = false;
+
+            for ($i = 1; $i < $length; $i++) {
+                $char = $path[$i];
+
+                if ($char === '\\' && !$escaped) {
+                    $escaped = true;
+                    continue;
+                }
+
+                if ($char === '"' && !$escaped) {
+                    $segments[] = stripcslashes($segment);
+                    $i++;
+                    $remaining = substr($path, $i);
+
+                    if ($remaining !== '' && $remaining[0] === '.') {
+                        $remaining = substr($remaining, 1);
+                    }
+
+                    if ($remaining !== '') {
+                        $segments = array_merge($segments, explode('.', $remaining));
+                    }
+
+                    return $segments;
+                }
+
+                $segment .= $char;
+                $escaped = false;
+            }
+
+            // If we exit the loop without closing quote, treat as unquoted path
+        }
+
+        return explode('.', $path);
+    }
+    
     /**
      * Check if a path exists (even if value is null)
      * Uses same logic as getValueFromPath but tracks if path was found
      */
     private function pathExists($path, $inputData)
     {
-        $parts = explode('.', $path);
+        $parts = $this->splitPathSegments($path);
         $nodeName = $parts[0];
         
         // Handle array index in first part
@@ -3229,7 +3277,7 @@ JS;
             }),
         ]);
 
-        $parts = explode('.', $path);
+        $parts = $this->splitPathSegments($path);
 
         Log::info('🔍 Path parsing', [
             'original_path' => $path,

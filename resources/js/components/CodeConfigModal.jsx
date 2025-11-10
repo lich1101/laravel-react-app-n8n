@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
+import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
 function CodeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
     // Add readOnly support
@@ -108,6 +109,8 @@ return result;`,
     };
 
     const renderDraggableJSON = (obj, prefix = '', indent = 0) => {
+        const currentPrefix = normalizeVariablePrefix(prefix, indent === 0);
+
         if (obj === null || obj === undefined) {
             return (
                 <div className="flex items-center gap-2 py-1">
@@ -118,12 +121,13 @@ return result;`,
 
         if (Array.isArray(obj)) {
             const typeInfo = getTypeInfo(obj);
-            const isCollapsed = collapsedPaths.has(prefix);
+            const collapseKey = currentPrefix || prefix;
+            const isCollapsed = collapsedPaths.has(collapseKey);
             return (
                 <div className="space-y-1">
                     <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(prefix)}
+                        onClick={() => toggleCollapse(collapseKey)}
                     >
                         <span className="text-gray-500 dark:text-gray-400 text-xs">
                             {isCollapsed ? '▶' : '▼'}
@@ -136,7 +140,7 @@ return result;`,
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => {
-                                const itemPath = `${prefix}[${index}]`;
+                                const itemPath = buildArrayPath(currentPrefix, index);
                                 return (
                                     <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
                                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
@@ -157,7 +161,7 @@ return result;`,
                     {keys.map((key) => {
                         const value = obj[key];
                         const isPrimitive = typeof value !== 'object' || value === null;
-                        const variablePath = prefix ? `${prefix}.${key}` : key;
+                        const variablePath = buildVariablePath(currentPrefix, key);
                         const typeInfo = getTypeInfo(value);
                         const isCollapsed = collapsedPaths.has(variablePath);
 

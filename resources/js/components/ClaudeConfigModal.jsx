@@ -3,6 +3,7 @@ import axios from '../config/axios';
 import CredentialModal from './CredentialModal';
 import ExpandableTextarea from './ExpandableTextarea';
 import ResultDisplay from './ResultDisplay';
+import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
 function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
@@ -25,6 +26,8 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     ];
 
     const models = [
+        { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5' },
+        { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
         // Claude 4 Family (Latest versions)
         { value: 'claude-opus-4-1-20250805', label: 'Claude Opus 4.1' },
         { value: 'claude-opus-4-20250514', label: 'Claude Opus 4' },
@@ -212,6 +215,8 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     };
 
     const renderDraggableJSON = (obj, prefix = '', indent = 0) => {
+        const currentPrefix = normalizeVariablePrefix(prefix, indent === 0);
+
         if (obj === null || obj === undefined) {
             return (
                 <div className="flex items-center gap-2 py-1">
@@ -222,12 +227,13 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
         if (Array.isArray(obj)) {
             const typeInfo = getTypeInfo(obj);
-            const isCollapsed = collapsedPaths.has(prefix);
+            const collapseKey = currentPrefix || prefix;
+            const isCollapsed = collapsedPaths.has(collapseKey);
             return (
                 <div className="space-y-1">
                     <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(prefix)}
+                        onClick={() => toggleCollapse(collapseKey)}
                     >
                         <span className="text-gray-500 dark:text-gray-400 text-xs">
                             {isCollapsed ? '▶' : '▼'}
@@ -240,7 +246,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => {
-                                const itemPath = `${prefix}[${index}]`;
+                                const itemPath = buildArrayPath(currentPrefix, index);
                                 return (
                                     <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
                                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
@@ -261,7 +267,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                     {keys.map((key) => {
                         const value = obj[key];
                         const isPrimitive = typeof value !== 'object' || value === null;
-                        const variablePath = prefix ? `${prefix}.${key}` : key;
+                        const variablePath = buildVariablePath(currentPrefix, key);
                         const typeInfo = getTypeInfo(value);
                         const isCollapsed = collapsedPaths.has(variablePath);
 
@@ -670,19 +676,16 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                         </button>
                                                     </div>
                                                     
-                                                    <input
-                                                        type="number"
-                                                        step={optionDef.step}
-                                                        min={optionDef.min}
-                                                        max={optionDef.max}
-                                                        value={optionValue}
-                                                        onChange={(e) => {
-                                                            const val = optionDef.step < 1 
-                                                                ? parseFloat(e.target.value) 
-                                                                : parseInt(e.target.value);
-                                                            updateAdvancedOption(optionKey, val || optionDef.default);
+                                                    <ExpandableTextarea
+                                                        value={optionValue !== undefined ? String(optionValue) : ''}
+                                                        onChange={(newValue) => {
+                                                            const raw = optionDef.step < 1
+                                                                ? parseFloat(newValue)
+                                                                : parseInt(newValue, 10);
+                                                            updateAdvancedOption(optionKey, Number.isNaN(raw) ? optionDef.default : raw);
                                                         }}
-                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                        rows={1}
+                                                        placeholder={String(optionDef.default)}
                                                     />
                                                     
                                                     {optionDef.description && (

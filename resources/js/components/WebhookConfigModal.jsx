@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from '../config/axios';
 import VariableInput from './VariableInput';
 import CredentialModal from './CredentialModal';
+import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
+import ExpandableTextarea from './ExpandableTextarea';
 
 const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, onRename, outputData, readOnly = false }) => {
     const [config, setConfig] = useState({
@@ -389,9 +391,9 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Path</label>
                                 <div className="relative">
                                     <VariableInput
-                                        type="text"
                                         value={config.path}
-                                        onChange={(e) => setConfig({ ...config, path: e.target.value })}
+                                        onChange={(newValue) => setConfig({ ...config, path: newValue })}
+                                        rows={1}
                                         placeholder="test"
                                         className={`w-full bg-gray-900 border rounded px-3 py-2 text-white ${
                                             pathError ? 'border-red-500' : 'border-gray-700'
@@ -495,80 +497,74 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
 
                                     {/* Basic Auth */}
                                     {config.authType === 'basic' && (
-                                        <>
-                                            <div className="mb-6">
-                                                <label className="block text-sm font-medium text-gray-300 mb-2">Username</label>
-                                                <input
-                                                    type="text"
-                                                    value={config.username}
-                                                    onChange={(e) => setConfig({ ...config, username: e.target.value })}
-                                                    placeholder="username"
-                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                                                <ExpandableTextarea
+                                                    value={config.username || ''}
+                                                    onChange={(newValue) => setConfig({ ...config, username: newValue })}
+                                                    placeholder="Username"
+                                                    rows={1}
                                                 />
                                             </div>
-                                            <div className="mb-6">
-                                                <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-                                                <input
-                                                    type="password"
-                                                    value={config.password}
-                                                    onChange={(e) => setConfig({ ...config, password: e.target.value })}
-                                                    placeholder="password"
-                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
+                                                <ExpandableTextarea
+                                                    value={config.password || ''}
+                                                    onChange={(newValue) => setConfig({ ...config, password: newValue })}
+                                                    placeholder="Password"
+                                                    rows={1}
                                                 />
                                             </div>
-                                        </>
+                                        </div>
                                     )}
 
                                     {/* API Key */}
                                     {config.authType === 'apiKey' && (
-                                        <>
-                                            <div className="mb-6">
-                                                <label className="block text-sm font-medium text-gray-300 mb-2">API Key Name</label>
-                                                <input
-                                                    type="text"
-                                                    value={config.apiKeyName}
-                                                    onChange={(e) => setConfig({ ...config, apiKeyName: e.target.value })}
-                                                    placeholder="X-API-Key"
-                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-300 mb-1">Header/Query Param Name</label>
+                                                <ExpandableTextarea
+                                                    value={config.apiKeyName || ''}
+                                                    onChange={(newValue) => setConfig({ ...config, apiKeyName: newValue })}
+                                                    placeholder="X-API-KEY"
+                                                    rows={1}
                                                 />
                                             </div>
-                                            <div className="mb-6">
-                                                <label className="block text-sm font-medium text-gray-300 mb-2">API Key Value</label>
-                                                <VariableInput
-                                                    type="text"
-                                                    value={config.apiKeyValue}
-                                                    onChange={(e) => setConfig({ ...config, apiKeyValue: e.target.value })}
-                                                    placeholder="your-api-key"
-                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-300 mb-1">API Key Value</label>
+                                                <ExpandableTextarea
+                                                    value={config.apiKeyValue || ''}
+                                                    onChange={(newValue) => setConfig({ ...config, apiKeyValue: newValue })}
+                                                    placeholder="Your API Key"
+                                                    rows={1}
                                                 />
                                             </div>
-                                        </>
+                                        </div>
                                     )}
 
                                     {/* Digest Auth */}
                                     {config.authType === 'digest' && (
-                                        <>
-                                            <div className="mb-6">
-                                                <label className="block text-sm font-medium text-gray-300 mb-2">Username</label>
-                                                <input
-                                                    type="text"
-                                                    value={config.username}
-                                                    onChange={(e) => setConfig({ ...config, username: e.target.value })}
-                                                    placeholder="username"
-                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                                                <ExpandableTextarea
+                                                    value={config.username || ''}
+                                                    onChange={(newValue) => setConfig({ ...config, username: newValue })}
+                                                    placeholder="Username"
+                                                    rows={1}
                                                 />
                                             </div>
-                                            <div className="mb-6">
-                                                <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-                                                <input
-                                                    type="password"
-                                                    value={config.password}
-                                                    onChange={(e) => setConfig({ ...config, password: e.target.value })}
-                                                    placeholder="password"
-                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
+                                                <ExpandableTextarea
+                                                    value={config.password || ''}
+                                                    onChange={(newValue) => setConfig({ ...config, password: newValue })}
+                                                    placeholder="Password"
+                                                    rows={1}
                                                 />
                                             </div>
-                                        </>
+                                        </div>
                                     )}
 
                                     {/* OAuth 2.0 */}
@@ -623,22 +619,20 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                         <>
                                             <div className="mb-6">
                                                 <label className="block text-sm font-medium text-gray-300 mb-2">Header Name</label>
-                                                <input
-                                                    type="text"
-                                                    value={config.customHeaderName}
-                                                    onChange={(e) => setConfig({ ...config, customHeaderName: e.target.value })}
+                                                <ExpandableTextarea
+                                                    value={config.customHeaderName || ''}
+                                                    onChange={(newValue) => setConfig({ ...config, customHeaderName: newValue })}
                                                     placeholder="X-Custom-Header"
-                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                                    rows={1}
                                                 />
                                             </div>
                                             <div className="mb-6">
                                                 <label className="block text-sm font-medium text-gray-300 mb-2">Header Value</label>
-                                                <VariableInput
-                                                    type="text"
-                                                    value={config.customHeaderValue}
-                                                    onChange={(e) => setConfig({ ...config, customHeaderValue: e.target.value })}
-                                                    placeholder="header value"
-                                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                                <ExpandableTextarea
+                                                    value={config.customHeaderValue || ''}
+                                                    onChange={(newValue) => setConfig({ ...config, customHeaderValue: newValue })}
+                                                    placeholder="Header value"
+                                                    rows={1}
                                                 />
                                             </div>
                                         </>

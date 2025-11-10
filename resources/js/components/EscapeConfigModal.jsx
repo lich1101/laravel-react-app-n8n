@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
+import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
 function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
     // Add readOnly support
@@ -118,6 +119,8 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     };
 
     const renderDraggableJSON = (obj, prefix = '', indent = 0) => {
+        const currentPrefix = normalizeVariablePrefix(prefix, indent === 0);
+
         if (obj === null || obj === undefined) {
             return (
                 <div className="flex items-center gap-2 py-1">
@@ -128,12 +131,13 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
         if (Array.isArray(obj)) {
             const typeInfo = getTypeInfo(obj);
-            const isCollapsed = collapsedPaths.has(prefix);
+            const collapseKey = currentPrefix || prefix;
+            const isCollapsed = collapsedPaths.has(collapseKey);
             return (
                 <div className="space-y-1">
                     <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(prefix)}
+                        onClick={() => toggleCollapse(collapseKey)}
                     >
                         <span className="text-gray-500 dark:text-gray-400 text-xs">
                             {isCollapsed ? '▶' : '▼'}
@@ -145,15 +149,12 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                     </div>
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
-                            {obj.map((item, index) => {
-                                const itemPath = `${prefix}[${index}]`;
-                                return (
-                                    <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
-                                        {renderDraggableJSON(item, itemPath, indent + 1)}
-                                    </div>
-                                );
-                            })}
+                            {obj.map((item, index) => (
+                                <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
+                                    {renderDraggableJSON(item, buildArrayPath(currentPrefix, index), indent + 1)}
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
@@ -162,87 +163,105 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
         if (typeof obj === 'object') {
             const keys = Object.keys(obj);
+            const basePath = currentPrefix || prefix;
+            const baseCollapsed = collapsedPaths.has(basePath);
             return (
                 <div className="space-y-1">
-                    {keys.map((key) => {
-                        const value = obj[key];
-                        const isPrimitive = typeof value !== 'object' || value === null;
-                        const variablePath = prefix ? `${prefix}.${key}` : key;
-                        const typeInfo = getTypeInfo(value);
-                        const isCollapsed = collapsedPaths.has(variablePath);
+                    <div 
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        onClick={() => toggleCollapse(basePath)}
+                    >
+                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {baseCollapsed ? '▶' : '▼'}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${getTypeInfo(obj).color}-100 dark:bg-${getTypeInfo(obj).color}-900/30 text-${getTypeInfo(obj).color}-700 dark:text-${getTypeInfo(obj).color}-300 rounded font-mono`}>
+                            {getTypeInfo(obj).icon}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{keys.length} keys</span>
+                    </div>
+                    {!baseCollapsed && (
+                        <div className="ml-4 space-y-1">
+                            {keys.map((key) => {
+                                const value = obj[key];
+                                const variablePath = buildVariablePath(basePath, key);
+                                const isPrimitive = value === null || value === undefined || (typeof value !== 'object' && !Array.isArray(value));
+                                const childCollapsed = collapsedPaths.has(variablePath);
+                                const typeInfo = getTypeInfo(value);
 
-                        return (
-                            <div key={key} className="group">
-                                <div className="flex items-start gap-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 -mx-2">
-                                    {!isPrimitive && (
-                                        <span 
-                                            className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer mt-1"
-                                            onClick={() => toggleCollapse(variablePath)}
-                                        >
-                                            {isCollapsed ? '▶' : '▼'}
-                                        </span>
-                                    )}
-                                    <div 
-                                        className="flex-1 min-w-0 cursor-move"
-                                        draggable="true"
-                                        onDragStart={(e) => {
-                                            e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
-                                            e.dataTransfer.effectAllowed = 'copy';
-                                        }}
-                                        title={`Kéo thả để sử dụng {{${variablePath}}}`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono flex-shrink-0`}>
-                                                {typeInfo.icon}
-                                            </span>
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                                                {key}
-                                            </span>
-                                            {!isPrimitive && isCollapsed && (
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                    {Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`}
+                                return (
+                                    <div key={key} className="group">
+                                        <div className="flex items-start gap-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 -mx-2">
+                                            {!isPrimitive && (
+                                                <span 
+                                                    className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer mt-1"
+                                                    onClick={() => toggleCollapse(variablePath)}
+                                                >
+                                                    {childCollapsed ? '▶' : '▼'}
                                                 </span>
                                             )}
-                                        </div>
-                                        
-                                        {isPrimitive && (
                                             <div 
-                                                className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono break-all cursor-move"
+                                                className="flex-1 min-w-0 cursor-move"
                                                 draggable="true"
                                                 onDragStart={(e) => {
                                                     e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
                                                     e.dataTransfer.effectAllowed = 'copy';
                                                 }}
+                                                title={`Kéo thả để sử dụng {{${variablePath}}}`}
                                             >
-                                                {typeof value === 'string' 
-                                                    ? `"${truncateText(value)}"`
-                                                    : String(value)
-                                                }
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono flex-shrink-0`}>
+                                                        {typeInfo.icon}
+                                                    </span>
+                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                                                        {key}
+                                                    </span>
+                                                    {!isPrimitive && childCollapsed && (
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                            {Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                
+                                                {isPrimitive && (
+                                                    <div 
+                                                        className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono break-all cursor-move"
+                                                        draggable="true"
+                                                        onDragStart={(e) => {
+                                                            e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
+                                                            e.dataTransfer.effectAllowed = 'copy';
+                                                        }}
+                                                    >
+                                                        {typeof value === 'string' 
+                                                            ? `"${truncateText(value)}"`
+                                                            : String(value)
+                                                        }
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                onClick={() => {
+                                                    const variable = `{{${variablePath}}}`;
+                                                    navigator.clipboard.writeText(variable);
+                                                    alert(`✓ Đã copy: ${variable}`);
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-opacity flex-shrink-0"
+                                                title="Copy variable"
+                                            >
+                                                📋
+                                            </button>
+                                        </div>
+
+                                        {!isPrimitive && !childCollapsed && (
+                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                                {renderDraggableJSON(value, variablePath, indent + 1)}
                                             </div>
                                         )}
                                     </div>
-
-                                    <button
-                                        onClick={() => {
-                                            const variable = `{{${variablePath}}}`;
-                                            navigator.clipboard.writeText(variable);
-                                            alert(`✓ Đã copy: ${variable}`);
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-opacity flex-shrink-0"
-                                        title="Copy variable"
-                                    >
-                                        📋
-                                    </button>
-                                </div>
-
-                                {!isPrimitive && !isCollapsed && (
-                                    <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                        {renderDraggableJSON(value, variablePath, indent + 1)}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -419,12 +438,12 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                 Output Field Name
                                             </label>
-                                            <input
-                                                type="text"
+                                            <ExpandableTextarea
                                                 value={field.name}
-                                                onChange={(e) => updateField(index, 'name', e.target.value)}
+                                                onChange={(newValue) => updateField(index, 'name', newValue)}
                                                 placeholder="e.g., body.content or systemMessage"
-                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                rows={1}
+                                                inputData={inputData}
                                             />
                                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                 Tên field trong output (support nested: a.b.c)
@@ -436,25 +455,12 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                 Value (will be escaped)
                                             </label>
-                                            <textarea
+                                            <ExpandableTextarea
                                                 value={field.value}
-                                                onChange={(e) => updateField(index, 'value', e.target.value)}
-                                                onDrop={(e) => {
-                                                    e.preventDefault();
-                                                    const variable = e.dataTransfer.getData('text/plain');
-                                                    const start = e.target.selectionStart;
-                                                    const end = e.target.selectionEnd;
-                                                    const currentValue = e.target.value;
-                                                    const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
-                                                    updateField(index, 'value', newValue);
-                                                    setTimeout(() => {
-                                                        e.target.setSelectionRange(start + variable.length, start + variable.length);
-                                                    }, 0);
-                                                }}
-                                                onDragOver={(e) => e.preventDefault()}
-                                                placeholder="Kéo thả biến hoặc nhập text"
-                                                rows={3}
-                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                                                onChange={(newValue) => updateField(index, 'value', newValue)}
+                                                placeholder="Drag variables or type content"
+                                                rows={4}
+                                                inputData={inputData}
                                             />
                                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                 💡 Dùng {`{{variable}}`} hoặc kéo thả từ INPUT

@@ -27,6 +27,7 @@ import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
 import GeminiConfigModal from './GeminiConfigModal';
 import WorkflowHistory from './WorkflowHistory';
 import RenameNodeModal from './RenameNodeModal';
+import { splitVariablePath, traverseVariableSegments, resolveVariableValue } from '../utils/variablePath';
 
 // Compact node component with quick-add button
 const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [], selected }) => {
@@ -1427,11 +1428,11 @@ function WorkflowEditor() {
             const trimmedPath = path.trim();
             const value = getValueFromPath(trimmedPath, inputData);
             
-            console.log('🔍 Resolving variable:', { 
+            console.log('🔍 Resolving variable:', {
                 original: fullMatch,
-                path: trimmedPath, 
-                pathParts: trimmedPath.split('.'),
-                availableKeys: Object.keys(inputData).filter(k => typeof k === 'string'),
+                path: trimmedPath,
+                pathParts: splitVariablePath(trimmedPath),
+                availableKeys: Object.keys(inputData || {}).filter(k => typeof k === 'string'),
                 value: value !== undefined ? (typeof value === 'string' ? value.substring(0, 100) : value) : 'NOT_FOUND',
                 type: typeof value,
                 willResolve: value !== undefined && value !== null
@@ -1457,66 +1458,10 @@ function WorkflowEditor() {
     // Supports: "field", "field[0]", "field[0][1]", "field[0].nested[1].deep"
     const traversePath = (pathSegment, startValue) => {
         if (!pathSegment) return startValue;
-        
-        // Tokenize the segment into parts
-        // "optimized_messages[0].summaryAssistantMessage" -> ["optimized_messages", "[0]", "summaryAssistantMessage"]
-        const tokens = [];
-        let currentToken = '';
-        let i = 0;
-        
-        while (i < pathSegment.length) {
-            const char = pathSegment[i];
-            
-            if (char === '.') {
-                if (currentToken) {
-                    tokens.push(currentToken);
-                    currentToken = '';
-                }
-            } else if (char === '[') {
-                if (currentToken) {
-                    tokens.push(currentToken);
-                    currentToken = '';
-                }
-                const endBracket = pathSegment.indexOf(']', i);
-                if (endBracket === -1) return undefined;
-                tokens.push(pathSegment.substring(i, endBracket + 1));
-                i = endBracket + 1;
-                continue;
-            } else {
-                currentToken += char;
-            }
-            i++;
-        }
-        
-        if (currentToken) {
-            tokens.push(currentToken);
-        }
-        
-        // Traverse using tokens
-        let current = startValue;
-        
-        for (const token of tokens) {
-            if (!token) continue;
-            
-            const arrayIndexMatch = token.match(/^\[(\d+)\]$/);
-            
-            if (arrayIndexMatch) {
-                const index = parseInt(arrayIndexMatch[1]);
-                if (Array.isArray(current) && index >= 0 && index < current.length) {
-                    current = current[index];
-                } else {
-                    return undefined;
-                }
-            } else {
-                if (current && typeof current === 'object' && token in current) {
-                    current = current[token];
-                } else {
-                    return undefined;
-                }
-            }
-        }
-        
-        return current;
+
+        const segments = splitVariablePath(pathSegment);
+        const result = traverseVariableSegments(segments, startValue);
+        return result.exists ? result.value : undefined;
     };
 
     // Get value from path like "input-0.headers.content-length" or "nodeName.field"
@@ -1541,72 +1486,27 @@ function WorkflowEditor() {
         
         if (!inputData) return undefined;
 
-        const parts = path.split('.');
-        const firstPart = parts[0];
-        
-        // PRIORITY 1: Try to resolve by node customName (check if it exists as a key in inputData)
-        if (inputData[firstPart] !== undefined && isNaN(firstPart)) {
-            console.log('Found node by customName:', firstPart);
-            
-            // Get the starting value from the first part
-            let value = inputData[firstPart];
-            
-            // If there are more parts, traverse them using the helper
-            if (parts.length > 1) {
-                const remainingPath = path.substring(firstPart.length + 1); // +1 for the dot
-                value = traversePath(remainingPath, value);
-            }
-            
+        const { exists, value } = resolveVariableValue(path, inputData);
+        if (exists) {
             return value;
         }
 
-        // PRIORITY 2: Handle input-X format (backward compatibility)
-        if (parts[0].startsWith('input-')) {
-            // Check if first part has array index like "input-0[0]"
-            const inputArrayMatch = parts[0].match(/^input-(\d+)\[(\d+)\]$/);
-            if (inputArrayMatch) {
-                const inputIndex = parseInt(inputArrayMatch[1]);
-                const arrayIndex = parseInt(inputArrayMatch[2]);
-                
-                console.log('Path starts with input array index:', { inputIndex, arrayIndex });
-                
-                if (Array.isArray(inputData) && inputIndex >= 0 && inputIndex < inputData.length && 
-                    Array.isArray(inputData[inputIndex]) && 
-                    arrayIndex < inputData[inputIndex].length) {
-                    var value = inputData[inputIndex][arrayIndex];
-                } else {
-                    return undefined;
-                }
-            } else {
-                // Normal input-X without array index
-                const index = parseInt(parts[0].replace('input-', ''));
-                if (Array.isArray(inputData) && index >= 0 && index < inputData.length) {
-                    var value = inputData[index];
-                } else {
-                    return undefined;
-                }
-            }
-            
-            if (value !== undefined) {
-                // If there are more parts, traverse them using the helper
-                if (parts.length > 1) {
-                    const remainingPath = parts.slice(1).join('.');
-                    value = traversePath(remainingPath, value);
-                }
-                return value;
-            }
-        }
-
-        // PRIORITY 3: Try to find field directly in any numeric input (backward compat)
+        // Final fallback: attempt to traverse each array entry (legacy support)
         if (Array.isArray(inputData)) {
+            const segments = splitVariablePath(path);
+            if (segments.length === 0) {
+                return undefined;
+            }
+
             for (let i = 0; i < inputData.length; i++) {
-                if (typeof inputData[i] !== 'object') continue;
-                
-                // Try to traverse the entire path from this input
-                const value = traversePath(path, inputData[i]);
-                
-                if (value !== undefined && value !== null) {
-                    return value;
+                const entry = inputData[i];
+                if (!entry || typeof entry !== 'object') {
+                    continue;
+                }
+
+                const result = traverseVariableSegments(segments, entry);
+                if (result.exists) {
+                    return result.value;
                 }
             }
         }
