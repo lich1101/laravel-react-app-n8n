@@ -257,24 +257,24 @@ const FoldersTab = () => {
     return (
         <div>
             {/* Sub-tabs for Workflows and Credentials */}
-            <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-                <nav className="flex space-x-8" aria-label="Tabs">
+            <div className="border-b border-subtle mb-6">
+                <nav className="flex space-x-2" aria-label="Tabs">
                     <button
                         onClick={() => setActiveSubTab('workflows')}
-                        className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                             activeSubTab === 'workflows'
-                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                ? 'bg-primary-soft text-primary shadow-card'
+                                : 'text-muted hover:text-primary hover:bg-surface-muted'
                         }`}
                     >
                         📄 Workflows
                     </button>
                     <button
                         onClick={() => setActiveSubTab('credentials')}
-                        className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                             activeSubTab === 'credentials'
-                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                ? 'bg-primary-soft text-primary shadow-card'
+                                : 'text-muted hover:text-primary hover:bg-surface-muted'
                         }`}
                     >
                         🔐 Credentials
@@ -289,7 +289,7 @@ const FoldersTab = () => {
                 <>
                     {/* Workflows Tab Content */}
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Folders</h2>
+                        <h2 className="text-lg font-semibold text-gray-900">Folders</h2>
                         <div className="flex space-x-2">
                             <button
                                 onClick={() => setShowCreateWorkflowModal(true)}
@@ -474,7 +474,7 @@ const FoldersTab = () => {
             {/* Standalone Workflows (No Folder) */}
             {workflows.filter(w => !w.folder_id).length > 0 && (
                 <div className="mt-6">
-                    <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                    <h3 className="text-md font-semibold text-gray-900 mb-3 flex items-center">
                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
@@ -569,13 +569,13 @@ const FoldersTab = () => {
             {/* Create Workflow Modal */}
             {showCreateWorkflowModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4">
                             Create New Workflow
                         </h3>
                         <form onSubmit={handleCreateWorkflow}>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Name *
                                 </label>
                                 <input
@@ -583,18 +583,18 @@ const FoldersTab = () => {
                                     required
                                     value={newWorkflowData.name}
                                     onChange={(e) => setNewWorkflowData({ ...newWorkflowData, name: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                     placeholder="Enter workflow name"
                                 />
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Description
                                 </label>
                                 <textarea
                                     value={newWorkflowData.description}
                                     onChange={(e) => setNewWorkflowData({ ...newWorkflowData, description: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                     placeholder="Enter workflow description (optional)"
                                     rows="3"
                                 />
@@ -625,13 +625,13 @@ const FoldersTab = () => {
             {/* Edit/Add Folder Modal */}
             {showEditModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4">
                             {editingFolder ? 'Edit Folder' : 'Add New Folder'}
                         </h3>
                         <form onSubmit={handleSubmit}>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Name *
                                 </label>
                                 <input
@@ -639,18 +639,18 @@ const FoldersTab = () => {
                                     required
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                     placeholder="Enter folder name"
                                 />
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Description
                                 </label>
                                 <textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                     placeholder="Enter folder description (optional)"
                                     rows="3"
                                 />
@@ -722,8 +722,8 @@ const WorkflowModal = ({ folder, workflows, onClose, onSave }) => {
 
     return (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Manage Workflows - {folder.name}
                 </h3>
                 <div className="max-h-96 overflow-y-auto">
@@ -741,7 +741,7 @@ const WorkflowModal = ({ folder, workflows, onClose, onSave }) => {
                                 }}
                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="text-sm text-gray-900 dark:text-white">{workflow.name}</span>
+                            <span className="text-sm text-gray-900">{workflow.name}</span>
                         </label>
                     ))}
                 </div>
@@ -792,8 +792,8 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
 
     return (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Assign to Projects - {folder.name}
                 </h3>
                 <div className="max-h-96 overflow-y-auto">
@@ -811,7 +811,7 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
                                 }}
                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="text-sm text-gray-900 dark:text-white">{project.name}</span>
+                            <span className="text-sm text-gray-900">{project.name}</span>
                         </label>
                     ))}
                 </div>

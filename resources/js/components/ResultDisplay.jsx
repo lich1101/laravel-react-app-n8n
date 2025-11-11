@@ -25,7 +25,7 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
         // Null/undefined
         if (value === null || value === undefined) {
             return (
-                <span className="text-gray-500 dark:text-gray-400 italic">
+                <span className="text-gray-500 italic">
                     {value === null ? 'null' : 'undefined'}
                 </span>
             );
@@ -34,7 +34,7 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
         // Boolean
         if (typeof value === 'boolean') {
             return (
-                <span className="text-purple-600 dark:text-purple-400 font-semibold">
+                <span className="text-purple-600 font-semibold">
                     {value.toString()}
                 </span>
             );
@@ -43,7 +43,7 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
         // Number
         if (typeof value === 'number') {
             return (
-                <span className="text-orange-600 dark:text-orange-400 font-semibold">
+                <span className="text-orange-600 font-semibold">
                     {value}
                 </span>
             );
@@ -54,7 +54,7 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
             const shouldHighlight = isLikelyResolvedVariable(value, key);
             
             return (
-                <span className={shouldHighlight ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-gray-900 dark:text-gray-100'}>
+                <span className={shouldHighlight ? 'text-primary font-semibold' : 'text-secondary'}>
                     "{value}"
                 </span>
             );
@@ -63,20 +63,20 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
         // Array
         if (Array.isArray(value)) {
             if (value.length === 0) {
-                return <span className="text-gray-500 dark:text-gray-400">[]</span>;
+                return <span className="text-gray-500">[]</span>;
             }
             
             return (
                 <div className="ml-4">
-                    <span className="text-gray-600 dark:text-gray-400">[</span>
+                    <span className="text-gray-600">[</span>
                     {value.map((item, index) => (
                         <div key={index} className="ml-4">
-                            <span className="text-gray-500 dark:text-gray-400 mr-2">{index}:</span>
+                            <span className="text-gray-500 mr-2">{index}:</span>
                             {renderValue(item, `${key}[${index}]`, depth + 1)}
-                            {index < value.length - 1 && <span className="text-gray-600 dark:text-gray-400">,</span>}
+                            {index < value.length - 1 && <span className="text-gray-600">,</span>}
                         </div>
                     ))}
-                    <span className="text-gray-600 dark:text-gray-400">]</span>
+                    <span className="text-gray-600">]</span>
                 </div>
             );
         }
@@ -85,21 +85,21 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
         if (typeof value === 'object') {
             const keys = Object.keys(value);
             if (keys.length === 0) {
-                return <span className="text-gray-500 dark:text-gray-400">{'{}'}</span>;
+                return <span className="text-gray-500">{'{}'}</span>;
             }
 
             return (
                 <div className="ml-4">
-                    <span className="text-gray-600 dark:text-gray-400">{'{'}</span>
+                    <span className="text-gray-600">{'{'}</span>
                     {keys.map((k, index) => (
                         <div key={k} className="ml-4">
-                            <span className="text-blue-700 dark:text-blue-300 font-medium">{k}</span>
-                            <span className="text-gray-600 dark:text-gray-400">: </span>
+                            <span className="text-blue-700 font-medium">{k}</span>
+                            <span className="text-gray-600">: </span>
                             {renderValue(value[k], k, depth + 1)}
-                            {index < keys.length - 1 && <span className="text-gray-600 dark:text-gray-400">,</span>}
+                            {index < keys.length - 1 && <span className="text-gray-600">,</span>}
                         </div>
                     ))}
-                    <span className="text-gray-600 dark:text-gray-400">{'}'}</span>
+                    <span className="text-gray-600">{'}'}</span>
                 </div>
             );
         }
@@ -111,7 +111,7 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
     const renderFormatted = () => {
         if (!data) {
             return (
-                <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+                <div className="flex flex-col items-center justify-center h-64 text-gray-500">
                     <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
@@ -132,7 +132,7 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
     const renderJSON = () => {
         if (!data) {
             return (
-                <div className="text-gray-500 dark:text-gray-400 text-center py-8">
+                <div className="text-gray-500 text-center py-8">
                     No data
                 </div>
             );
@@ -148,15 +148,15 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
     return (
         <div className="flex flex-col h-full">
             {/* Header with view mode toggle */}
-            <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900 dark:text-white">{title}</h3>
+            <div className="bg-surface-muted px-4 py-3 border-b border-subtle flex items-center justify-between">
+                <h3 className="font-semibold text-primary">{title}</h3>
                 <div className="flex gap-2">
                     <button
                         onClick={() => setViewMode('formatted')}
                         className={`px-3 py-1 text-xs rounded ${
                             viewMode === 'formatted'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                ? 'bg-primary-soft text-primary shadow-card'
+                                : 'bg-surface-muted text-muted hover:bg-surface-strong'
                         }`}
                     >
                         Formatted
@@ -165,8 +165,8 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
                         onClick={() => setViewMode('json')}
                         className={`px-3 py-1 text-xs rounded ${
                             viewMode === 'json'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                ? 'bg-primary-soft text-primary shadow-card'
+                                : 'bg-surface-muted text-muted hover:bg-surface-strong'
                         }`}
                     >
                         JSON
@@ -175,18 +175,18 @@ function ResultDisplay({ data, title = 'OUTPUT', showRaw = false }) {
             </div>
 
             {/* Content */}
-            <div className="flex-1 p-4 overflow-y-auto bg-white dark:bg-gray-800">
+            <div className="flex-1 p-4 overflow-y-auto bg-surface-elevated">
                 {viewMode === 'formatted' ? renderFormatted() : renderJSON()}
             </div>
 
             {/* Legend */}
             {data && viewMode === 'formatted' && (
-                <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-2 bg-gray-50 dark:bg-gray-900">
+                <div className="border-t border-subtle px-4 py-2 bg-surface-muted">
                     <div className="flex items-center gap-4 text-xs">
-                        <span className="text-gray-600 dark:text-gray-400">Legend:</span>
-                        <span className="text-blue-600 dark:text-blue-400 font-semibold">Resolved Variables</span>
-                        <span className="text-orange-600 dark:text-orange-400 font-semibold">Numbers</span>
-                        <span className="text-purple-600 dark:text-purple-400 font-semibold">Booleans</span>
+                        <span className="text-muted">Legend:</span>
+                        <span className="text-primary font-semibold">Resolved Variables</span>
+                        <span className="text-orange-600 font-semibold">Numbers</span>
+                        <span className="text-purple-600 font-semibold">Booleans</span>
                     </div>
                 </div>
             )}

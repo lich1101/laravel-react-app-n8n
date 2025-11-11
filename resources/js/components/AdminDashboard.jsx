@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import FoldersTab from './AdministratorDashboard/FoldersTab';
 import UsersTab from './AdministratorDashboard/UsersTab';
 import Sidebar from './Sidebar';
+import AutomationTablesTab from './Automation/AutomationTablesTab';
 
 const AdminDashboard = () => {
-    const [activeTab, setActiveTab] = useState('folders');
+    const [activeTab, setActiveTab] = useState('automation');
     const [isCollapsed, setIsCollapsed] = useState(false);
     const navigate = useNavigate();
 
@@ -16,6 +17,7 @@ const AdminDashboard = () => {
     };
 
     const menuItems = [
+        { id: 'automation', label: 'Automation', icon: '🤖' },
         { id: 'folders', label: 'Folders', icon: '📁' },
         { id: 'users', label: 'Users', icon: '👥' },
     ];
@@ -23,7 +25,7 @@ const AdminDashboard = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
     return (
-        <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="flex min-h-screen bg-gray-50">
             {/* Sidebar */}
             <Sidebar
                 isCollapsed={isCollapsed}
@@ -36,16 +38,16 @@ const AdminDashboard = () => {
             {/* Main Content */}
             <div className="flex-1 flex flex-col">
                 {/* Header */}
-                <nav className="bg-white dark:bg-gray-800 shadow">
+                <nav className="bg-white shadow">
                     <div className="px-4 sm:px-6 lg:px-8">
                         <div className="flex justify-between h-16">
                             <div className="flex items-center">
-                                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                <h1 className="text-xl font-semibold text-gray-900">
                                     Admin Dashboard
                                 </h1>
                             </div>
                             <div className="flex items-center space-x-4">
-                                <span className="text-gray-700 dark:text-gray-300">{user.name || 'Admin'}</span>
+                                <span className="text-gray-700">{user.name || 'Admin'}</span>
                                 <button
                                     onClick={handleLogout}
                                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium"
@@ -59,7 +61,8 @@ const AdminDashboard = () => {
 
                 {/* Content Area */}
                 <div className="flex-1 p-6">
-                    <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+                    <div className="bg-white shadow rounded-lg p-6">
+                        {activeTab === 'automation' && <AutomationTablesTab />}
                         {activeTab === 'folders' && <FoldersTab />}
                         {activeTab === 'users' && <UsersTab />}
                     </div>

@@ -126,7 +126,7 @@ const UsersTab = () => {
     return (
         <div>
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Users</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Users</h2>
                 <button
                     onClick={() => {
                         setShowForm(true);
@@ -140,13 +140,13 @@ const UsersTab = () => {
             </div>
 
             {showForm && (
-                <div className="mb-6 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                    <h3 className="text-md font-semibold mb-3 text-gray-900 dark:text-white">
+                <div className="mb-6 bg-gray-100 p-4 rounded-lg">
+                    <h3 className="text-md font-semibold mb-3 text-gray-900">
                         {editingUser ? 'Edit User' : 'Add New User'}
                     </h3>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Name
                             </label>
                             <input
@@ -154,14 +154,14 @@ const UsersTab = () => {
                                 required
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Email
                                 {editingUser && isProtectedUser(editingUser.email) && (
-                                    <span className="ml-2 text-xs text-orange-600 dark:text-orange-400">(Protected - Cannot change)</span>
+                                    <span className="ml-2 text-xs text-orange-600">(Protected - Cannot change)</span>
                                 )}
                             </label>
                             <input
@@ -170,13 +170,13 @@ const UsersTab = () => {
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 disabled={editingUser && isProtectedUser(editingUser.email)}
-                                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
+                                className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900 ${
                                     editingUser && isProtectedUser(editingUser.email) ? 'opacity-60 cursor-not-allowed' : ''
                                 }`}
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Password {editingUser && '(leave empty to keep current)'}
                             </label>
                             <input
@@ -184,17 +184,17 @@ const UsersTab = () => {
                                 required={!editingUser}
                                 value={formData.password}
                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Role
                             </label>
                             <select
                                 value={formData.role}
                                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
                             >
                                 <option value="user">User</option>
                                 <option value="admin">Admin</option>
@@ -202,13 +202,13 @@ const UsersTab = () => {
                         </div>
                         {isAdministrator && (
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Project
                                 </label>
                                 <select
                                     value={formData.project_id || ''}
                                     onChange={(e) => setFormData({ ...formData, project_id: e.target.value || null })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
                             >
                                 <option value="">No Project</option>
                                 {projects.map((project) => (
@@ -242,66 +242,66 @@ const UsersTab = () => {
             )}
 
             <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-800">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Name
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Email
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Role
                             </th>
                             {isAdministrator && (
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Project
                                 </th>
                             )}
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">
                                 Actions
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="bg-surface-elevated divide-y divide-subtle">
                         {users.map((user) => (
                             <tr key={user.id}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
                                     {user.name}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
                                     {user.email}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <span
                                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                             user.role === 'administrator'
-                                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                                ? 'bg-purple-100 text-purple-800'
                                                 : user.role === 'admin'
-                                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                                ? 'bg-blue-100 text-blue-800'
+                                                : 'bg-surface-muted text-secondary'
                                         }`}
                                     >
                                         {user.role}
                                     </span>
                                 </td>
                                 {isAdministrator && (
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
                                         {getProjectName(user.project_id)}
                                     </td>
                                 )}
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                     <button
                                         onClick={() => handleEdit(user)}
-                                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                        className="text-primary hover:text-primary/80"
                                     >
                                         Edit
                                     </button>
                                     {isAdministrator && (
                                         <button
                                             onClick={() => handleAssignProject(user)}
-                                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                            className="text-emerald-600 hover:text-emerald-500"
                                         >
                                             Project
                                         </button>
@@ -309,12 +309,12 @@ const UsersTab = () => {
                                     {!isProtectedUser(user.email) ? (
                                         <button
                                             onClick={() => handleDelete(user.id)}
-                                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                            className="text-rose-600 hover:text-rose-500"
                                         >
                                             Delete
                                         </button>
                                     ) : (
-                                        <span className="text-gray-400 dark:text-gray-600 cursor-not-allowed" title="Protected system user">
+                                        <span className="text-muted cursor-not-allowed" title="Protected system user">
                                             🔒 Protected
                                         </span>
                                     )}
@@ -362,18 +362,18 @@ const ProjectAssignmentModal = ({ user, projects, onClose, onSave }) => {
 
     return (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Assign Project - {user.name}
                 </h3>
                 <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                         Select Project
                     </label>
                     <select
                         value={selectedProjectId || ''}
                         onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
                     >
                         <option value="">No Project</option>
                         {projects.map((project) => (

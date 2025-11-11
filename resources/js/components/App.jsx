@@ -7,9 +7,9 @@ import WorkflowList from './WorkflowList';
 import WorkflowEditor from './WorkflowEditor';
 import Settings from '../pages/Settings';
 import ProtectedRoute from './ProtectedRoute';
+import UserDashboard from './UserDashboard';
 
 function App() {
-  // Check if user is logged in by checking localStorage
   const token = localStorage.getItem('token');
   const user = localStorage.getItem('user');
 
@@ -30,6 +30,14 @@ function App() {
           element={
             <ProtectedRoute requireAdministrator={true}>
               <AdministratorDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/*"
+          element={
+            <ProtectedRoute>
+              <UserDashboard />
             </ProtectedRoute>
           }
         />
@@ -68,7 +76,7 @@ function App() {
                 } else if (userObj.role === 'admin') {
                   return <Navigate to="/admin" replace />;
                 }
-                return <Navigate to="/workflows" replace />;
+                return <Navigate to="/dashboard/automations/manage" replace />;
               })()
             ) : (
               <Navigate to="/login" replace />

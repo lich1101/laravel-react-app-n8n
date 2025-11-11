@@ -150,7 +150,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
             case 'bearer':
                 return (
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                             Bearer Token *
                         </label>
                         <input
@@ -160,11 +160,11 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                 ...formData,
                                 data: { ...formData.data, token: e.target.value }
                             })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                             placeholder="Enter Bearer token"
                             required
                         />
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <p className="mt-1 text-xs text-gray-500">
                             This will be sent in the Authorization header as "Bearer {'{token}'}"
                         </p>
                     </div>
@@ -174,7 +174,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                 return (
                     <>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 API Key *
                             </label>
                             <input
@@ -184,13 +184,13 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     ...formData,
                                     data: { ...formData.data, key: e.target.value }
                                 })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 placeholder="Enter API key"
                                 required
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Header Name
                             </label>
                             <input
@@ -200,7 +200,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     ...formData,
                                     data: { ...formData.data, headerName: e.target.value }
                                 })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 placeholder="X-API-Key"
                             />
                         </div>
@@ -211,7 +211,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                 return (
                     <>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Username *
                             </label>
                             <input
@@ -221,13 +221,13 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     ...formData,
                                     data: { ...formData.data, username: e.target.value }
                                 })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 placeholder="Username"
                                 required
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Password *
                             </label>
                             <input
@@ -237,7 +237,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     ...formData,
                                     data: { ...formData.data, password: e.target.value }
                                 })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 placeholder="Password"
                                 required
                             />
@@ -250,7 +250,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                     <>
                         {/* Service Selection */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Service *
                             </label>
                             <select
@@ -282,7 +282,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                         }
                                     });
                                 }}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                             >
                                 <option value="google">Google (Drive, Sheets, Docs)</option>
                                 <option value="microsoft">Microsoft (OneDrive, Excel)</option>
@@ -292,23 +292,23 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
                         {/* OAuth Redirect URL - Read only */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 OAuth Redirect URL
                             </label>
                             <input
                                 type="text"
                                 value={formData.data.redirectUrl || `${window.location.origin}/api/oauth2/callback`}
                                 readOnly
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
                             />
-                            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                            <p className="mt-1 text-xs text-amber-600">
                                 ⚠️ Use this URL in {formData.data.service === 'google' ? 'Google Cloud Console' : 'OAuth provider'} as the redirect URI
                             </p>
                         </div>
 
                         {/* Client ID */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Client ID *
                             </label>
                             <input
@@ -318,7 +318,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     ...formData,
                                     data: { ...formData.data, clientId: e.target.value }
                                 })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-sm"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 font-mono text-sm"
                                 placeholder="123456789.apps.googleusercontent.com"
                                 required
                             />
@@ -326,7 +326,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
                         {/* Client Secret */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Client Secret *
                             </label>
                             <input
@@ -336,7 +336,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     ...formData,
                                     data: { ...formData.data, clientSecret: e.target.value }
                                 })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-sm"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 font-mono text-sm"
                                 placeholder="Enter client secret"
                                 required
                             />
@@ -344,7 +344,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
                         {/* Scope */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Scope
                             </label>
                             <textarea
@@ -353,22 +353,22 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     ...formData,
                                     data: { ...formData.data, scope: e.target.value }
                                 })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 font-mono text-xs"
                                 placeholder="Space-separated scopes"
                                 rows={2}
                             />
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            <p className="mt-1 text-xs text-gray-500">
                                 Default scopes for {formData.data.service === 'google' ? 'Google Drive, Sheets, Docs' : 'selected service'}
                             </p>
                         </div>
 
                         {/* Authorization Instruction (if tokens not present) */}
                         {(!formData.data.accessToken || !formData.data.refreshToken) && formData.data.clientId && formData.data.clientSecret && (
-                            <div className="bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded p-3">
-                                <p className="text-sm text-green-800 dark:text-green-200 mb-2">
+                            <div className="bg-green-50 border border-green-200 rounded p-3">
+                                <p className="text-sm text-green-800 mb-2">
                                     🔐 Ready to authorize with {formData.data.service === 'google' ? 'Google' : 'OAuth provider'}!
                                 </p>
-                                <p className="text-xs text-green-700 dark:text-green-300">
+                                <p className="text-xs text-green-700">
                                     Click the green "Connect" button above to save and authorize in one step.
                                 </p>
                             </div>
@@ -376,17 +376,17 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
                         {/* Token Status (if tokens exist) */}
                         {formData.data.accessToken && formData.data.refreshToken && (
-                            <div className="bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded p-3">
+                            <div className="bg-green-50 border border-green-200 rounded p-3">
                                 <div className="flex items-center space-x-2">
-                                    <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                                    <span className="text-sm font-medium text-green-800">
                                         Account Connected
                                     </span>
                                 </div>
                                 {formData.data.expiresAt && (
-                                    <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                                    <p className="text-xs text-green-700 mt-1">
                                         Token expires: {new Date(formData.data.expiresAt).toLocaleString()}
                                     </p>
                                 )}
@@ -399,7 +399,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                 return (
                     <>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Header Name *
                             </label>
                             <input
@@ -409,16 +409,16 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     ...formData,
                                     data: { ...formData.data, headerName: e.target.value }
                                 })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 placeholder="Authorization"
                                 required
                             />
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            <p className="mt-1 text-xs text-gray-500">
                                 E.g., "Authorization", "X-Custom-Auth", "Api-Token"
                             </p>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Header Value *
                             </label>
                             <input
@@ -428,11 +428,11 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     ...formData,
                                     data: { ...formData.data, headerValue: e.target.value }
                                 })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 placeholder="Enter header value/key"
                                 required
                             />
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            <p className="mt-1 text-xs text-gray-500">
                                 The value that will be sent in the header
                             </p>
                         </div>
@@ -448,9 +448,9 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-gray-900">
                         {existingCredential ? 'Edit Credential' : 'Create New Credential'}
                     </h2>
                     <div className="flex items-center space-x-2">
@@ -483,7 +483,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                         )}
                         <button
                             onClick={onClose}
-                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            className="text-gray-400 hover:text-gray-600"
                         >
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -494,17 +494,17 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {error && (
-                        <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded">
+                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
                             {error}
                         </div>
                     )}
 
                     {/* Test Result */}
                     {testResult && (
-                        <div className={`border px-4 py-3 rounded ${
+                        <div className={`border px-4 py-3 rounded-2xl ${
                             testResult.success 
-                                ? 'bg-green-100 dark:bg-green-900 border-green-400 dark:border-green-700 text-green-700 dark:text-green-200'
-                                : 'bg-red-100 dark:bg-red-900 border-red-400 dark:border-red-700 text-red-700 dark:text-red-200'
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                : 'bg-rose-50 border-rose-300 text-rose-700'
                         }`}>
                             <div className="flex items-start space-x-2">
                                 {testResult.success ? (
@@ -522,7 +522,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                     
                                     {/* Show detailed test results for OAuth2 */}
                                     {testResult.success && testResult.details && formData.type === 'oauth2' && (
-                                        <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                                        <div className="mt-2 text-xs text-muted">
                                             <div className="flex items-center space-x-4">
                                                 <span className="flex items-center">
                                                     <svg className="w-3 h-3 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -552,14 +552,14 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
                     {/* Name */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                             Credential Name *
                         </label>
                         <input
                             type="text"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                             placeholder="e.g., Production API Key"
                             required
                         />
@@ -567,7 +567,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
                     {/* Type */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                             Authentication Type
                         </label>
                         <select
@@ -577,7 +577,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                                 type: e.target.value,
                                 data: getDefaultDataForType(e.target.value)
                             })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                             disabled={!!existingCredential}
                         >
                             <option value="bearer">Bearer Token</option>
@@ -593,28 +593,28 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
 
                     {/* Description */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                             Description (Optional)
                         </label>
                         <textarea
                             value={formData.description}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                             placeholder="Add notes about this credential"
                             rows={3}
                         />
                     </div>
 
                     {/* Info message */}
-                    <div className="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded p-3">
-                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                        <p className="text-sm text-blue-800">
                             🔒 Your credential data will be encrypted and stored securely.
                         </p>
                     </div>
 
                     {/* OAuth2 Connect Instruction */}
                     {formData.type === 'oauth2' && (!formData.data.accessToken || !formData.data.refreshToken) && (
-                        <div className="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-200 px-4 py-3 rounded">
+                        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded">
                             <div className="flex items-start space-x-2">
                                 <svg className="w-5 h-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -642,7 +642,7 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-700 dark:text-white px-4 py-2 rounded-md font-medium"
+                            className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md font-medium"
                         >
                             {formData.type === 'oauth2' && !formData.data.accessToken ? 'Cancel' : 'Close'}
                         </button>

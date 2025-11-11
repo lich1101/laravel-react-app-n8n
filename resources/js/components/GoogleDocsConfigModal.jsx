@@ -164,7 +164,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
         const currentPrefix = normalizeVariablePrefix(prefix, depth === 0);
 
         if (obj === null || obj === undefined) {
-            return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">null</span>;
+            return <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">null</span>;
         }
 
         if (Array.isArray(obj)) {
@@ -175,24 +175,24 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
             return (
                 <div className="space-y-1">
                     <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
                         onClick={() => toggleCollapse(collapseKey)}
                     >
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                        <span className="text-gray-500 text-xs">
                             {isCollapsed ? '▶' : '▼'}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{obj.length} items</span>
+                        <span className="text-xs text-gray-500">{obj.length} items</span>
                     </div>
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => {
                                 const itemPath = buildArrayPath(currentPrefix, index);
                                 return (
-                                    <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
+                                    <div key={index} className="border-l-2 border-gray-200 pl-3">
+                                        <div className="text-xs text-gray-500 mb-1">[{index}]</div>
                                         {renderDraggableJSON(item, itemPath, depth + 1)}
                                     </div>
                                 );
@@ -210,22 +210,22 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
             const objectCollapsed = collapsedPaths.has(objectPath);
 
             if (keys.length === 0) {
-                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">empty object</span>;
+                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">empty object</span>;
             }
 
             return (
                 <div className="space-y-1">
                     <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
                         onClick={() => toggleCollapse(objectPath)}
                     >
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                        <span className="text-gray-500 text-xs">
                             {objectCollapsed ? '▶' : '▼'}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{keys.length} keys</span>
+                        <span className="text-xs text-gray-500">{keys.length} keys</span>
                     </div>
                     {!objectCollapsed && (
                         <div className="ml-4 space-y-1">
@@ -237,9 +237,9 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
                                 return (
                                     <div key={key} className="group">
-                                        <div className="flex items-start gap-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 -mx-2">
+                                        <div className="flex items-start gap-2 py-1 hover:bg-gray-100 rounded px-2 -mx-2">
                                             {!isPrimitive && (
-                                                <span className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer mt-1" onClick={() => toggleCollapse(variablePath)}>
+                                                <span className="text-gray-500 text-xs cursor-pointer mt-1" onClick={() => toggleCollapse(variablePath)}>
                                                     {childCollapsed ? '▶' : '▼'}
                                                 </span>
                                             )}
@@ -247,13 +247,13 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                 e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
                                             }} title={`Drag to use {{${variablePath}}}`}>
                                                 <div className="flex items-center gap-2">
-                                                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                                                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                                                         {typeInfo.icon}
                                                     </span>
-                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{key}</span>
+                                                    <span className="text-sm font-medium text-gray-700 truncate">{key}</span>
                                                 </div>
                                                 {isPrimitive && (
-                                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono break-all">
+                                                    <div className="mt-1 text-xs text-gray-600 font-mono break-all">
                                                         {typeof value === 'string' ? `"${truncateText(value)}"` : String(value)}
                                                     </div>
                                                 )}
@@ -266,7 +266,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                             </button>
                                         </div>
                                         {!isPrimitive && !childCollapsed && (
-                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 pl-3">
                                                 {renderDraggableJSON(value, variablePath, depth + 1)}
                                             </div>
                                         )}
@@ -281,7 +281,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
         return (
             <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                <span className="text-xs text-gray-600 font-mono">
                     {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
                 </span>
             </div>
@@ -290,19 +290,19 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
                 {/* Header */}
-                <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">📄</span>
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-2" onClick={() => { if (onRename) onRename(); }} title="Click để đổi tên node">
+                        <h2 className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 flex items-center gap-2" onClick={() => { if (onRename) onRename(); }} title="Click để đổi tên node">
                             {node?.data?.customName || 'Google Docs'}
                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                             </svg>
                         </h2>
                     </div>
-                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -312,24 +312,24 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                 {/* Content */}
                 <div className="flex-1 flex overflow-hidden">
                     {/* Left Panel - INPUT */}
-                    <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
+                    <div className="w-1/3 border-r border-gray-200 flex flex-col">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                            <h3 className="font-semibold text-gray-900">INPUT</h3>
                         </div>
-                        <div className="flex-1 p-4 overflow-y-auto bg-white dark:bg-gray-800">
+                        <div className="flex-1 p-4 overflow-y-auto bg-white">
                             {inputData && Object.keys(inputData).length > 0 ? (
                                 <div className="space-y-4">
                                     {Object.entries(inputData).map(([nodeName, data]) => (
                                         <div key={nodeName}>
-                                            <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">{nodeName}:</div>
-                                            <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                            <div className="text-xs font-semibold text-gray-700 mb-2">{nodeName}:</div>
+                                            <div className="bg-white p-3 rounded-lg border border-gray-200">
                                                 {renderDraggableJSON(data, nodeName)}
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                     </svg>
@@ -341,7 +341,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
                     {/* Center Panel - Configuration */}
                     <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <button className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-medium">
                                 Parameters
                             </button>
@@ -349,11 +349,11 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                         <div className="flex-1 p-4 overflow-y-auto space-y-4">
                             {/* Credential Selection */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Credential to connect with *
                                 </label>
                                 <div className="flex space-x-2">
-                                    <select value={config.credentialId || ''} onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                    <select value={config.credentialId || ''} onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })} className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
                                         <option value="">Select Credential...</option>
                                         {credentials.map(cred => (
                                             <option key={cred.id} value={cred.id}>{cred.name}</option>
@@ -369,7 +369,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                     </button>
                                 </div>
                                 {!config.credentialId && (
-                                    <p className="mt-1 text-xs text-orange-600 dark:text-orange-400">
+                                    <p className="mt-1 text-xs text-orange-600">
                                         ⚠️ Cần OAuth2 credential với Google Docs API scope
                                     </p>
                                 )}
@@ -377,20 +377,20 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
                             {/* Resource */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Resource
                                 </label>
-                                <select value={config.resource} onChange={(e) => setConfig({ ...config, resource: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                <select value={config.resource} onChange={(e) => setConfig({ ...config, resource: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
                                     <option value="document">Document</option>
                                 </select>
                             </div>
 
                             {/* Operation */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Operation *
                                 </label>
-                                <select value={config.operation} onChange={(e) => setConfig({ ...config, operation: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                <select value={config.operation} onChange={(e) => setConfig({ ...config, operation: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
                                     <option value="create">Create</option>
                                     <option value="update">Update</option>
                                     <option value="get">Get</option>
@@ -452,9 +452,9 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                 onChange={(e) => setConfig({ ...config, simplify: e.target.checked })} 
                                                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                             />
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Simplify</span>
+                                            <span className="text-sm font-medium text-gray-700">Simplify</span>
                                         </label>
-                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 ml-6">
+                                        <p className="mt-1 text-xs text-gray-500 ml-6">
                                             💡 Simplify = trả về plain text dễ dùng. Tắt = trả về full document structure
                                         </p>
                                     </div>
@@ -480,7 +480,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                     {/* Actions */}
                                     <div>
                                         <div className="flex items-center justify-between mb-3">
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            <label className="block text-sm font-medium text-gray-700">
                                                 Actions
                                             </label>
                                             <button type="button" onClick={addAction} className="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded font-medium">
@@ -490,9 +490,9 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
                                         <div className="space-y-4">
                                             {config.actions.map((action, index) => (
-                                                <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                                                <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
                                                     <div className="flex items-center justify-between mb-3">
-                                                        <span className="text-sm font-semibold text-gray-900 dark:text-white">Action {index + 1}</span>
+                                                        <span className="text-sm font-semibold text-gray-900">Action {index + 1}</span>
                                                         {config.actions.length > 1 && (
                                                             <button type="button" onClick={() => deleteAction(index)} className="text-red-600 hover:text-red-700 text-xs">
                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -504,16 +504,16 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
                                                     {/* Object */}
                                                     <div className="mb-3">
-                                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Object</label>
-                                                        <select value={action.object} onChange={(e) => updateAction(index, 'object', e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                                                        <label className="block text-xs font-medium text-gray-700 mb-1">Object</label>
+                                                        <select value={action.object} onChange={(e) => updateAction(index, 'object', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
                                                             <option value="text">Text</option>
                                                         </select>
                                                     </div>
 
                                                     {/* Action Type */}
                                                     <div className="mb-3">
-                                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Action</label>
-                                                        <select value={action.action} onChange={(e) => updateAction(index, 'action', e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                                                        <label className="block text-xs font-medium text-gray-700 mb-1">Action</label>
+                                                        <select value={action.action} onChange={(e) => updateAction(index, 'action', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
                                                             <option value="insert">Insert</option>
                                                             <option value="replace">Replace</option>
                                                         </select>
@@ -522,8 +522,8 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                     {/* Insert Segment */}
                                                     {action.action === 'insert' && (
                                                         <div className="mb-3">
-                                                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Insert Segment</label>
-                                                            <select value={action.insertSegment} onChange={(e) => updateAction(index, 'insertSegment', e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                                                            <label className="block text-xs font-medium text-gray-700 mb-1">Insert Segment</label>
+                                                            <select value={action.insertSegment} onChange={(e) => updateAction(index, 'insertSegment', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
                                                                 <option value="body">Body</option>
                                                             </select>
                                                         </div>
@@ -532,8 +532,8 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                     {/* Insert Location */}
                                                     {action.action === 'insert' && (
                                                         <div className="mb-3">
-                                                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Insert Location</label>
-                                                            <select value={action.insertLocation} onChange={(e) => updateAction(index, 'insertLocation', e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                                                            <label className="block text-xs font-medium text-gray-700 mb-1">Insert Location</label>
+                                                            <select value={action.insertLocation} onChange={(e) => updateAction(index, 'insertLocation', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
                                                                 <option value="start">At Start</option>
                                                                 <option value="end">At End</option>
                                                             </select>
@@ -542,7 +542,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
                                                     {/* Text */}
                                                     <div>
-                                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Text *</label>
+                                                        <label className="block text-xs font-medium text-gray-700 mb-1">Text *</label>
                                                         <ExpandableTextarea
                                                             value={action.text}
                                                             onChange={(newValue) => updateAction(index, 'text', newValue)}
@@ -562,8 +562,8 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
                     {/* Right Panel - OUTPUT */}
                     <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">OUTPUT</h3>
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                            <h3 className="font-semibold text-gray-900">OUTPUT</h3>
                             <div className="flex items-center gap-2 mt-2">
                                 {onTest && (
                                     <button onClick={handleTest} disabled={isTesting || !config.credentialId} className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-sm font-medium">
@@ -572,18 +572,18 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                 )}
                             </div>
                         </div>
-                        <div className="flex-1 p-4 overflow-y-auto bg-white dark:bg-gray-800">
+                        <div className="flex-1 p-4 overflow-y-auto bg-white">
                             {isTesting ? (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
                                     <p className="text-center">Đang gọi Google Docs API...</p>
                                 </div>
                             ) : getDisplayOutput() ? (
-                                <pre className="text-xs bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap">
+                                <pre className="text-xs bg-gray-100 text-gray-900 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap">
                                     {JSON.stringify(getDisplayOutput(), null, 2)}
                                 </pre>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>

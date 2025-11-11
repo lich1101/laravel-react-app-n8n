@@ -53,4 +53,9 @@ class Folder extends Model
     {
         return $this->belongsToMany(Project::class, 'project_folders');
     }
+
+    public function automationTables(): BelongsToMany
+    {
+        return $this->belongsToMany(AutomationTable::class, 'folder_automation_table');
+    }
 }

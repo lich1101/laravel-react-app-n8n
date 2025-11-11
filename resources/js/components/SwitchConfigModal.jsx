@@ -144,7 +144,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         const currentPrefix = normalizeVariablePrefix(prefix, depth === 0);
 
         if (obj === null || obj === undefined) {
-            return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">null</span>;
+            return <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">null</span>;
         }
 
         if (Array.isArray(obj)) {
@@ -153,20 +153,20 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
             const isCollapsed = collapsedPaths.has(collapseKey);
             return (
                 <div className="space-y-1">
-                    <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1" onClick={() => toggleCollapse(collapseKey)}>
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                    <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1" onClick={() => toggleCollapse(collapseKey)}>
+                        <span className="text-gray-500 text-xs">
                             {isCollapsed ? '▶' : '▼'}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{obj.length} items</span>
+                        <span className="text-xs text-gray-500">{obj.length} items</span>
                     </div>
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => (
-                                <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
+                                <div key={index} className="border-l-2 border-gray-200 pl-3">
+                                    <div className="text-xs text-gray-500 mb-1">[{index}]</div>
                                     {renderDraggableJSON(item, buildArrayPath(currentPrefix, index), depth + 1)}
                                 </div>
                             ))}
@@ -183,19 +183,19 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
             const baseCollapsed = collapsedPaths.has(basePath);
 
             if (keys.length === 0) {
-                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">empty object</span>;
+                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">empty object</span>;
             }
 
             return (
                 <div className="space-y-1">
-                    <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1" onClick={() => toggleCollapse(basePath)}>
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                    <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1" onClick={() => toggleCollapse(basePath)}>
+                        <span className="text-gray-500 text-xs">
                             {baseCollapsed ? '▶' : '▼'}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{keys.length} keys</span>
+                        <span className="text-xs text-gray-500">{keys.length} keys</span>
                     </div>
                     {!baseCollapsed && (
                         <div className="ml-4 space-y-1">
@@ -207,10 +207,10 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
                                 return (
                                     <div key={key} className="group">
-                                        <div className="flex items-start gap-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 -mx-2">
+                                        <div className="flex items-start gap-2 py-1 hover:bg-gray-100 rounded px-2 -mx-2">
                                             {!isPrimitive && (
                                                 <span 
-                                                    className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer mt-1"
+                                                    className="text-gray-500 text-xs cursor-pointer mt-1"
                                                     onClick={() => toggleCollapse(variablePath)}
                                                 >
                                                     {childCollapsed ? '▶' : '▼'}
@@ -225,15 +225,15 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                 title={`Kéo thả để sử dụng {{${variablePath}}}`}
                                             >
                                                 <div className="flex items-center gap-2">
-                                                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                                                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                                                         {typeInfo.icon}
                                                     </span>
-                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                                                    <span className="text-sm font-medium text-gray-700 truncate">
                                                         {key}
                                                     </span>
                                                 </div>
                                                 {isPrimitive && (
-                                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono break-all">
+                                                    <div className="mt-1 text-xs text-gray-600 font-mono break-all">
                                                         {typeof value === 'string' ? `"${truncateText(value)}"` : String(value)}
                                                     </div>
                                                 )}
@@ -251,7 +251,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             </button>
                                         </div>
                                         {!isPrimitive && !childCollapsed && (
-                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 pl-3">
                                                 {renderDraggableJSON(value, variablePath, depth + 1)}
                                             </div>
                                         )}
@@ -267,10 +267,10 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         const typeInfo = getTypeInfo(obj);
         return (
             <div className="flex items-center gap-2">
-                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                     {typeInfo.icon}
                 </span>
-                <span className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                <span className="text-xs text-gray-600 font-mono">
                     {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
                 </span>
             </div>
@@ -279,19 +279,19 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
                 {/* Header */}
-                <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">🔀</span>
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2" onClick={() => { if (onRename) { onRename(); } }} title="Click để đổi tên node">
+                        <h2 className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2" onClick={() => { if (onRename) { onRename(); } }} title="Click để đổi tên node">
                             {node?.data?.customName || 'Switch'}
                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                             </svg>
                         </h2>
                     </div>
-                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -301,29 +301,29 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                 {/* Content */}
                 <div className="flex-1 flex overflow-hidden">
                     {/* Left Panel - INPUT */}
-                    <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
+                    <div className="w-1/3 border-r border-gray-200 flex flex-col">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                            <h3 className="font-semibold text-gray-900">INPUT</h3>
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
                             {inputData && Object.keys(inputData).length > 0 ? (
                                 <div className="space-y-4">
                                     {Object.entries(inputData).map(([nodeName, data]) => (
                                         <div key={nodeName}>
-                                            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-                                                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{nodeName}</span>
-                                                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                                            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
+                                                <span className="text-xs font-semibold text-gray-700">{nodeName}</span>
+                                                <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
                                                     {Object.keys(data || {}).length} fields
                                                 </span>
                                             </div>
-                                            <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                            <div className="bg-white p-3 rounded-lg border border-gray-200">
                                                 {renderDraggableJSON(data, nodeName)}
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                     </svg>
@@ -335,7 +335,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
                     {/* Center Panel - Configuration */}
                     <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <button className="px-4 py-1.5 bg-cyan-600 text-white rounded text-sm font-medium">
                                 Parameters
                             </button>
@@ -343,10 +343,10 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                         <div className="flex-1 p-4 overflow-y-auto space-y-4">
                             {/* Mode Selection */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Mode
                                 </label>
-                                <select value={config.mode} onChange={(e) => setConfig({ ...config, mode: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                <select value={config.mode} onChange={(e) => setConfig({ ...config, mode: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
                                     <option value="rules">Rules</option>
                                 </select>
                             </div>
@@ -354,7 +354,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                             {/* Routing Rules */}
                             <div>
                                 <div className="flex items-center justify-between mb-3">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    <label className="block text-sm font-medium text-gray-700">
                                         Routing Rules
                                     </label>
                                     <button type="button" onClick={addRule} className="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded font-medium">
@@ -364,9 +364,9 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
                                 <div className="space-y-4">
                                     {config.rules.map((rule, index) => (
-                                        <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                                        <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
                                             <div className="flex items-center justify-between mb-3">
-                                                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                                <span className="text-sm font-semibold text-gray-900">
                                                     Rule {index + 1}
                                                 </span>
                                                 {config.rules.length > 1 && (
@@ -380,7 +380,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
                                             {/* Value to check */}
                                             <div className="mb-3">
-                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">
                                                     Value
                                                 </label>
                                                 <ExpandableTextarea
@@ -394,10 +394,10 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
                                             {/* Operator */}
                                             <div className="mb-3">
-                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">
                                                     Operator
                                                 </label>
-                                                <select value={rule.operator} onChange={(e) => updateRule(index, 'operator', e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                                                <select value={rule.operator} onChange={(e) => updateRule(index, 'operator', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
                                                     {OPERATORS.map(op => (
                                                         <option key={op.value} value={op.value}>{op.label}</option>
                                                     ))}
@@ -407,7 +407,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             {/* Value2 (if operator needs it) */}
                                             {!['exists', 'notExists', 'isEmpty', 'isNotEmpty'].includes(rule.operator) && (
                                                 <div className="mb-3">
-                                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
                                                         Compare to
                                                     </label>
                                                     <ExpandableTextarea
@@ -422,7 +422,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
                                             {/* Output Name */}
                                             <div>
-                                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">
                                                     Output Name
                                                 </label>
                                                 <ExpandableTextarea
@@ -439,7 +439,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
                             {/* Fallback Output Name */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Fallback Output Name
                                 </label>
                                 <ExpandableTextarea
@@ -448,7 +448,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                     rows={1}
                                     placeholder="No Match"
                                 />
-                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                <p className="mt-1 text-xs text-gray-500">
                                     Tên output khi không có rule nào match
                                 </p>
                             </div>
@@ -457,9 +457,9 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
                     {/* Right Panel - OUTPUT */}
                     <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-semibold text-gray-900 dark:text-white">OUTPUT</h3>
+                                <h3 className="font-semibold text-gray-900">OUTPUT</h3>
                             </div>
                             <div className="flex items-center gap-2">
                                 {onTest && (
@@ -471,18 +471,18 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
                             {isTesting ? (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600 mb-4"></div>
                                     <p className="text-center">Đang test Switch node...</p>
                                 </div>
                             ) : getDisplayOutput() ? (
                                 <div className="relative">
-                                    <pre className="text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                                    <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
                                         {JSON.stringify(getDisplayOutput(), null, 2)}
                                     </pre>
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>

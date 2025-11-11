@@ -2251,11 +2251,13 @@ JS;
             $requestBody = [
                 'model' => $config['model'] ?? 'claude-3-5-sonnet-20241022',
                 'messages' => $messages,
-                'max_tokens' => $config['max_tokens'] ?? 1024,
-                'temperature' => $config['temperature'] ?? 0.7,
-                'top_k' => $config['top_k'] ?? 40,
-                'top_p' => $config['top_p'] ?? 0.9,
             ];
+
+            $allowedClaudeOptions = ['max_tokens', 'temperature', 'top_k', 'top_p'];
+            $requestBody = array_merge(
+                $requestBody,
+                $this->extractAllowedOptions($config, $allowedClaudeOptions)
+            );
 
             // Add system message if enabled (Claude uses separate system parameter)
             if (!empty($config['systemMessageEnabled']) && !empty($config['systemMessage'])) {
@@ -2265,20 +2267,7 @@ JS;
                 }
             }
 
-            // Add advanced options
-            if (!empty($config['advancedOptions']) && is_array($config['advancedOptions'])) {
-                foreach ($config['advancedOptions'] as $key => $value) {
-                    if ($key === 'timeout') continue;
-                    
-                    if (is_numeric($value)) {
-                        $requestBody[$key] = strpos($value, '.') !== false 
-                            ? floatval($value) 
-                            : intval($value);
-                    } else {
-                        $requestBody[$key] = $value;
-                    }
-                }
-            }
+            // No extra advanced options beyond allowed list for Claude
 
             Log::info('Claude API Request', [
                 'model' => $requestBody['model'],
@@ -2416,19 +2405,11 @@ JS;
                 'messages' => $messages,
             ];
 
-            // Add advanced options if any
-            if (!empty($config['advancedOptions']) && is_array($config['advancedOptions'])) {
-                foreach ($config['advancedOptions'] as $key => $value) {
-                    // Convert value types appropriately
-                    if (is_numeric($value)) {
-                        $requestBody[$key] = strpos($value, '.') !== false 
-                            ? floatval($value) 
-                            : intval($value);
-                    } else {
-                        $requestBody[$key] = $value;
-                    }
-                }
-            }
+            $allowedPerplexityOptions = ['temperature', 'max_tokens', 'stream', 'seed'];
+            $requestBody = array_merge(
+                $requestBody,
+                $this->extractAllowedOptions($config, $allowedPerplexityOptions)
+            );
 
             Log::info('Perplexity API Request', [
                 'model' => $requestBody['model'],
@@ -2575,6 +2556,12 @@ JS;
                 'messages' => $messages,
             ];
 
+            $allowedGeminiOptions = ['max_tokens', 'temperature', 'top_p', 'stream'];
+            $requestBody = array_merge(
+                $requestBody,
+                $this->extractAllowedOptions($config, $allowedGeminiOptions)
+            );
+
             // Add functions if provided
             if (!empty($config['functions']) && is_array($config['functions'])) {
                 $functions = [];
@@ -2712,6 +2699,58 @@ JS;
                 'message' => $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Extract allowed option keys from config/advancedOptions with proper type normalization.
+     */
+    private function extractAllowedOptions(array $config, array $allowedKeys): array
+    {
+        $options = [];
+
+        foreach ($allowedKeys as $key) {
+            $hasDirectValue = array_key_exists($key, $config) && $config[$key] !== null && $config[$key] !== '';
+            $hasAdvancedValue = !empty($config['advancedOptions']) && is_array($config['advancedOptions']) && array_key_exists($key, $config['advancedOptions']);
+
+            if ($hasDirectValue) {
+                $options[$key] = $this->normalizeOptionValue($config[$key]);
+                continue;
+            }
+
+            if ($hasAdvancedValue) {
+                $options[$key] = $this->normalizeOptionValue($config['advancedOptions'][$key]);
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * Normalize option values to int/float/bool when possible.
+     */
+    private function normalizeOptionValue($value)
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $lower = strtolower($value);
+            if ($lower === 'true') {
+                return true;
+            }
+            if ($lower === 'false') {
+                return false;
+            }
+        }
+
+        if (is_numeric($value)) {
+            return strpos((string)$value, '.') !== false
+                ? (float)$value
+                : (int)$value;
+        }
+
+        return $value;
     }
 
     private function resolveVariables($template, $inputData, $workflow = null)

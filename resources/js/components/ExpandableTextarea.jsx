@@ -192,8 +192,8 @@ function ExpandableTextarea({
                 // Green if exists, red if not found
                 const exists = part.exists !== false; // Default to true if not set (for resolved values)
                 const colorClass = exists 
-                    ? 'text-green-500 dark:text-green-400 bg-green-50 dark:bg-green-900/20'
-                    : 'text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20';
+                    ? 'text-emerald-600 bg-emerald-50'
+                    : 'text-rose-600 bg-rose-50';
                 
                 return (
                     <span key={part.key} className={`${colorClass} font-semibold px-1 rounded`}>
@@ -201,7 +201,7 @@ function ExpandableTextarea({
                     </span>
                 );
             }
-            return <span key={part.key} className="text-gray-900 dark:text-white">{part.content}</span>;
+            return <span key={part.key} className="text-primary">{part.content}</span>;
         });
     };
 
@@ -219,7 +219,7 @@ function ExpandableTextarea({
                 placeholder={placeholder}
                 rows={isExpanded ? 20 : rows}
                 disabled={disabled}
-                className={`w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm resize-none ${className}`}
+                className={`w-full px-3 py-2 pr-10 border border-subtle rounded-xl bg-surface text-secondary font-mono text-sm resize-none ${className}`}
                 style={{ 
                     minHeight: isExpanded ? '500px' : 'auto',
                     whiteSpace: 'pre-wrap',
@@ -230,7 +230,7 @@ function ExpandableTextarea({
             <button
                 type="button"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="absolute top-2 right-2 p-1 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded text-gray-600 dark:text-gray-300 transition-colors"
+                className="absolute top-2 right-2 p-1 bg-surface-muted hover:bg-surface-strong rounded text-muted transition-colors"
                 title={isExpanded ? 'Collapse' : 'Expand'}
             >
                 {isExpanded ? (
@@ -252,7 +252,7 @@ function ExpandableTextarea({
     const renderInputPanel = () => {
         if (!inputData || Object.keys(inputData).length === 0) {
             return (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                     <p className="text-sm">No input data available</p>
                 </div>
             );
@@ -262,8 +262,8 @@ function ExpandableTextarea({
             <div className="space-y-3">
                 {Object.entries(inputData).filter(([key]) => !key.match(/^\d+$/)).map(([nodeName, data]) => (
                     <div key={nodeName}>
-                        <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">{nodeName}:</div>
-                        <div className="bg-gray-50 dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700">
+                        <div className="text-xs font-semibold text-gray-700 mb-1">{nodeName}:</div>
+                        <div className="bg-gray-50 p-2 rounded border border-gray-200">
                             {renderDraggableData(data, nodeName)}
                         </div>
                     </div>
@@ -291,12 +291,12 @@ function ExpandableTextarea({
 
         if (obj === null || obj === undefined) {
             if (!currentPrefix) {
-            return <span className="text-xs text-gray-500 dark:text-gray-400">null</span>;
+            return <span className="text-xs text-gray-500">null</span>;
             }
 
             return (
                 <div 
-                    className="text-xs text-gray-700 dark:text-gray-300 cursor-move p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                    className="text-xs text-gray-700 cursor-move p-1 hover:bg-blue-50 rounded"
                     draggable="true"
                     onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${currentPrefix}}}`)}
                     title={`Drag {{${currentPrefix}}}`}
@@ -309,7 +309,7 @@ function ExpandableTextarea({
         if (typeof obj !== 'object') {
             return (
                 <div 
-                    className="text-xs text-gray-700 dark:text-gray-300 cursor-move p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                    className="text-xs text-gray-700 cursor-move p-1 hover:bg-blue-50 rounded"
                     draggable="true"
                     onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${currentPrefix}}}`)}
                     title={`Drag {{${currentPrefix}}}`}
@@ -325,11 +325,11 @@ function ExpandableTextarea({
             return (
                 <div className="text-xs">
                     <div 
-                        className="flex items-center gap-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 p-1 rounded"
+                        className="flex items-center gap-1 cursor-pointer hover:bg-gray-100 p-1 rounded"
                         onClick={() => toggleCollapse(collapseKey)}
                     >
-                        <span className="text-gray-500 dark:text-gray-400">{isCollapsed ? '▶' : '▼'}</span>
-                        <span className="text-purple-600 dark:text-purple-400">Array ({obj.length} items)</span>
+                        <span className="text-gray-500">{isCollapsed ? '▶' : '▼'}</span>
+                        <span className="text-purple-600">Array ({obj.length} items)</span>
                     </div>
                     {!isCollapsed && (
                         <div className="ml-4 mt-1 space-y-1">
@@ -338,7 +338,7 @@ function ExpandableTextarea({
 
                                 return (
                                 <div key={index}>
-                                    <span className="text-gray-500 dark:text-gray-400">[{index}]:</span>
+                                    <span className="text-gray-500">[{index}]:</span>
                                     {renderDraggableData(item, itemPath, depth + 1)}
                                 </div>
                                 );
@@ -365,11 +365,11 @@ function ExpandableTextarea({
                     return (
                         <div key={key}>
                             <div 
-                                className="text-xs p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded flex items-start gap-1"
+                                className="text-xs p-1 hover:bg-blue-50 rounded flex items-start gap-1"
                             >
                                 {hasChildren && (
                                     <span 
-                                        className="text-gray-500 dark:text-gray-400 cursor-pointer"
+                                        className="text-gray-500 cursor-pointer"
                                         onClick={() => toggleCollapse(variablePath)}
                                     >
                                         {isChildCollapsed ? '▶' : '▼'}
@@ -381,23 +381,23 @@ function ExpandableTextarea({
                                     onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${variablePath}}}`)}
                                     title={`Drag {{${variablePath}}}`}
                                 >
-                                    <span className="text-blue-600 dark:text-blue-400 font-medium">{key}:</span>{' '}
+                                    <span className="text-blue-600 font-medium">{key}:</span>{' '}
                                     {isPrimitive && (
-                                        <span className="text-gray-700 dark:text-gray-300">
+                                        <span className="text-gray-700">
                                             {typeof obj[key] === 'string' 
                                                 ? `"${obj[key].substring(0, 50)}${obj[key].length > 50 ? '...' : ''}"`
                                                 : String(obj[key])}
                                         </span>
                                     )}
                                     {!isPrimitive && (
-                                        <span className="text-gray-500 dark:text-gray-400">
+                                        <span className="text-gray-500">
                                             {Array.isArray(obj[key]) ? `[${obj[key].length}]` : `{${Object.keys(obj[key]).length}}`}
                                         </span>
                                     )}
                                 </div>
                             </div>
                             {hasChildren && !isChildCollapsed && (
-                                <div className="ml-4 border-l-2 border-gray-200 dark:border-gray-700 pl-2">
+                                <div className="ml-4 border-l-2 border-gray-200 pl-2">
                                     {renderDraggableData(obj[key], variablePath, depth + 1)}
                                 </div>
                             )}
@@ -412,15 +412,15 @@ function ExpandableTextarea({
     if (isExpanded) {
         return (
             <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col">
+                <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col">
                     {/* Header */}
-                    <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-900">
                             {label || 'Edit Content'}
                         </h3>
                         <button
                             onClick={() => setIsExpanded(false)}
-                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            className="text-gray-400 hover:text-gray-600"
                         >
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -431,10 +431,10 @@ function ExpandableTextarea({
                     {/* Content - 3 columns */}
                     <div className="flex-1 flex overflow-hidden">
                         {/* Left: INPUT panel */}
-                        <div className="w-1/4 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                            <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                                <h4 className="font-semibold text-gray-900 dark:text-white text-sm">INPUT</h4>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <div className="w-1/4 border-r border-gray-200 flex flex-col">
+                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                                <h4 className="font-semibold text-gray-900 text-sm">INPUT</h4>
+                                <p className="text-xs text-gray-500 mt-1">
                                     Kéo thả variables vào editor
                                 </p>
                             </div>
@@ -444,11 +444,11 @@ function ExpandableTextarea({
                         </div>
 
                         {/* Center: Expression */}
-                        <div className="w-2/4 border-r border-gray-200 dark:border-gray-700 flex flex-col p-6 overflow-auto">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <div className="w-2/4 border-r border-gray-200 flex flex-col p-6 overflow-auto">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Expression
-                                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 font-normal">
-                                    (Variables in <span className="text-green-500 dark:text-green-400 font-semibold bg-green-50 dark:bg-green-900/20 px-1 rounded">green</span>)
+                                <span className="text-xs text-gray-500 ml-2 font-normal">
+                                    (Variables in <span className="text-green-500 font-semibold bg-green-50 px-1 rounded">green</span>)
                                 </span>
                             </label>
                             <div className="flex-1">
@@ -469,7 +469,7 @@ function ExpandableTextarea({
                                         placeholder={placeholder}
                                         rows={20}
                                         disabled={disabled}
-                                        className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm resize-none ${className}`}
+                                        className={`w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 font-mono text-sm resize-none ${className}`}
                                         style={{ 
                                             minHeight: '500px',
                                             whiteSpace: 'pre-wrap',
@@ -477,7 +477,7 @@ function ExpandableTextarea({
                                     />
                                 </div>
                                 {/* Show syntax preview below textarea */}
-                                <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md font-mono text-xs whitespace-pre-wrap break-words">
+                                <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-md font-mono text-xs whitespace-pre-wrap break-words">
                                     {renderHighlightedText(value, 'template')}
                                 </div>
                             </div>
@@ -485,20 +485,20 @@ function ExpandableTextarea({
 
                         {/* Right: Result */}
                         <div className="w-1/4 flex flex-col p-6 overflow-auto">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Result
-                                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 font-normal">
-                                    (Resolved values in <span className="text-green-500 dark:text-green-400 font-semibold">green</span>)
+                                <span className="text-xs text-gray-500 ml-2 font-normal">
+                                    (Resolved values in <span className="text-green-500 font-semibold">green</span>)
                                 </span>
                             </label>
-                            <div className="flex-1 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md font-mono text-sm whitespace-pre-wrap break-words overflow-y-auto">
+                            <div className="flex-1 p-4 bg-gray-50 border border-gray-200 rounded-md font-mono text-sm whitespace-pre-wrap break-words overflow-y-auto">
                                 {renderHighlightedText(value, 'resolved')}
                             </div>
                         </div>
                     </div>
 
                     {/* Footer */}
-                    <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end">
+                    <div className="border-t border-gray-200 px-6 py-4 flex justify-end">
                         <button
                             onClick={() => setIsExpanded(false)}
                             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
@@ -514,13 +514,13 @@ function ExpandableTextarea({
     return (
         <div>
             {label && (
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                     {label}
                 </label>
             )}
             {textareaComponent}
             {hint && (
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs text-gray-500">
                     {hint}
                 </p>
             )}

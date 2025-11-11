@@ -114,7 +114,7 @@ return result;`,
         if (obj === null || obj === undefined) {
             return (
                 <div className="flex items-center gap-2 py-1">
-                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">null</span>
+                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">null</span>
                 </div>
             );
         }
@@ -126,24 +126,24 @@ return result;`,
             return (
                 <div className="space-y-1">
                     <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
                         onClick={() => toggleCollapse(collapseKey)}
                     >
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                        <span className="text-gray-500 text-xs">
                             {isCollapsed ? '▶' : '▼'}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{obj.length} items</span>
+                        <span className="text-xs text-gray-500">{obj.length} items</span>
                     </div>
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => {
                                 const itemPath = buildArrayPath(currentPrefix, index);
                                 return (
-                                    <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
+                                    <div key={index} className="border-l-2 border-gray-200 pl-3">
+                                        <div className="text-xs text-gray-500 mb-1">[{index}]</div>
                                         {renderDraggableJSON(item, itemPath, indent + 1)}
                                     </div>
                                 );
@@ -167,10 +167,10 @@ return result;`,
 
                         return (
                             <div key={key} className="group">
-                                <div className="flex items-start gap-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 -mx-2">
+                                <div className="flex items-start gap-2 py-1 hover:bg-gray-100 rounded px-2 -mx-2">
                                     {!isPrimitive && (
                                         <span 
-                                            className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer mt-1"
+                                            className="text-gray-500 text-xs cursor-pointer mt-1"
                                             onClick={() => toggleCollapse(variablePath)}
                                         >
                                             {isCollapsed ? '▶' : '▼'}
@@ -186,14 +186,14 @@ return result;`,
                                         title={`Kéo thả để sử dụng {{${variablePath}}}`}
                                     >
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono flex-shrink-0`}>
+                                            <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono flex-shrink-0`}>
                                                 {typeInfo.icon}
                                             </span>
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                                            <span className="text-sm font-medium text-gray-700 truncate">
                                                 {key}
                                             </span>
                                             {!isPrimitive && isCollapsed && (
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                <span className="text-xs text-gray-500">
                                                     {Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`}
                                                 </span>
                                             )}
@@ -201,7 +201,7 @@ return result;`,
                                         
                                         {isPrimitive && (
                                             <div 
-                                                className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono break-all cursor-move"
+                                                className="mt-1 text-xs text-gray-600 font-mono break-all cursor-move"
                                                 draggable="true"
                                                 onDragStart={(e) => {
                                                     e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
@@ -230,7 +230,7 @@ return result;`,
                                 </div>
 
                                 {!isPrimitive && !isCollapsed && (
-                                    <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                    <div className="ml-6 mt-1 border-l-2 border-gray-200 pl-3">
                                         {renderDraggableJSON(value, variablePath, indent + 1)}
                                     </div>
                                 )}
@@ -244,10 +244,10 @@ return result;`,
         const typeInfo = getTypeInfo(obj);
         return (
             <div className="flex items-center gap-2">
-                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                     {typeInfo.icon}
                 </span>
-                <span className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                <span className="text-xs text-gray-600 font-mono">
                     {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
                 </span>
             </div>
@@ -256,13 +256,13 @@ return result;`,
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
                 {/* Header */}
-                <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">💻</span>
                         <h2 
-                            className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2"
+                            className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
                             onClick={() => {
                                 if (onRename) {
                                     onRename();
@@ -278,7 +278,7 @@ return result;`,
                     </div>
                     <button
                         onClick={handleClose}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        className="text-gray-400 hover:text-gray-600"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -289,18 +289,18 @@ return result;`,
                 {/* Content */}
                 <div className="flex-1 flex overflow-hidden">
                     {/* Left Panel - INPUT */}
-                    <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <div className="w-1/3 border-r border-subtle flex flex-col">
+                        <div className="bg-surface-muted px-4 py-3 border-b border-subtle">
                             <div className="flex items-center justify-between">
-                                <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
+                                <h3 className="font-semibold text-primary">INPUT</h3>
                                 {inputData && Object.keys(inputData).length > 0 && (
                                     <div className="flex space-x-1">
                                         <button
                                             onClick={() => setInputViewMode('schema')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 inputViewMode === 'schema'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             Schema
@@ -309,8 +309,8 @@ return result;`,
                                             onClick={() => setInputViewMode('json')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 inputViewMode === 'json'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             JSON
@@ -325,15 +325,15 @@ return result;`,
                                     {inputViewMode === 'schema' && Object.entries(inputData).map(([nodeName, data]) => {
                                         return (
                                             <div key={nodeName}>
-                                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-                                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
+                                                    <span className="text-xs font-semibold text-gray-700">
                                                         {nodeName}
                                                     </span>
-                                                    <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
                                                         {Object.keys(data || {}).length} fields
                                                     </span>
                                                 </div>
-                                                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                                <div className="bg-white p-3 rounded-lg border border-gray-200">
                                                     {renderDraggableJSON(data, nodeName)}
                                                 </div>
                                             </div>
@@ -342,17 +342,17 @@ return result;`,
                                     
                                     {inputViewMode === 'json' && Object.entries(inputData).map(([nodeName, data]) => (
                                         <div key={nodeName}>
-                                            <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                            <div className="text-xs font-semibold text-gray-700 mb-2">
                                                 {nodeName}:
                                             </div>
-                                            <pre className="text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                                            <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
                                                 {JSON.stringify(data, null, 2)}
                                             </pre>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                     </svg>
@@ -369,7 +369,7 @@ return result;`,
 
                     {/* Center Panel - Code Editor */}
                     <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <button className="px-4 py-1.5 bg-green-600 text-white rounded text-sm font-medium">
                                 JavaScript Code
                             </button>
@@ -377,13 +377,13 @@ return result;`,
                         <div className="flex-1 flex flex-col p-4 space-y-4 overflow-y-auto">
                             {/* Language Selector */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Language
                                 </label>
                                 <select
                                     value={config.language}
                                     onChange={(e) => setConfig({ ...config, language: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 >
                                     <option value="javascript">JavaScript</option>
                                 </select>
@@ -391,28 +391,28 @@ return result;`,
 
                             {/* Code Editor */}
                             <div className="flex-1 flex flex-col">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                     JavaScript Code *
                                 </label>
                                 <textarea
                                     value={config.code}
                                     onChange={(e) => setConfig({ ...config, code: e.target.value })}
                                     placeholder="// Write your JavaScript code here..."
-                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-900 text-gray-100 font-mono text-sm"
+                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-900 text-gray-100 font-mono text-sm"
                                     style={{ minHeight: '400px', fontFamily: 'Monaco, Menlo, monospace' }}
                                 />
                             </div>
 
                             {/* Help Text */}
-                            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-3">
-                                <div className="bg-blue-50 dark:bg-blue-900 p-3 rounded border border-blue-200 dark:border-blue-700 space-y-2">
+                            <div className="text-xs text-gray-500 space-y-3">
+                                <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
                                     <p><strong>💡 Input Helper:</strong></p>
-                                    <p>• <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">$input.first()</code> - Lấy input đầu tiên</p>
-                                    <p>• <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">$input.all()</code> - Lấy tất cả inputs (array)</p>
-                                    <p>• <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">$input.item(0)</code> - Lấy input theo index</p>
+                                    <p>• <code className="bg-gray-200 px-1 rounded">$input.first()</code> - Lấy input đầu tiên</p>
+                                    <p>• <code className="bg-gray-200 px-1 rounded">$input.all()</code> - Lấy tất cả inputs (array)</p>
+                                    <p>• <code className="bg-gray-200 px-1 rounded">$input.item(0)</code> - Lấy input theo index</p>
                                 </div>
                                 
-                                <div className="bg-green-50 dark:bg-green-900 p-3 rounded border border-green-200 dark:border-green-700 space-y-2">
+                                <div className="bg-green-50 p-3 rounded border border-green-200 space-y-2">
                                     <p><strong>✅ Example:</strong></p>
                                     <pre className="bg-gray-800 text-gray-100 p-2 rounded text-xs overflow-x-auto">
 {`const item = $input.first();
@@ -425,10 +425,10 @@ return {
                                     </pre>
                                 </div>
                                 
-                                <div className="bg-amber-50 dark:bg-amber-900 p-3 rounded border border-amber-200 dark:border-amber-700">
+                                <div className="bg-amber-50 p-3 rounded border border-amber-200">
                                     <p><strong>⚠️ Lưu ý:</strong></p>
                                     <p>• Code chạy trên <strong>Node.js v18</strong></p>
-                                    <p>• Phải có <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">return</code> để trả output</p>
+                                    <p>• Phải có <code className="bg-gray-200 px-1 rounded">return</code> để trả output</p>
                                     <p>• Support async/await</p>
                                 </div>
                             </div>
@@ -437,10 +437,10 @@ return {
 
                     {/* Right Panel - OUTPUT */}
                     <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">OUTPUT</h3>
+                                    <h3 className="font-semibold text-gray-900">OUTPUT</h3>
                                 </div>
                                 {getDisplayOutput() && (
                                     <div className="flex space-x-1">
@@ -448,8 +448,8 @@ return {
                                             onClick={() => setOutputViewMode('schema')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 outputViewMode === 'schema'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             Schema
@@ -458,8 +458,8 @@ return {
                                             onClick={() => setOutputViewMode('json')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 outputViewMode === 'json'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             JSON
@@ -481,26 +481,26 @@ return {
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
                             {isTesting ? (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
                                     <p className="text-center">Executing JavaScript code...</p>
                                 </div>
                             ) : getDisplayOutput() ? (
                                 <div className="relative">
                                     {outputViewMode === 'schema' && (
-                                        <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                        <div className="bg-white p-3 rounded-lg border border-gray-200">
                                             {renderDraggableJSON(getDisplayOutput(), 'output')}
                                         </div>
                                     )}
                                     
                                     {outputViewMode === 'json' && (
-                                        <pre className="text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                                        <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
                                             {JSON.stringify(getDisplayOutput(), null, 2)}
                                         </pre>
                                     )}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>

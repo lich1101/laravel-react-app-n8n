@@ -133,11 +133,11 @@ const FolderWorkflowView = ({ folder, onBack }) => {
                 <div className="flex items-center space-x-4">
                     <button
                         onClick={onBack}
-                        className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                        className="text-gray-600 hover:text-gray-900"
                     >
                         ← Back to Folders
                     </button>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h2 className="text-2xl font-bold text-gray-900">
                         {folder.name}
                     </h2>
                 </div>
@@ -159,13 +159,13 @@ const FolderWorkflowView = ({ folder, onBack }) => {
 
             {/* Create Workflow Form */}
             {showWorkflowForm && (
-                <div className="mb-6 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                    <h3 className="text-md font-semibold mb-3 text-gray-900 dark:text-white">
+                <div className="mb-6 bg-gray-100 p-4 rounded-lg">
+                    <h3 className="text-md font-semibold mb-3 text-gray-900">
                         Create New Workflow
                     </h3>
                     <form onSubmit={handleCreateWorkflow} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Name
                             </label>
                             <input
@@ -173,19 +173,19 @@ const FolderWorkflowView = ({ folder, onBack }) => {
                                 required
                                 value={newWorkflowName}
                                 onChange={(e) => setNewWorkflowName(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
                                 placeholder="Enter workflow name"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Description
                             </label>
                             <textarea
                                 value={newWorkflowDescription}
                                 onChange={(e) => setNewWorkflowDescription(e.target.value)}
                                 rows={2}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
                                 placeholder="Enter workflow description (optional)"
                             />
                         </div>
@@ -212,65 +212,65 @@ const FolderWorkflowView = ({ folder, onBack }) => {
                 </div>
             )}
 
-            <div className="mb-4">
-                <input
-                    type="text"
-                    placeholder="Search workflows..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                />
-            </div>
+    <div className="mb-4">
+        <input
+            type="text"
+            placeholder="Search workflows..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-subtle rounded-xl bg-surface text-secondary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+    </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredWorkflows.length === 0 ? (
-                    <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
+            <div className="col-span-full text-center py-12 text-muted">
                         {searchTerm ? 'No workflows match your search' : 'No workflows in this folder'}
                     </div>
                 ) : (
                     filteredWorkflows.map((workflow) => (
-                        <div
-                            key={workflow.id}
-                            className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700 relative"
-                        >
+                    <div
+                        key={workflow.id}
+                        className="bg-surface-elevated rounded-2xl shadow-card p-6 hover:shadow-card transition-shadow border border-subtle relative"
+                    >
                             <div className="flex items-start justify-between mb-2">
-                                <h3
-                                    onClick={() => handleWorkflowClick(workflow.id)}
-                                    className="text-lg font-semibold text-gray-900 dark:text-white truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-                                >
+                        <h3
+                            onClick={() => handleWorkflowClick(workflow.id)}
+                            className="text-lg font-semibold text-primary truncate cursor-pointer hover:text-primary/80"
+                        >
                                     {workflow.name}
                                 </h3>
-                                <div className="flex items-center space-x-2">
-                                    <span
-                                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                            workflow.active
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                                        }`}
-                                    >
+                        <div className="flex items-center space-x-2">
+                            <span
+                                className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                    workflow.active
+                                        ? 'bg-emerald-50 text-emerald-600'
+                                        : 'bg-surface-muted text-muted'
+                                }`}
+                            >
                                         {workflow.active ? 'Active' : 'Inactive'}
                                     </span>
-                                    <button
-                                        onClick={(e) => handleDeleteWorkflow(workflow.id, e)}
-                                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 text-sm"
-                                        title="Delete workflow"
-                                    >
+                        <button
+                            onClick={(e) => handleDeleteWorkflow(workflow.id, e)}
+                            className="text-rose-600 hover:text-rose-500 text-sm"
+                            title="Delete workflow"
+                        >
                                         ×
                                     </button>
                                 </div>
                             </div>
-                            {workflow.description && (
-                                <p
-                                    onClick={() => handleWorkflowClick(workflow.id)}
-                                    className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2 cursor-pointer"
-                                >
+                    {workflow.description && (
+                        <p
+                            onClick={() => handleWorkflowClick(workflow.id)}
+                            className="text-sm text-muted mb-3 line-clamp-2 cursor-pointer"
+                        >
                                     {workflow.description}
                                 </p>
                             )}
-                            <div
-                                onClick={() => handleWorkflowClick(workflow.id)}
-                                className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 cursor-pointer"
-                            >
+                    <div
+                        onClick={() => handleWorkflowClick(workflow.id)}
+                        className="flex items-center justify-between text-xs text-muted cursor-pointer"
+                    >
                                 <span>Updated {getTimeAgo(workflow.updated_at)}</span>
                                 <span>{formatDate(workflow.updated_at)}</span>
                             </div>

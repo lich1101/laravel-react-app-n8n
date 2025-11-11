@@ -117,7 +117,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
         if (obj === null || obj === undefined) {
             return (
                 <div className="flex items-center gap-2 py-1">
-                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">null</span>
+                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">null</span>
                 </div>
             );
         }
@@ -129,24 +129,24 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
             return (
                 <div className="space-y-1">
                     <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
                         onClick={() => toggleCollapse(collapseKey)}
                     >
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                        <span className="text-gray-500 text-xs">
                             {isCollapsed ? '▶' : '▼'}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{obj.length} items</span>
+                        <span className="text-xs text-gray-500">{obj.length} items</span>
                     </div>
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => {
                                 const itemPath = buildArrayPath(currentPrefix, index);
                                 return (
-                                    <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
+                                    <div key={index} className="border-l-2 border-gray-200 pl-3">
+                                        <div className="text-xs text-gray-500 mb-1">[{index}]</div>
                                         {renderDraggableJSON(item, itemPath, indent + 1)}
                                     </div>
                                 );
@@ -170,10 +170,10 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
                         return (
                             <div key={key} className="group">
-                                <div className="flex items-start gap-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 -mx-2">
+                                <div className="flex items-start gap-2 py-1 hover:bg-gray-100 rounded px-2 -mx-2">
                                     {!isPrimitive && (
                                         <span 
-                                            className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer mt-1"
+                                            className="text-gray-500 text-xs cursor-pointer mt-1"
                                             onClick={() => toggleCollapse(variablePath)}
                                         >
                                             {isCollapsed ? '▶' : '▼'}
@@ -189,14 +189,14 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         title={`Kéo thả để sử dụng {{${variablePath}}}`}
                                     >
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono flex-shrink-0`}>
+                                            <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono flex-shrink-0`}>
                                                 {typeInfo.icon}
                                             </span>
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                                            <span className="text-sm font-medium text-gray-700 truncate">
                                                 {key}
                                             </span>
                                             {!isPrimitive && isCollapsed && (
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                <span className="text-xs text-gray-500">
                                                     {Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`}
                                                 </span>
                                             )}
@@ -204,7 +204,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         
                                         {isPrimitive && (
                                             <div 
-                                                className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono break-all cursor-move"
+                                                className="mt-1 text-xs text-gray-600 font-mono break-all cursor-move"
                                                 draggable="true"
                                                 onDragStart={(e) => {
                                                     e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
@@ -233,7 +233,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 </div>
 
                                 {!isPrimitive && !isCollapsed && (
-                                    <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                    <div className="ml-6 mt-1 border-l-2 border-gray-200 pl-3">
                                         {renderDraggableJSON(value, variablePath, indent + 1)}
                                     </div>
                                 )}
@@ -248,10 +248,10 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
         const typeInfo = getTypeInfo(obj);
         return (
             <div className="flex items-center gap-2">
-                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                     {typeInfo.icon}
                 </span>
-                <span className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                <span className="text-xs text-gray-600 font-mono">
                     {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
                 </span>
             </div>
@@ -374,13 +374,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
                 {/* Header */}
-                <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">🌐</span>
                         <h2 
-                            className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2"
+                            className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
                             onClick={() => {
                                 if (onRename && !readOnly) {
                                     onRename(); // Trigger parent's rename modal
@@ -396,7 +396,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                     </div>
                     <button
                         onClick={handleClose}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        className="text-gray-400 hover:text-gray-600"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -407,18 +407,18 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                 {/* Content */}
                 <div className="flex-1 flex overflow-hidden">
                     {/* Left Panel - INPUT */}
-                    <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <div className="w-1/3 border-r border-subtle flex flex-col bg-surface-elevated">
+                        <div className="bg-surface-muted px-4 py-3 border-b border-subtle">
                             <div className="flex items-center justify-between">
-                                <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
+                                <h3 className="font-semibold text-primary">INPUT</h3>
                                 {inputData && Object.keys(inputData).length > 0 && (
                                     <div className="flex space-x-1">
                                         <button
                                             onClick={() => setInputViewMode('schema')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 inputViewMode === 'schema'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             Schema
@@ -427,8 +427,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             onClick={() => setInputViewMode('table')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 inputViewMode === 'table'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             Table
@@ -437,8 +437,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             onClick={() => setInputViewMode('json')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 inputViewMode === 'json'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             JSON
@@ -453,15 +453,15 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     {inputViewMode === 'schema' && Object.entries(inputData).map(([nodeName, data]) => {
                                         return (
                                             <div key={nodeName}>
-                                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-                                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
+                                                    <span className="text-xs font-semibold text-gray-700">
                                                         {nodeName}
                                                     </span>
-                                                    <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
                                                         {Object.keys(data || {}).length} fields
                                                     </span>
                                                 </div>
-                                                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                                <div className="bg-white p-3 rounded-lg border border-gray-200">
                                                     {renderDraggableJSON(data, nodeName)}
                                                 </div>
                                             </div>
@@ -470,29 +470,29 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     
                                     {inputViewMode === 'table' && (
                                         <div className="overflow-x-auto">
-                                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                                <thead className="bg-gray-50 dark:bg-gray-900">
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                                <thead className="bg-gray-50">
                                                     <tr>
-                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Field</th>
-                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Type</th>
-                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Value</th>
-                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Action</th>
+                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Field</th>
+                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Type</th>
+                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Value</th>
+                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Action</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                                <tbody className="bg-white divide-y divide-gray-200">
                                                     {Object.entries(inputData).map(([nodeName, data]) => {
                                                         return Object.entries(data || {}).map(([key, value]) => {
                                                             const variablePath = `${nodeName}.${key}`;
                                                             const typeInfo = getTypeInfo(value);
                                                             return (
-                                                                <tr key={`${nodeName}-${key}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                                                    <td className="px-3 py-2 text-sm text-gray-900 dark:text-gray-300 font-medium">{key}</td>
+                                                                <tr key={`${nodeName}-${key}`} className="hover:bg-gray-50">
+                                                                    <td className="px-3 py-2 text-sm text-gray-900 font-medium">{key}</td>
                                                                     <td className="px-3 py-2">
-                                                                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                                                                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                                                                             {typeInfo.label}
                                                                         </span>
                                                                     </td>
-                                                                    <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400 font-mono max-w-xs truncate">
+                                                                    <td className="px-3 py-2 text-xs text-gray-600 font-mono max-w-xs truncate">
                                                                         {typeof value === 'string' ? truncateText(value, 50) : JSON.stringify(value)}
                                                                     </td>
                                                                     <td className="px-3 py-2">
@@ -522,17 +522,17 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     
                                     {inputViewMode === 'json' && Object.entries(inputData).map(([nodeName, data]) => (
                                         <div key={nodeName}>
-                                            <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                            <div className="text-xs font-semibold text-gray-700 mb-2">
                                                 {nodeName}:
                                             </div>
-                                            <pre className="text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                                            <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
                                                 {JSON.stringify(data, null, 2)}
                                             </pre>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                     </svg>
@@ -549,25 +549,25 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
                     {/* Center Panel - Configuration */}
                     <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center space-x-2">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center space-x-2">
                             <button className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-medium">
                                 Parameters
                             </button>
-                            <button className="px-4 py-1.5 text-gray-600 dark:text-gray-400 text-sm font-medium">
+                            <button className="px-4 py-1.5 text-gray-600 text-sm font-medium">
                                 Settings
                             </button>
                         </div>
                         <div className={`flex-1 p-4 overflow-y-auto space-y-4 ${readOnly ? 'pointer-events-none opacity-75' : ''}`}>
                             {/* Method */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Method
                                 </label>
                                 <select
                                     value={config.method}
                                     onChange={(e) => setConfig({ ...config, method: e.target.value })}
                                     disabled={readOnly}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <option value="GET">GET</option>
                                     <option value="POST">POST</option>
@@ -579,7 +579,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
                             {/* URL */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     URL
                                 </label>
                                 <VariableInput
@@ -589,13 +589,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     rows={1}
                                     onChange={(newValue) => setConfig({ ...config, url: newValue })}
                                     placeholder="https://example.com/api"
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 />
                             </div>
 
                             {/* Authentication */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Authentication
                                 </label>
                                 <select
@@ -604,7 +604,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         setConfig({ ...config, auth: e.target.value, credentialId: null });
                                         setSelectedCredentialType(e.target.value === 'basic' ? 'basic' : e.target.value === 'bearer' ? 'bearer' : 'api_key');
                                     }}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 >
                                     <option value="none">None</option>
                                     <option value="basic">Basic Auth</option>
@@ -617,14 +617,14 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
                             {(config.auth !== 'none') && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Credential
                                     </label>
                                     <div className="flex space-x-2">
                                         <select
                                             value={config.credentialId || ''}
                                             onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                         >
                                             <option value="">Select Credential...</option>
                                             {Array.isArray(credentials) && credentials
@@ -648,12 +648,12 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         </button>
                                     </div>
                                     {!config.credentialId && (
-                                        <p className="mt-1 text-xs text-orange-600 dark:text-orange-400">
+                                        <p className="mt-1 text-xs text-orange-600">
                                             ⚠️ Please select a credential or create a new one
                                         </p>
                                     )}
                                     {config.credentialId && (
-                                        <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                                        <p className="mt-1 text-xs text-green-600">
                                             ✓ Credential selected
                                         </p>
                                     )}
@@ -663,14 +663,14 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                             {/* Legacy credential input (hidden when using credential selector) */}
                             {(config.auth === 'custom') && !config.credentialId && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Custom Credential Value
                                     </label>
                                     <VariableInput
                                         rows={1}
                                         onChange={(newValue) => setConfig({ ...config, credential: newValue })}
                                         placeholder="Enter credential"
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                     />
                                 </div>
                             )}
@@ -678,7 +678,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                             {/* Query Parameters */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    <label className="block text-sm font-medium text-gray-700">
                                         Send Query Parameters
                                     </label>
                                     <label className="relative inline-flex items-center cursor-pointer">
@@ -694,7 +694,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             }}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                     </label>
                                 </div>
                                 {config.queryParams.map((param, index) => (
@@ -740,7 +740,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                             {/* Headers */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    <label className="block text-sm font-medium text-gray-700">
                                         Send Headers
                                     </label>
                                     <label className="relative inline-flex items-center cursor-pointer">
@@ -756,7 +756,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             }}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                     </label>
                                 </div>
                                 {config.headers.map((header, index) => (
@@ -801,7 +801,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
                             {/* Timeout */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Timeout (seconds)
                                 </label>
                                 <ExpandableTextarea
@@ -813,7 +813,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     rows={1}
                                     placeholder="30"
                                 />
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                <p className="text-xs text-gray-500 mt-1">
                                     Maximum time to wait for response (1-300 seconds). Default: 30s
                                 </p>
                             </div>
@@ -822,7 +822,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                             {['POST', 'PUT', 'PATCH'].includes(config.method) && (
                                 <div>
                                     <div className="flex items-center mb-2">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">
+                                        <label className="block text-sm font-medium text-gray-700 mr-2">
                                             Send Body
                                         </label>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -838,20 +838,20 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                 }}
                                                 className="sr-only peer"
                                             />
-                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                         </label>
                                     </div>
                                     {config.sendBody && (
                                         <>
                                             {/* Body Content Type */}
                                             <div className="mb-2">
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                                     Body Content Type
                                                 </label>
                                                 <select
                                                     value={config.bodyType || 'json'}
                                                     onChange={(e) => setConfig({ ...config, bodyType: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                                 >
                                                     <option value="json">JSON</option>
                                                     <option value="form">Form-Data</option>
@@ -863,13 +863,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             {/* Specify Body */}
                                             {config.bodyType === 'json' && (
                                                 <div className="mb-2">
-                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                                         Specify Body
                                                     </label>
                                                     <select
                                                         value={config.specifyBody || 'fields'}
                                                         onChange={(e) => setConfig({ ...config, specifyBody: e.target.value })}
-                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                                     >
                                                         <option value="fields">Using Fields Below</option>
                                                         <option value="raw">Raw JSON</option>
@@ -880,13 +880,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             {/* Body Parameters (Fields) */}
                                             {config.bodyType === 'json' && config.specifyBody === 'fields' && (
                                                 <div className="mb-2">
-                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">
                                                         Body Parameters
                                                     </label>
                                                     {(config.bodyParams || []).length > 0 && (
                                                         <div className="grid grid-cols-2 gap-2 mb-2 px-2">
-                                                            <div className="text-xs font-medium text-gray-600 dark:text-gray-400">Name</div>
-                                                            <div className="text-xs font-medium text-gray-600 dark:text-gray-400">Value</div>
+                                                            <div className="text-xs font-medium text-gray-600">Name</div>
+                                                            <div className="text-xs font-medium text-gray-600">Value</div>
                                                         </div>
                                                     )}
                                                     <div className="space-y-2">
@@ -939,7 +939,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                                     bodyParams: [...(config.bodyParams || []), { name: '', value: '' }]
                                                                 });
                                                             }}
-                                                            className="w-full px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm"
+                                                            className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 text-sm"
                                                         >
                                                             + Add Parameter
                                                         </button>
@@ -950,7 +950,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             {/* Raw Body Content */}
                                             {(config.bodyType !== 'json' || config.specifyBody === 'raw') && (
                                                 <div>
-                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                                         {config.bodyType === 'json' ? 'Raw Body Content' : 'Body Content'}
                                                     </label>
                                                     <ExpandableTextarea
@@ -968,7 +968,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                             )}
 
                             {/* Info */}
-                            <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                            <div className="text-xs text-gray-500 italic">
                                 You can view the raw requests this node makes in your browser's developer console.
                             </div>
                         </div>
@@ -976,10 +976,10 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
                     {/* Right Panel - OUTPUT */}
                     <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">OUTPUT</h3>
+                                    <h3 className="font-semibold text-gray-900">OUTPUT</h3>
                                 </div>
                                 {getDisplayOutput() && (
                                     <div className="flex space-x-1">
@@ -987,8 +987,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             onClick={() => setOutputViewMode('schema')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 outputViewMode === 'schema'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             Schema
@@ -997,8 +997,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             onClick={() => setOutputViewMode('table')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 outputViewMode === 'table'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             Table
@@ -1007,8 +1007,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                             onClick={() => setOutputViewMode('json')}
                                             className={`text-xs px-2 py-1 rounded ${
                                                 outputViewMode === 'json'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    ? 'bg-primary-soft text-primary shadow-card'
+                                                    : 'text-muted hover:bg-surface-muted'
                                             }`}
                                         >
                                             JSON
@@ -1019,7 +1019,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                             <div className="flex items-center gap-2">
                                 {/* Read-only indicator */}
                                 {readOnly && (
-                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded font-medium">
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
                                         📖 Viewing execution history (Read-only)
                                     </span>
                                 )}
@@ -1037,40 +1037,40 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
                             {isTesting ? (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
                                     <p className="text-center">Testing request...</p>
                                 </div>
                             ) : getDisplayOutput() ? (
                                 <div className="relative">
                                     {outputViewMode === 'schema' && (
-                                        <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                        <div className="bg-white p-3 rounded-lg border border-gray-200">
                                             {renderDraggableJSON(getDisplayOutput(), 'output')}
                                         </div>
                                     )}
                                     
                                     {outputViewMode === 'table' && (
                                         <div className="overflow-x-auto">
-                                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                                <thead className="bg-gray-50 dark:bg-gray-900">
+                                            <table className="min-w-full divide-y divide-gray-200">
+                                                <thead className="bg-gray-50">
                                                     <tr>
-                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Field</th>
-                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Type</th>
-                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Value</th>
+                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Field</th>
+                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Type</th>
+                                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Value</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                                <tbody className="bg-white divide-y divide-gray-200">
                                                     {Object.entries(getDisplayOutput() || {}).map(([key, value]) => {
                                                         const typeInfo = getTypeInfo(value);
                                                         return (
-                                                            <tr key={key} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                                                <td className="px-3 py-2 text-sm text-gray-900 dark:text-gray-300 font-medium">{key}</td>
+                                                            <tr key={key} className="hover:bg-gray-50">
+                                                                <td className="px-3 py-2 text-sm text-gray-900 font-medium">{key}</td>
                                                                 <td className="px-3 py-2">
-                                                                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                                                                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                                                                         {typeInfo.label}
                                                                     </span>
                                                                 </td>
-                                                                <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400 font-mono max-w-xs truncate">
+                                                                <td className="px-3 py-2 text-xs text-gray-600 font-mono max-w-xs truncate">
                                                                     {typeof value === 'string' ? truncateText(value, 50) : JSON.stringify(value)}
                                                                 </td>
                                                             </tr>
@@ -1082,13 +1082,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     )}
                                     
                                     {outputViewMode === 'json' && (
-                                        <pre className="text-xs bg-gray-50 dark:bg-gray-950 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                                        <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
                                             {JSON.stringify(getDisplayOutput(), null, 2)}
                                         </pre>
                                     )}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                     <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>

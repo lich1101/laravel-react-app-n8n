@@ -20,8 +20,9 @@ class WorkflowController extends Controller
      */
     public function index(): JsonResponse
     {
-        $user = auth()->user();
-        $workflows = Workflow::where('user_id', $user->id)->get();
+        $workflows = Workflow::with('folder')
+            ->orderByDesc('updated_at')
+            ->get();
         return response()->json($workflows);
     }
 
@@ -117,21 +118,7 @@ class WorkflowController extends Controller
      */
     public function destroy(string $id): JsonResponse
     {
-        $user = auth()->user();
         $workflow = Workflow::findOrFail($id);
-
-        // Check ownership hoặc permission
-        // User role cũng được phép xóa tất cả workflows (kể cả từ folder)
-        if ($workflow->user_id !== $user->id && $user->role !== 'admin' && $user->role !== 'user') {
-            return response()->json([
-                'error' => 'Unauthorized',
-                'message' => 'Bạn không có quyền xóa workflow này'
-            ], 403);
-        }
-
-        // User role giờ được phép xóa workflows từ folder
-        // Bỏ check is_from_folder để user có full quyền quản lý workflows
-
         $workflow->delete();
 
         return response()->json(['message' => 'Workflow deleted successfully']);
@@ -142,8 +129,7 @@ class WorkflowController extends Controller
      */
     public function saveNode(Request $request, string $id): JsonResponse
     {
-        $user = auth()->user();
-        $workflow = Workflow::where('user_id', $user->id)->findOrFail($id);
+        $workflow = Workflow::findOrFail($id);
 
         $request->validate([
             'node_id' => 'required|string',
@@ -170,8 +156,7 @@ class WorkflowController extends Controller
      */
     public function executions(string $id): JsonResponse
     {
-        $user = auth()->user();
-        $workflow = Workflow::where('user_id', $user->id)->findOrFail($id);
+        $workflow = Workflow::findOrFail($id);
 
         $executions = $workflow->executions()
             ->orderBy('started_at', 'desc')
@@ -185,8 +170,7 @@ class WorkflowController extends Controller
      */
     public function execution(string $workflowId, string $executionId): JsonResponse
     {
-        $user = auth()->user();
-        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+        $workflow = Workflow::findOrFail($workflowId);
 
         $execution = $workflow->executions()->findOrFail($executionId);
 
@@ -198,8 +182,7 @@ class WorkflowController extends Controller
      */
     public function resumeExecution(Request $request, string $workflowId, string $executionId): JsonResponse
     {
-        $user = auth()->user();
-        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+        $workflow = Workflow::findOrFail($workflowId);
 
         $execution = $workflow->executions()->findOrFail($executionId);
 
@@ -309,8 +292,7 @@ class WorkflowController extends Controller
      */
     public function deleteExecution(string $workflowId, string $executionId): JsonResponse
     {
-        $user = auth()->user();
-        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+        $workflow = Workflow::findOrFail($workflowId);
 
         $execution = $workflow->executions()->findOrFail($executionId);
 
@@ -353,8 +335,7 @@ class WorkflowController extends Controller
      */
     public function bulkDeleteExecutions(Request $request, string $workflowId): JsonResponse
     {
-        $user = auth()->user();
-        $workflow = Workflow::where('user_id', $user->id)->findOrFail($workflowId);
+        $workflow = Workflow::findOrFail($workflowId);
 
         $executions = $workflow->executions()
             ->where('status', '!=', 'running')

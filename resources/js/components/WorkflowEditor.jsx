@@ -12,7 +12,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import axios from '../config/axios';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import WebhookConfigModal from './WebhookConfigModal';
 import ScheduleTriggerConfigModal from './ScheduleTriggerConfigModal';
 import HttpRequestConfigModal from './HttpRequestConfigModal';
@@ -48,14 +48,14 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
 
     // Determine border color: completed > selected > default
     const getBorderClass = () => {
-        if (isCompleted) return 'border-green-500';
-        if (selected) return 'border-blue-500';
-        return 'border-gray-600 dark:border-gray-500';
+        if (isCompleted) return 'border-emerald-500 ring-2 ring-emerald-200';
+        if (selected) return 'border-blue-500 ring-2 ring-blue-200';
+        return 'border-subtle';
     };
 
     return (
         <div 
-            className={`bg-gray-800 dark:bg-gray-700 border-2 rounded-lg p-3 w-20 h-20 relative flex items-center justify-center group transition-all ${getBorderClass()}`}
+            className={`bg-surface-elevated border-2 rounded-2xl p-3 w-20 h-20 shadow-card relative flex items-center justify-center group transition-all ${getBorderClass()}`}
             title={data.customName || data.label || nodeType}
         >
             {/* Input handle */}
@@ -63,7 +63,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                 <Handle 
                     type="target" 
                     position={Position.Left} 
-                    className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-600"
+                    className="!bg-slate-300 !w-2.5 !h-2.5 !border-2 !border-slate-300"
                 />
             )}
             
@@ -73,7 +73,6 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                     src={iconPath} 
                     alt={nodeType}
                     className={`w-full h-full object-contain ${isRunning ? 'opacity-30' : ''}`}
-                    style={{ filter: 'brightness(0) invert(1)' }}
                 />
                 {/* Loading icon overlay when running */}
                 {isRunning && (
@@ -82,14 +81,13 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                             src="/icons/nodes/node_active.svg" 
                             alt="running"
                             className="w-8 h-8 animate-spin"
-                            style={{ filter: 'brightness(0) invert(1)' }}
                         />
                     </div>
                 )}
             </div>
             
             {/* Node name label - Always visible */}
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap pointer-events-none ">
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-surface-elevated text-secondary text-xs px-3 py-1.5 rounded-lg border border-subtle shadow-card whitespace-nowrap pointer-events-none ">
                 {data.customName || data.label}
             </div>
             
@@ -108,10 +106,10 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                     type="source" 
                                     position={Position.Right} 
                                     id={output.id}
-                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-gray-600 ${
-                                        output.color === 'green' ? '!bg-green-400' :
-                                        output.color === 'red' ? '!bg-red-400' :
-                                        '!bg-gray-400'
+                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-slate-300 ${
+                                        output.color === 'green' ? '!bg-emerald-400' :
+                                        output.color === 'red' ? '!bg-rose-400' :
+                                        '!bg-slate-300'
                                     }`}
                                     style={{ 
                                         left: 'calc(100%)',
@@ -121,9 +119,9 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                 {output.label && (
                                     <span 
                                         className={`absolute text-xs font-medium whitespace-nowrap pointer-events-none ${
-                                            output.color === 'green' ? 'text-green-400' :
-                                            output.color === 'red' ? 'text-red-400' :
-                                            'text-gray-400'
+                                            output.color === 'green' ? 'text-emerald-500' :
+                                            output.color === 'red' ? 'text-rose-500' :
+                                            'text-muted'
                                         }`}
                                         style={{ 
                                             left: 'calc(100% + 8px)',
@@ -140,7 +138,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                             <>
                                 {/* Line from node edge */}
                                 <div 
-                                    className="absolute w-4 h-0.5 bg-gray-500 pointer-events-none"
+                                    className="absolute w-4 h-0.5 bg-slate-300 pointer-events-none"
                                     style={{ 
                                         left: '100%',
                                         top: `${topPercent}%`,
@@ -152,10 +150,10 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                     type="source" 
                                     position={Position.Right} 
                                     id={output.id}
-                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-gray-600 ${
-                                        output.color === 'green' ? '!bg-green-400' :
-                                        output.color === 'red' ? '!bg-red-400' :
-                                        '!bg-gray-400'
+                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-slate-300 ${
+                                        output.color === 'green' ? '!bg-emerald-400' :
+                                        output.color === 'red' ? '!bg-rose-400' :
+                                        '!bg-slate-300'
                                     }`}
                                     style={{ 
                                         left: 'calc(100% )',
@@ -165,7 +163,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                 
                                 {/* Line from head to tail */}
                                 <div 
-                                    className="absolute w-4 h-0.5 bg-gray-500 pointer-events-none"
+                                    className="absolute w-4 h-0.5 bg-slate-300 pointer-events-none"
                                     style={{ 
                                         left: 'calc(100% + 30px)',
                                         top: `${topPercent}%`,
@@ -178,10 +176,10 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                         e.stopPropagation();
                                         handleQuickAddClick(output.id);
                                     }}
-                                    className={`absolute w-5 h-5 border-2 rounded-sm flex items-center justify-center text-xs font-bold shadow-md z-10 transition-colors ${
-                                        output.color === 'green' ? 'bg-green-500 hover:bg-green-600 border-green-600 text-white' :
-                                        output.color === 'red' ? 'bg-red-500 hover:bg-red-600 border-red-600 text-white' :
-                                        'bg-gray-700 hover:bg-gray-600 border-gray-600 text-white'
+                                    className={`absolute w-5 h-5 border-2 rounded-lg flex items-center justify-center text-xs font-bold shadow-card z-10 transition-colors ${
+                                        output.color === 'green' ? 'bg-emerald-500 hover:bg-emerald-600 border-emerald-600 text-white' :
+                                        output.color === 'red' ? 'bg-rose-500 hover:bg-rose-600 border-rose-600 text-white' :
+                                        'bg-surface-strong hover:bg-surface-muted border-strong text-primary'
                                     }`}
                                     style={{ 
                                         left: 'calc(100% + 45px)',
@@ -196,9 +194,9 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                 {output.label && (
                                     <span 
                                         className={`absolute text-xs font-medium whitespace-nowrap pointer-events-none ${
-                                            output.color === 'green' ? 'text-green-400' :
-                                            output.color === 'red' ? 'text-red-400' :
-                                            'text-gray-400'
+                                            output.color === 'green' ? 'text-emerald-500' :
+                                            output.color === 'red' ? 'text-rose-500' :
+                                            'text-muted'
                                         }`}
                                         style={{ 
                                             left: 'calc(100% + 20px)',
@@ -218,24 +216,24 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
             {/* Quick add dropdown */}
             {showQuickAdd && (
                 <div 
-                    className="absolute bg-white dark:bg-gray-800 shadow-2xl rounded-lg py-1 z-[100] min-w-[160px] border border-gray-300 dark:border-gray-600"
+                    className="absolute menu-panel py-1 z-[100] min-w-[180px]"
                     style={{ 
                         left: 'calc(100% + 42px)',
                         top: quickAddHandle === 'false' ? '60%' : '20%',
                     }}
                 >
-                    <button onClick={() => handleSelectNode('http')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🌐 HTTP Request</button>
-                    <button onClick={() => handleSelectNode('perplexity')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Perplexity AI</button>
-                    <button onClick={() => handleSelectNode('claude')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Claude AI</button>
-                    <button onClick={() => handleSelectNode('code')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">💻 Code</button>
-                    <button onClick={() => handleSelectNode('escape')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
-                    <button onClick={() => handleSelectNode('if')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
-                    <button onClick={() => handleSelectNode('switch')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 Switch</button>
-                    <button onClick={() => handleSelectNode('googledocs')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">📄 Google Docs</button>
-                    <button onClick={() => handleSelectNode('googlesheets')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">📊 Google Sheets</button>
-                    <button onClick={() => handleSelectNode('gemini')} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Gemini AI</button>
-                    <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                    <button onClick={() => setShowQuickAdd(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
+                    <button onClick={() => handleSelectNode('http')} className="menu-item text-sm">🌐 HTTP Request</button>
+                    <button onClick={() => handleSelectNode('perplexity')} className="menu-item text-sm">🤖 Perplexity AI</button>
+                    <button onClick={() => handleSelectNode('claude')} className="menu-item text-sm">🤖 Claude AI</button>
+                    <button onClick={() => handleSelectNode('code')} className="menu-item text-sm">💻 Code</button>
+                    <button onClick={() => handleSelectNode('escape')} className="menu-item text-sm">✂️ Escape & Set</button>
+                    <button onClick={() => handleSelectNode('if')} className="menu-item text-sm">🔀 If</button>
+                    <button onClick={() => handleSelectNode('switch')} className="menu-item text-sm">🔀 Switch</button>
+                    <button onClick={() => handleSelectNode('googledocs')} className="menu-item text-sm">📄 Google Docs</button>
+                    <button onClick={() => handleSelectNode('googlesheets')} className="menu-item text-sm">📊 Google Sheets</button>
+                    <button onClick={() => handleSelectNode('gemini')} className="menu-item text-sm">🤖 Gemini AI</button>
+                    <div className="border-t border-subtle my-1"></div>
+                    <button onClick={() => setShowQuickAdd(false)} className="menu-item menu-item--danger text-sm">Cancel</button>
                 </div>
             )}
         </div>
@@ -417,9 +415,12 @@ const nodeTypes = {
 
 
 function WorkflowEditor() {
-    const { id } = useParams();
+    const { id: legacyId, workflowId } = useParams();
+    const id = workflowId || legacyId;
     const navigate = useNavigate();
+    const location = useLocation();
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const workflowBasePath = location.pathname.startsWith('/dashboard/workflows') ? '/dashboard/workflows' : '/workflows';
     
     // Get back URL based on user role
     const getBackUrl = () => {
@@ -428,7 +429,7 @@ function WorkflowEditor() {
         } else if (currentUser.role === 'admin') {
             return '/admin';
         }
-        return '/workflows';
+        return '/dashboard/workflows/manage';
     };
     
     const [workflow, setWorkflow] = useState(null);
@@ -593,7 +594,7 @@ function WorkflowEditor() {
                 console.log('New workflow created with ID:', newWorkflowId);
                 
                 // Redirect to the newly created workflow (replace history to avoid back button issues)
-                navigate(`/workflows/${newWorkflowId}`, { replace: true });
+                navigate(`${workflowBasePath}/${newWorkflowId}`, { replace: true });
                 return;
             } catch (error) {
                 console.error('Error auto-creating workflow:', error);
@@ -2021,17 +2022,12 @@ function WorkflowEditor() {
     }
 
     return (
-        <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+        <div className="h-screen flex flex-col bg-surface">
             {/* Header */}
-            <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+            <div className="toolbar px-4 py-3">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                        <button
-                            onClick={() => navigate(getBackUrl())}
-                            className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                        >
-                            ← Back
-                        </button>
+                        
                         <div>
                             {isEditingName ? (
                                 <input
@@ -2055,7 +2051,7 @@ function WorkflowEditor() {
                                         }
                                     }}
                                     autoFocus
-                                    className="text-xl font-semibold bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-blue-500 rounded px-2 py-1"
+                                    className="text-xl font-semibold text-primary bg-surface-elevated border border-subtle rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                             ) : (
                                 <h1
@@ -2065,36 +2061,36 @@ function WorkflowEditor() {
                                             setIsEditingName(true);
                                         }
                                     }}
-                                    className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                                    className="text-xl font-semibold text-primary cursor-pointer hover:text-blue-600"
                                     title="Click to edit workflow name"
                                 >
                                     {workflow.name}
                                 </h1>
                             )}
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-muted">
                                 {workflow.description || 'No description'}
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center space-x-6">
                         {/* Tab Navigation */}
-                        <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                        <div className="flex space-x-1 bg-surface-muted p-1 rounded-2xl border border-subtle">
                             <button
                                 onClick={() => setActiveTab('editor')}
-                                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                                     activeTab === 'editor'
-                                        ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                                        ? 'bg-surface-elevated text-primary shadow-card'
+                                        : 'text-muted hover:text-primary'
                                 }`}
                             >
                                 Editor
                             </button>
                             <button
                                 onClick={() => setActiveTab('history')}
-                                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                                     activeTab === 'history'
-                                        ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                                        ? 'bg-surface-elevated text-primary shadow-card'
+                                        : 'text-muted hover:text-primary'
                                 }`}
                             >
                                 History
@@ -2105,81 +2101,81 @@ function WorkflowEditor() {
                         <div className="relative">
                             <button
                                 onClick={() => setShowNodeMenu(!showNodeMenu)}
-                                className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-md text-sm font-medium"
+                                className="btn btn-primary text-sm"
                             >
                                 + Add Node
                             </button>
                             {showNodeMenu && (
-                                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 shadow-lg rounded-md py-1 z-10">
+                                <div className="absolute right-0 mt-2 w-56 menu-panel p-2 z-20">
                                     <button
                                         onClick={() => { addNode('webhook', 'Webhook'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         Webhook
                                     </button>
                                     <button
                                         onClick={() => { addNode('schedule', 'Schedule Trigger'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         ⏰ Schedule Trigger
                                     </button>
                                     <button
                                         onClick={() => { addNode('http', 'HTTP Request'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         HTTP Request
                                     </button>
                                     <button
                                         onClick={() => { addNode('perplexity', 'Perplexity AI'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         Perplexity AI
                                     </button>
                                     <button
                                         onClick={() => { addNode('claude', 'Claude AI'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         Claude AI
                                     </button>
                                     <button
                                         onClick={() => { addNode('gemini', 'Gemini AI'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         Gemini AI
                                     </button>
                                     <button
                                         onClick={() => { addNode('code', 'Code'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         Code
                                     </button>
                                     <button
                                         onClick={() => { addNode('escape', 'Escape & Set'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         Escape & Set
                                     </button>
                                     <button
                                         onClick={() => { addNode('if', 'If'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         If
                                     </button>
                                     <button
                                         onClick={() => { addNode('switch', 'Switch'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         Switch
                                     </button>
                                     <button
                                         onClick={() => { addNode('googledocs', 'Google Docs'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         Google Docs
                                     </button>
                                     <button
                                         onClick={() => { addNode('googlesheets', 'Google Sheets'); setShowNodeMenu(false); }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        className="menu-item text-sm"
                                     >
                                         Google Sheets
                                     </button>
@@ -2190,7 +2186,7 @@ function WorkflowEditor() {
                         {/* Export Button */}
                         <button
                             onClick={handleExportWorkflow}
-                            className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center space-x-2"
+                            className="btn btn-ghost text-sm"
                             title="Export workflow to JSON"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2216,22 +2212,20 @@ function WorkflowEditor() {
                         <button
                             onClick={handleSave}
                             disabled={isSaving || !hasChanges}
-                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                            className={`btn text-sm font-medium ${
                                 isSaving
-                                    ? 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400 cursor-wait'
+                                    ? 'btn-muted cursor-wait opacity-80'
                                     : !hasChanges
-                                        ? 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-400 cursor-not-allowed'
-                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                        ? 'btn-muted cursor-not-allowed opacity-80'
+                                        : 'btn-primary'
                             }`}
                         >
                             {isSaving ? 'Saving...' : !hasChanges ? 'Saved' : 'Save'}
                         </button>
                         <button
                             onClick={handleToggleActive}
-                            className={`px-4 py-2 rounded-md text-sm font-medium ${
-                                workflow.active
-                                    ? 'bg-red-600 hover:bg-red-700 text-white'
-                                    : 'bg-green-600 hover:bg-green-700 text-white'
+                            className={`btn text-sm font-medium ${
+                                workflow.active ? 'btn-danger' : 'btn-success'
                             }`}
                         >
                             {workflow.active ? 'Deactivate' : 'Activate'}
@@ -2239,10 +2233,10 @@ function WorkflowEditor() {
                         <button
                             onClick={handleTestWorkflow}
                             disabled={isTestingWorkflow || !nodes.length}
-                            className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 ${
+                            className={`btn text-sm font-medium flex items-center gap-2 ${
                                 isTestingWorkflow || !nodes.length
-                                    ? 'bg-gray-400 cursor-not-allowed text-gray-600'
-                                    : 'bg-purple-600 hover:bg-purple-700 text-white'
+                                    ? 'btn-muted cursor-not-allowed opacity-80'
+                                    : 'bg-purple-600 hover:bg-purple-700 text-white shadow-card'
                             }`}
                         >
                             <span>🚀</span>
@@ -2378,7 +2372,7 @@ function WorkflowEditor() {
                                     e.stopPropagation();
                                     setShowEdgeNodeMenu(!showEdgeNodeMenu);
                                 }}
-                                className="w-8 h-8 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-md flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900 shadow-lg transition-colors"
+                                className="w-8 h-8 bg-surface-elevated border border-subtle rounded-xl flex items-center justify-center text-primary hover:bg-surface-muted shadow-card transition-colors"
                                 title="Add node between"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2387,19 +2381,19 @@ function WorkflowEditor() {
                             </button>
                             {showEdgeNodeMenu && (
                                 <div 
-                                    className="absolute left-0 top-full mt-2 bg-white dark:bg-gray-800 shadow-xl rounded-lg py-1 z-[100] min-w-[160px] border border-gray-300 dark:border-gray-600"
+                                    className="absolute left-0 top-full mt-2 menu-panel py-1 z-[100] min-w-[180px]"
                                     onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'http'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🌐 HTTP Request</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'perplexity'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Perplexity AI</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'claude'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🤖 Claude AI</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'code'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">💻 Code</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'escape'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">✂️ Escape & Set</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'if'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 If</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'switch'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">🔀 Switch</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'googledocs'); setShowEdgeNodeMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700">📄 Google Docs</button>
-                                    <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                                    <button onClick={() => setShowEdgeNodeMenu(false)} className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700">Cancel</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'http'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🌐 HTTP Request</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'perplexity'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🤖 Perplexity AI</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'claude'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🤖 Claude AI</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'code'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">💻 Code</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'escape'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">✂️ Escape & Set</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'if'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🔀 If</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'switch'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🔀 Switch</button>
+                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'googledocs'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">📄 Google Docs</button>
+                                    <div className="border-t border-subtle my-1"></div>
+                                    <button onClick={() => setShowEdgeNodeMenu(false)} className="menu-item menu-item--danger text-sm">Cancel</button>
                                 </div>
                             )}
                         </div>
@@ -2411,7 +2405,7 @@ function WorkflowEditor() {
                                 e.stopPropagation();
                                 handleDeleteEdge(hoveredEdge);
                             }}
-                            className="w-8 h-8 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-md flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 shadow-lg transition-colors"
+                            className="w-8 h-8 bg-surface-elevated border border-subtle rounded-xl flex items-center justify-center text-rose-500 hover:bg-rose-50 shadow-card transition-colors"
                             title="Delete connection"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2424,7 +2418,7 @@ function WorkflowEditor() {
                 {/* Edge Context Menu */}
                 {showNodeContextMenu && selectedEdge && (
                     <div
-                        className="absolute bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-50 min-w-[180px]"
+                        className="absolute menu-panel py-1 z-50 min-w-[200px]"
                         style={{
                             left: `${contextMenuPosition.x}px`,
                             top: `${contextMenuPosition.y}px`,
@@ -2432,7 +2426,7 @@ function WorkflowEditor() {
                     >
                         <button
                             onClick={() => handleDeleteEdge()}
-                            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 flex items-center space-x-2"
+                            className="menu-item menu-item--danger text-sm flex items-center justify-between"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -2445,7 +2439,7 @@ function WorkflowEditor() {
                 {/* Node Context Menu */}
                 {showNodeContextMenu && !selectedEdge && selectedNode && (
                     <div
-                        className="absolute bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-50 min-w-[180px]"
+                        className="absolute menu-panel py-1 z-50 min-w-[200px]"
                         style={{
                             left: `${contextMenuPosition.x}px`,
                             top: `${contextMenuPosition.y}px`,
@@ -2454,7 +2448,7 @@ function WorkflowEditor() {
                         {(selectedNode.type === 'webhook' || selectedNode.type === 'schedule' || selectedNode.type === 'http' || selectedNode.type === 'perplexity' || selectedNode.type === 'code' || selectedNode.type === 'escape' || selectedNode.type === 'if') && (
                             <button
                                 onClick={handleConfigureNode}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center space-x-2"
+                                className="menu-item text-sm flex items-center justify-between"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -2465,7 +2459,7 @@ function WorkflowEditor() {
                         )}
                         <button
                             onClick={handleRenameNode}
-                            className="w-full text-left px-4 py-2 text-sm text-blue-400 hover:bg-gray-700 flex items-center space-x-2"
+                            className="menu-item text-sm flex items-center justify-between"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -2477,7 +2471,7 @@ function WorkflowEditor() {
                                 handleCopyNodes();
                                 setShowNodeContextMenu(false);
                             }}
-                            className="w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-gray-700 flex items-center space-x-2"
+                            className="menu-item text-sm flex items-center justify-between text-emerald-500 hover:text-emerald-600"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -2486,7 +2480,7 @@ function WorkflowEditor() {
                         </button>
                         <button
                             onClick={handleDeleteNode}
-                            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 flex items-center space-x-2"
+                            className="menu-item menu-item--danger text-sm flex items-center justify-between"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

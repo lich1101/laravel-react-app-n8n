@@ -258,6 +258,51 @@ class ProjectFolderController extends Controller
     }
 
     /**
+     * Create folder by regular user
+     */
+    public function userCreateFolder(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'workflows' => 'nullable|array',
+            'workflows.*' => 'exists:workflows,id',
+        ]);
+
+        $folder = Folder::create([
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? '',
+            'created_by' => $user->id,
+        ]);
+
+        if (!empty($validated['workflows'])) {
+            Workflow::whereIn('id', $validated['workflows'])->update([
+                'folder_id' => $folder->id,
+            ]);
+        }
+
+        $folder->load(['directWorkflows', 'creator']);
+        $folder->workflows = $folder->directWorkflows ?? [];
+        unset($folder->directWorkflows);
+
+        // Align permissions with frontend expectations
+        $folder->user_permission = 'edit';
+        $folder->can_delete = true;
+
+        \Log::info("User '{$user->email}' created folder '{$folder->name}' (ID: {$folder->id})");
+
+        return response()->json([
+            'success' => true,
+            'folder' => $folder,
+        ], 201);
+    }
+
+    /**
      * Delete folder by regular user (not from Administrator)
      * User can delete any folder they have access to
      */

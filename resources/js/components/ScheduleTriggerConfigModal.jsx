@@ -61,13 +61,13 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
                 {/* Header */}
-                <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">⏰</span>
                         <h2 
-                            className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2"
+                            className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
                             onClick={() => {
                                 if (onRename) {
                                     onRename();
@@ -83,7 +83,7 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                     </div>
                     <button
                         onClick={handleClose}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        className="text-gray-400 hover:text-gray-600"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -94,11 +94,11 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                 {/* Content */}
                 <div className="flex-1 flex overflow-hidden">
                     {/* Left Panel - Configuration */}
-                    <div className="w-2/3 border-r border-gray-200 dark:border-gray-700 flex flex-col p-6 overflow-y-auto">
+                    <div className="w-2/3 border-r border-gray-200 flex flex-col p-6 overflow-y-auto">
                         <div className="space-y-6">
                             {/* Info Box */}
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                <p className="text-sm text-blue-800 dark:text-blue-200">
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <p className="text-sm text-blue-800">
                                     <strong>ℹ️ Lưu ý:</strong> Workflow sẽ tự động chạy theo lịch trình bạn định nghĩa sau khi <strong>Activate</strong> workflow.
                                     Schedule Trigger là node khởi đầu, giống Webhook nhưng tự kích hoạt theo thời gian.
                                 </p>
@@ -106,14 +106,14 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
 
                             {/* Trigger Type */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Schedule Type *
                                 </label>
                                 <select
                                     value={config.triggerType}
                                     onChange={(e) => setConfig({ ...config, triggerType: e.target.value })}
                                     disabled={readOnly}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 >
                                     <option value="interval">Simple Interval (Mỗi X phút/giờ/ngày...)</option>
                                     <option value="cron">Cron Expression (Lịch trình phức tạp)</option>
@@ -124,14 +124,14 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                             {config.triggerType === 'interval' && (
                                 <>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
                                             Trigger Interval *
                                         </label>
                                         <select
                                             value={config.interval}
                                             onChange={(e) => setConfig({ ...config, interval: e.target.value, intervalValue: 1 })}
                                             disabled={readOnly}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                         >
                                             <option value="minutes">Minutes (Phút)</option>
                                             <option value="hours">Hours (Giờ)</option>
@@ -142,7 +142,7 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
                                             {config.interval === 'minutes' && 'Mỗi bao nhiêu phút? *'}
                                             {config.interval === 'hours' && 'Mỗi bao nhiêu giờ? *'}
                                             {config.interval === 'days' && 'Mỗi bao nhiêu ngày? *'}
@@ -160,7 +160,7 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                                             disabled={readOnly}
                                             rows={1}
                                         />
-                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        <p className="mt-1 text-xs text-gray-500">
                                             Min: {currentIntervalOption.min}, Max: {currentIntervalOption.max}
                                         </p>
                                     </div>
@@ -169,7 +169,7 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                                     {['days', 'weeks', 'months'].includes(config.interval) && (
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                                     Trigger at Hour (0-23)
                                                 </label>
                                                 <ExpandableTextarea
@@ -187,7 +187,7 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                                     Trigger at Minute (0-59)
                                                 </label>
                                                 <ExpandableTextarea
@@ -208,11 +208,11 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                                     )}
 
                                     {/* Preview */}
-                                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                                        <p className="text-sm font-semibold text-green-800 dark:text-green-200 mb-2">
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <p className="text-sm font-semibold text-green-800 mb-2">
                                             📅 Schedule Preview:
                                         </p>
-                                        <p className="text-sm text-green-700 dark:text-green-300">
+                                        <p className="text-sm text-green-700">
                                             {config.interval === 'minutes' && `Chạy mỗi ${config.intervalValue} phút`}
                                             {config.interval === 'hours' && `Chạy mỗi ${config.intervalValue} giờ`}
                                             {config.interval === 'days' && `Chạy mỗi ${config.intervalValue} ngày lúc ${String(config.triggerAt.hour).padStart(2, '0')}:${String(config.triggerAt.minute).padStart(2, '0')}`}
@@ -227,7 +227,7 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                             {config.triggerType === 'cron' && (
                                 <>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
                                             Cron Expression *
                                         </label>
                                         <ExpandableTextarea
@@ -238,22 +238,22 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                                             placeholder="0 * * * *"
                                             className="font-mono"
                                         />
-                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        <p className="mt-1 text-xs text-gray-500">
                                             Format: minute hour day month weekday
                                         </p>
                                     </div>
 
                                     {/* Cron Helper */}
-                                    <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                        <p className="text-sm font-semibold text-gray-800 mb-2">
                                             💡 Cron Examples:
                                         </p>
-                                        <div className="space-y-1 text-xs text-gray-700 dark:text-gray-300 font-mono">
-                                            <p><code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">0 * * * *</code> - Mỗi giờ</p>
-                                            <p><code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">*/15 * * * *</code> - Mỗi 15 phút</p>
-                                            <p><code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">0 9 * * *</code> - Mỗi ngày lúc 9:00</p>
-                                            <p><code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">0 9 * * 1</code> - Mỗi thứ 2 lúc 9:00</p>
-                                            <p><code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">0 9 1 * *</code> - Ngày đầu tháng lúc 9:00</p>
+                                        <div className="space-y-1 text-xs text-gray-700 font-mono">
+                                            <p><code className="bg-gray-200 px-2 py-1 rounded">0 * * * *</code> - Mỗi giờ</p>
+                                            <p><code className="bg-gray-200 px-2 py-1 rounded">*/15 * * * *</code> - Mỗi 15 phút</p>
+                                            <p><code className="bg-gray-200 px-2 py-1 rounded">0 9 * * *</code> - Mỗi ngày lúc 9:00</p>
+                                            <p><code className="bg-gray-200 px-2 py-1 rounded">0 9 * * 1</code> - Mỗi thứ 2 lúc 9:00</p>
+                                            <p><code className="bg-gray-200 px-2 py-1 rounded">0 9 1 * *</code> - Ngày đầu tháng lúc 9:00</p>
                                         </div>
                                     </div>
                                 </>
@@ -261,14 +261,14 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
 
                             {/* Timezone */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Timezone
                                 </label>
                                 <select
                                     value={config.timezone}
                                     onChange={(e) => setConfig({ ...config, timezone: e.target.value })}
                                     disabled={readOnly}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                 >
                                     <option value="Asia/Ho_Chi_Minh">Asia/Ho Chi Minh (GMT+7)</option>
                                     <option value="UTC">UTC (GMT+0)</option>
@@ -279,8 +279,8 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                             </div>
 
                             {/* Warning about activation */}
-                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                                <p className="text-sm text-amber-800 dark:text-amber-200">
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                <p className="text-sm text-amber-800">
                                     <strong>⚠️ Quan trọng:</strong> Sau khi config xong, bạn cần <strong>Activate workflow</strong> để schedule trigger hoạt động.
                                     Workflow chỉ chạy theo lịch trình khi ở trạng thái Active.
                                 </p>
@@ -290,9 +290,9 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
 
                     {/* Right Panel - OUTPUT */}
                     <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-semibold text-gray-900 dark:text-white">OUTPUT</h3>
+                                <h3 className="font-semibold text-gray-900">OUTPUT</h3>
                             </div>
                             <button
                                 onClick={handleTestTrigger}

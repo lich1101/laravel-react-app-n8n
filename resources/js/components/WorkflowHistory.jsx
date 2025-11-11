@@ -24,9 +24,9 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
 
     return (
         <div 
-            className={`bg-gray-800 dark:bg-gray-700 border-2 rounded-lg p-3 w-20 h-20 relative flex items-center justify-center group transition-all ${
-                hasError ? 'border-red-500 border-4' : 
-                isCompleted ? 'border-green-500' : 'border-gray-600 dark:border-gray-500'
+            className={`bg-surface-elevated border-2 rounded-2xl p-3 w-20 h-20 relative flex items-center justify-center group transition-all shadow-card ${
+                hasError ? 'border-rose-500 border-4' : 
+                isCompleted ? 'border-emerald-500' : 'border-subtle'
             }`}
             title={data.customName || data.label || nodeType}
         >
@@ -35,7 +35,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
                 <Handle 
                     type="target" 
                     position={Position.Left} 
-                    className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-600"
+                    className="!bg-slate-300 !w-2.5 !h-2.5 !border-2 !border-slate-300"
                 />
             )}
             
@@ -45,12 +45,11 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
                     src={iconPath} 
                     alt={nodeType}
                     className="w-full h-full object-contain"
-                    style={{ filter: 'brightness(0) invert(1)' }}
                 />
             </div>
             
             {/* Node name label */}
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1.5 rounded-md whitespace-nowrap pointer-events-none">
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-surface-elevated text-secondary text-xs px-3 py-1.5 rounded-lg border border-subtle shadow-card whitespace-nowrap pointer-events-none">
                 {data.customName || data.label}
             </div>
             
@@ -65,10 +64,10 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
                             type="source" 
                             position={Position.Right} 
                             id={output.id}
-                            className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-gray-600 ${
-                                output.color === 'green' ? '!bg-green-400' :
-                                output.color === 'red' ? '!bg-red-400' :
-                                '!bg-gray-400'
+                            className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-slate-300 ${
+                                output.color === 'green' ? '!bg-emerald-400' :
+                                output.color === 'red' ? '!bg-rose-400' :
+                                '!bg-slate-300'
                             }`}
                             style={{ 
                                 left: 'calc(100%)',
@@ -78,9 +77,9 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
                         {output.label && (
                             <span 
                                 className={`absolute text-xs font-medium whitespace-nowrap pointer-events-none ${
-                                    output.color === 'green' ? 'text-green-400' :
-                                    output.color === 'red' ? 'text-red-400' :
-                                    'text-gray-400'
+                                    output.color === 'green' ? 'text-emerald-500' :
+                                    output.color === 'red' ? 'text-rose-500' :
+                                    'text-muted'
                                 }`}
                                 style={{ 
                                     left: 'calc(100% + 8px)',
@@ -231,7 +230,8 @@ const nodeTypes = {
 };
 
 const WorkflowHistory = () => {
-    const { id: workflowId } = useParams();
+    const params = useParams();
+    const workflowId = params.workflowId || params.id;
     const [executions, setExecutions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -603,13 +603,21 @@ const WorkflowHistory = () => {
     const getStatusColor = (status) => {
         switch (status) {
             case 'success':
-                return 'text-green-400';
+            case 'completed':
+                return 'text-emerald-600';
             case 'failed':
-                return 'text-red-400';
+            case 'error':
+                return 'text-rose-600';
             case 'running':
-                return 'text-yellow-400';
+                return 'text-blue-600';
+            case 'queued':
+                return 'text-muted';
+            case 'cancelling':
+                return 'text-amber-600';
+            case 'cancelled':
+                return 'text-purple-600';
             default:
-                return 'text-gray-400';
+                return 'text-muted';
         }
     };
 
@@ -695,55 +703,53 @@ const WorkflowHistory = () => {
 
     const hasNonRunningExecutions = executions.some(execution => execution.status !== 'running');
 
-    if (loading) return <div className="p-4 text-white">Đang tải lịch sử thực thi...</div>;
+    if (loading) return <div className="p-4 text-secondary">Đang tải lịch sử thực thi...</div>;
     if (error) return <div className="p-4 text-red-500">{error}</div>;
 
     return (
-        <div className="flex h-screen bg-gray-900 overflow-hidden">
+        <div className="flex h-screen bg-surface overflow-hidden text-secondary">
             {/* Left sidebar - Execution list */}
-            <div className="w-80 h-full bg-gray-800 border-r border-gray-700 overflow-y-auto">
-                <div className="p-4">
+            <div className="w-80 h-full bg-surface-elevated border-r border-subtle overflow-y-auto shadow-card">
+                <div className="p-4 space-y-4">
                     <div className="flex items-center justify-between gap-2 mb-4">
-                        <h2 className="text-lg font-semibold text-white">Lịch sử thực thi</h2>
+                        <h2 className="text-lg font-semibold text-primary">Lịch sử thực thi</h2>
                         <button
                             onClick={handleBulkDeleteExecutions}
                             disabled={bulkDeleting || !hasNonRunningExecutions}
-                            className={`text-xs font-semibold px-3 py-2 rounded transition-colors ${
-                                bulkDeleting || !hasNonRunningExecutions
-                                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                                    : 'bg-red-600 hover:bg-red-500 text-white'
+                            className={`btn btn-danger text-xs px-3 py-2 ${
+                                bulkDeleting || !hasNonRunningExecutions ? 'opacity-60 cursor-not-allowed' : ''
                             }`}
                         >
                             {bulkDeleting ? 'Đang xóa...' : 'Xóa tất cả'}
                         </button>
                     </div>
                     {executions.length === 0 ? (
-                        <p className="text-gray-400 text-sm">Chưa có lịch sử thực thi nào.</p>
+                        <p className="text-muted text-sm">Chưa có lịch sử thực thi nào.</p>
                     ) : (
                         <div className="space-y-2">
                             {executions.map((execution) => (
                                 <div
                                     key={execution.id}
                                     onClick={() => handleSelectExecution(execution)}
-                                    className={`p-3 rounded-lg cursor-pointer transition-colors relative group ${
+                                    className={`p-3 rounded-xl cursor-pointer transition-colors relative group border ${
                                         selectedExecution?.id === execution.id
-                                            ? 'bg-blue-600'
-                                            : 'bg-gray-700 hover:bg-gray-600'
+                                            ? 'bg-primary-soft border-blue-200 shadow-card'
+                                            : 'bg-surface-elevated border-subtle hover:bg-surface-muted'
                                     }`}
                                 >
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="text-sm font-medium text-white">
+                                        <span className="text-sm font-medium text-secondary">
                                             {formatDate(execution.started_at)}
                                         </span>
                                         <div className="flex items-center gap-2">
-                                        <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                                            execution.status === 'success' || execution.status === 'completed' ? 'bg-green-500 text-white' :
-                                            execution.status === 'error' || execution.status === 'failed' ? 'bg-red-500 text-white' :
-                                            execution.status === 'running' ? 'bg-blue-500 text-white' :
-                                            execution.status === 'queued' ? 'bg-gray-500 text-white' :
-                                            execution.status === 'cancelling' ? 'bg-yellow-500 text-white' :
-                                            execution.status === 'cancelled' ? 'bg-purple-500 text-white' :
-                                            'bg-gray-500 text-white'
+                                        <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${
+                                            execution.status === 'success' || execution.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                                            execution.status === 'error' || execution.status === 'failed' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                                            execution.status === 'running' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                            execution.status === 'queued' ? 'bg-surface-muted text-muted border-subtle' :
+                                            execution.status === 'cancelling' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                            execution.status === 'cancelled' ? 'bg-purple-50 text-purple-600 border-purple-200' :
+                                            'bg-surface-muted text-muted border-subtle'
                                         }`}>
                                             {execution.status === 'success' || execution.status === 'completed' ? 'Success' : 
                                              execution.status === 'error' || execution.status === 'failed' ? 'Error' :
@@ -755,19 +761,19 @@ const WorkflowHistory = () => {
                                         </span>
                                             <button
                                                 onClick={(e) => handleDeleteExecution(execution, e)}
-                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-600 rounded"
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-rose-100 rounded text-rose-600"
                                                 title="Xóa execution"
                                             >
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                 </svg>
                                             </button>
                                         </div>
                                     </div>
-                                    <p className="text-xs text-gray-300">
+                                    <p className="text-xs text-muted">
                                         Hoàn thành trong {execution.duration_ms}ms
                                     </p>
-                                    <p className="text-xs text-gray-400">
+                                    <p className="text-xs text-muted">
                                         ID#{execution.id}
                                     </p>
                                 </div>
@@ -782,26 +788,26 @@ const WorkflowHistory = () => {
                 {selectedExecution ? (
                     detailsLoading ? (
                         <div className="flex items-center justify-center h-full">
-                            <p className="text-gray-400">Đang tải chi tiết thực thi...</p>
+                            <p className="text-muted">Đang tải chi tiết thực thi...</p>
                         </div>
                     ) : executionDetails ? (
                         <>
                             {/* Header */}
-                            <div className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div className="bg-surface-elevated border-b border-subtle px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 shadow-card">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-white">
+                                    <h3 className="text-lg font-semibold text-primary">
                                         Chi tiết thực thi #{selectedExecution.id}
                                     </h3>
-                                    <p className="text-sm text-gray-400 mt-1">
+                                    <p className="text-sm text-muted mt-1">
                                         {formatDate(executionDetails.started_at)} - Status: <span className={getStatusColor(executionDetails.status)}>{executionDetails.status}</span>
                                     </p>
                                     {executionDetails.error_node && (
-                                        <p className="text-xs text-gray-400 mt-1">
-                                            Node lỗi: <span className="text-red-400 font-semibold">{executionDetails.error_node}</span>
+                                        <p className="text-xs text-muted mt-1">
+                                            Node lỗi: <span className="text-rose-500 font-semibold">{executionDetails.error_node}</span>
                                         </p>
                                     )}
                                     {executionDetails.resumed_to_execution_id && (
-                                        <p className="text-xs text-blue-400 mt-1">
+                                        <p className="text-xs text-primary mt-1">
                                             Đã chạy lại thành lần thực thi #{executionDetails.resumed_to_execution_id}
                                         </p>
                                     )}
@@ -810,10 +816,8 @@ const WorkflowHistory = () => {
                                     <button
                                         onClick={handleResumeExecution}
                                         disabled={resuming}
-                                        className={`px-4 py-2 rounded text-sm font-semibold transition-colors ${
-                                            resuming
-                                                ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                                                : 'bg-green-600 hover:bg-green-500 text-white'
+                                        className={`btn btn-success text-sm ${
+                                            resuming ? 'opacity-60 cursor-not-allowed' : ''
                                         }`}
                                     >
                                         {resuming ? 'Đang chạy lại...' : 'Chạy lại từ node lỗi'}
@@ -822,8 +826,8 @@ const WorkflowHistory = () => {
                             </div>
 
                             {isExecutionActive(executionDetails.status) ? (
-                                <div className="flex-1 flex flex-col items-center justify-center bg-gray-900 text-gray-300 gap-4">
-                                    <div className="w-14 h-14 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                <div className="flex-1 flex flex-col items-center justify-center bg-surface text-muted gap-4">
+                                    <div className="w-14 h-14 border-4 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
                                     <div className="text-sm text-center">
                                         Workflow đang chạy, vui lòng chờ hoàn tất để xem chi tiết.
                                     </div>
@@ -844,7 +848,7 @@ const WorkflowHistory = () => {
                                             nodesConnectable={false}
                                             nodesDraggable={true}
                                             elementsSelectable={true}
-                                            className="bg-gray-900"
+                                            className="bg-surface"
                                         >
                                             <Background />
                                             <Controls />
@@ -1044,7 +1048,7 @@ const WorkflowHistory = () => {
                     ) : null
                 ) : (
                     <div className="flex items-center justify-center h-full">
-                        <p className="text-gray-400">Chọn một lần thực thi từ danh sách bên trái để xem chi tiết.</p>
+                        <p className="text-muted">Chọn một lần thực thi từ danh sách bên trái để xem chi tiết.</p>
                     </div>
                 )}
             </div>

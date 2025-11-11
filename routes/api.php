@@ -12,6 +12,11 @@ use App\Http\Controllers\Api\ProjectFolderController;
 use App\Http\Controllers\Api\ProjectConfigController;
 use App\Http\Controllers\Api\CredentialController;
 use App\Http\Controllers\Api\SystemSettingController;
+use App\Http\Controllers\Api\AutomationFieldController;
+use App\Http\Controllers\Api\AutomationRowController;
+use App\Http\Controllers\Api\AutomationStatusController;
+use App\Http\Controllers\Api\AutomationTableController;
+use App\Http\Controllers\Api\AutomationTopicController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -66,6 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Project folder routes (for regular authenticated users)
     Route::get('/project-folders', [ProjectFolderController::class, 'getFolders']);
+    Route::post('/project-folders/user-create', [ProjectFolderController::class, 'userCreateFolder']);
     Route::put('/project-folders/{folderId}/user-update', [ProjectFolderController::class, 'userUpdateFolder']);
     Route::delete('/project-folders/{folderId}/user-delete', [ProjectFolderController::class, 'userDeleteFolder']);
     
@@ -80,6 +86,35 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/credentials/{credential}/oauth2/authorize', [CredentialController::class, 'startOAuth2Authorization']);
     Route::post('/credentials/oauth2/authorize', [CredentialController::class, 'startOAuth2Authorization']);
     Route::apiResource('credentials', CredentialController::class);
+
+    // Automation module routes
+    Route::prefix('automation')->group(function () {
+        Route::apiResource('topics', AutomationTopicController::class);
+
+        Route::get('/tables', [AutomationTableController::class, 'index']);
+        Route::post('/tables', [AutomationTableController::class, 'store']);
+        Route::get('/tables/{automationTable}', [AutomationTableController::class, 'show']);
+        Route::put('/tables/{automationTable}', [AutomationTableController::class, 'update']);
+        Route::delete('/tables/{automationTable}', [AutomationTableController::class, 'destroy']);
+
+        Route::get('/tables/{automationTable}/fields', [AutomationFieldController::class, 'index']);
+        Route::post('/tables/{automationTable}/fields', [AutomationFieldController::class, 'store']);
+        Route::put('/tables/{automationTable}/fields/{automationField}', [AutomationFieldController::class, 'update']);
+        Route::delete('/tables/{automationTable}/fields/{automationField}', [AutomationFieldController::class, 'destroy']);
+
+        Route::get('/tables/{automationTable}/statuses', [AutomationStatusController::class, 'index']);
+        Route::post('/tables/{automationTable}/statuses', [AutomationStatusController::class, 'store']);
+        Route::put('/tables/{automationTable}/statuses/{automationStatus}', [AutomationStatusController::class, 'update']);
+        Route::delete('/tables/{automationTable}/statuses/{automationStatus}', [AutomationStatusController::class, 'destroy']);
+
+        Route::get('/tables/{automationTable}/rows', [AutomationRowController::class, 'index']);
+        Route::post('/tables/{automationTable}/rows', [AutomationRowController::class, 'store']);
+        Route::put('/tables/{automationTable}/rows/{automationRow}', [AutomationRowController::class, 'update']);
+        Route::delete('/tables/{automationTable}/rows/{automationRow}', [AutomationRowController::class, 'destroy']);
+        Route::post('/tables/{automationTable}/rows/bulk-delete', [AutomationRowController::class, 'bulkDestroy']);
+        Route::post('/tables/{automationTable}/rows/{automationRow}/status', [AutomationRowController::class, 'updateStatus']);
+        Route::post('/tables/{automationTable}/rows/{automationRow}/resend', [AutomationRowController::class, 'resendWebhook']);
+    });
 });
 
 // Project folder management routes (for Administrator app using admin key)

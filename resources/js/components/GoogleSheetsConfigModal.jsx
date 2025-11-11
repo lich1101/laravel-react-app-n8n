@@ -39,7 +39,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
         const currentPrefix = normalizeVariablePrefix(prefix, depth === 0);
 
         if (obj === null || obj === undefined) {
-            return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">null</span>;
+            return <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">null</span>;
         }
 
         // Handle arrays
@@ -50,24 +50,24 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
             return (
                 <div className="space-y-1">
                     <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
                         onClick={() => toggleCollapse(collapseKey)}
                     >
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                        <span className="text-gray-500 text-xs">
                             {isCollapsed ? '▶' : '▼'}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{obj.length} items</span>
+                        <span className="text-xs text-gray-500">{obj.length} items</span>
                     </div>
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => {
                                 const itemPath = buildArrayPath(currentPrefix, index);
                                 return (
-                                    <div key={index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">[{index}]</div>
+                                    <div key={index} className="border-l-2 border-gray-200 pl-3">
+                                        <div className="text-xs text-gray-500 mb-1">[{index}]</div>
                                         {renderDraggableJSON(item, itemPath, depth + 1)}
                                     </div>
                                 );
@@ -86,22 +86,22 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
             const objectCollapsed = collapsedPaths.has(objectPath);
 
             if (keys.length === 0) {
-                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">empty object</span>;
+                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">empty object</span>;
             }
 
             return (
                 <div className="space-y-1">
                     <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 -mx-1"
+                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
                         onClick={() => toggleCollapse(objectPath)}
                     >
-                        <span className="text-gray-500 dark:text-gray-400 text-xs">
+                        <span className="text-gray-500 text-xs">
                             {objectCollapsed ? '▶' : '▼'}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{keys.length} keys</span>
+                        <span className="text-xs text-gray-500">{keys.length} keys</span>
                     </div>
                     {!objectCollapsed && (
                         <div className="ml-4 space-y-1">
@@ -117,13 +117,13 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                         <div className="flex items-center gap-2">
                                             {!isPrimitive && (
                                                 <span 
-                                                    className="text-gray-500 dark:text-gray-400 text-xs cursor-pointer"
+                                                    className="text-gray-500 text-xs cursor-pointer"
                                                     onClick={() => toggleCollapse(variablePath)}
                                                 >
                                                     {childCollapsed ? '▶' : '▼'}
                                                 </span>
                                             )}
-                                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{key}:</span>
+                                            <span className="text-xs font-semibold text-gray-700">{key}:</span>
                                             {isPrimitive ? (
                                                 <div
                                                     draggable
@@ -131,7 +131,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                         e.dataTransfer.effectAllowed = 'copy';
                                                         e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
                                                     }}
-                                                    className="cursor-move text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors inline-flex items-center gap-1"
+                                                    className="cursor-move text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors inline-flex items-center gap-1"
                                                 >
                                                     {typeof value === 'string' 
                                                         ? `"${truncateText(value)}"`
@@ -144,7 +144,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                     onDragStart={(e) => {
                                                         e.dataTransfer.effectAllowed = 'copy';
                                                     }}
-                                                    className="cursor-move text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors inline-flex items-center gap-1"
+                                                    className="cursor-move text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors inline-flex items-center gap-1"
                                                 >
                                                     {typeof value === 'string' 
                                                         ? `"${truncateText(value)}"`
@@ -167,7 +167,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                         </div>
 
                                         {!isPrimitive && !childCollapsed && (
-                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
+                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 pl-3">
                                                 {renderDraggableJSON(value, variablePath, depth + 1)}
                                             </div>
                                         )}
@@ -183,10 +183,10 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
         const typeInfo = getTypeInfo(obj);
         return (
             <div className="flex items-center gap-2">
-                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 dark:bg-${typeInfo.color}-900/30 text-${typeInfo.color}-700 dark:text-${typeInfo.color}-300 rounded font-mono`}>
+                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                     {typeInfo.icon}
                 </span>
-                <span className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                <span className="text-xs text-gray-600 font-mono">
                     {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
                 </span>
             </div>
@@ -353,17 +353,17 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
     return (
         <>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[95%] h-[90%] flex flex-col">
+                <div className="bg-white rounded-lg shadow-xl w-[95%] h-[90%] flex flex-col">
                     {/* Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                         <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded flex items-center justify-center">
-                                <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 24 24">
+                            <div className="w-10 h-10 bg-green-100 rounded flex items-center justify-center">
+                                <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
                                     <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
                                 </svg>
                             </div>
                             <div>
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-2" onClick={() => { if (onRename) onRename(); }} title="Click để đổi tên node">
+                                <h2 className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 flex items-center gap-2" onClick={() => { if (onRename) onRename(); }} title="Click để đổi tên node">
                                     {node?.data?.customName || 'Google Sheets'}
                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -382,7 +382,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                             </button>
                             <button
                                 onClick={handleClose}
-                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                className="text-gray-500 hover:text-gray-700"
                             >
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -394,24 +394,24 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                     {/* Body - 3 columns layout */}
                     <div className="flex-1 flex overflow-hidden">
                         {/* Left Panel - INPUT */}
-                        <div className="w-1/3 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                            <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                                <h3 className="font-semibold text-gray-900 dark:text-white">INPUT</h3>
+                        <div className="w-1/3 border-r border-gray-200 flex flex-col">
+                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                                <h3 className="font-semibold text-gray-900">INPUT</h3>
                             </div>
-                            <div className="flex-1 p-4 overflow-y-auto bg-white dark:bg-gray-800">
+                            <div className="flex-1 p-4 overflow-y-auto bg-white">
                                 {inputData && Object.keys(inputData).length > 0 ? (
                                     <div className="space-y-4">
                                         {Object.entries(inputData).map(([nodeName, data]) => (
                                             <div key={nodeName}>
-                                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">{nodeName}:</div>
-                                                <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                                <div className="text-xs font-semibold text-gray-700 mb-2">{nodeName}:</div>
+                                                <div className="bg-white p-3 rounded-lg border border-gray-200">
                                                     {renderDraggableJSON(data, nodeName)}
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
                                         <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                         </svg>
@@ -424,7 +424,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
 
                         {/* Center Panel - Configuration */}
                         <div className="w-1/3 flex flex-col">
-                            <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                                 <button className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-medium">
                                     Parameters
                                 </button>
@@ -432,14 +432,14 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                             <div className="flex-1 p-4 overflow-y-auto space-y-4">
                                 {/* Credential Selection */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Credential to connect with *
                                     </label>
                                     <div className="flex space-x-2">
                                         <select
                                             value={config.credentialId || ''}
                                             onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                         >
                                             <option value="">Select Credential...</option>
                                             {credentials.map(cred => (
@@ -459,13 +459,13 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
 
                                 {/* Resource */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Resource
                                     </label>
                                     <select
                                         value={config.resource}
                                         onChange={(e) => setConfig({ ...config, resource: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                     >
                                         <option value="sheet">Sheet Within Document</option>
                                     </select>
@@ -473,13 +473,13 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
 
                                 {/* Operation */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Operation
                                     </label>
                                     <select
                                         value={config.operation}
                                         onChange={(e) => setConfig({ ...config, operation: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                     >
                                         <option value="get">Get Row(s)</option>
                                         <option value="append">Append Row</option>
@@ -489,11 +489,11 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
 
                                 {/* Document URL */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Document *
                                     </label>
                                     <div className="space-y-2">
-                                        <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
                                             <option value="url">By URL</option>
                                         </select>
                                         <ExpandableTextarea
@@ -501,7 +501,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                             onChange={(value) => setConfig({ ...config, documentUrl: value })}
                                             placeholder="https://docs.google.com/spreadsheets/d/..."
                                             inputData={inputData}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                             rows={2}
                                         />
                                     </div>
@@ -509,11 +509,11 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
 
                                 {/* Sheet URL */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Sheet *
                                     </label>
                                     <div className="space-y-2">
-                                        <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
                                             <option value="url">By URL</option>
                                         </select>
                                         <ExpandableTextarea
@@ -521,7 +521,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                             onChange={(value) => setConfig({ ...config, sheetUrl: value })}
                                             placeholder="https://docs.google.com/spreadsheets/d/..."
                                             inputData={inputData}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                             rows={2}
                                         />
                                     </div>
@@ -532,11 +532,11 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                     <>
                                         {/* Filters */}
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
                                                 Filters
                                             </label>
                                             {config.filters.length === 0 ? (
-                                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                                <p className="text-sm text-gray-500 mb-2">
                                                     Currently no items exist
                                                 </p>
                                             ) : (
@@ -555,7 +555,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                             <select
                                                                 value={filter.operator}
                                                                 onChange={(e) => updateFilter(index, 'operator', e.target.value)}
-                                                                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                                className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm"
                                                             >
                                                                 <option value="=">=</option>
                                                                 <option value="!=">!=</option>
@@ -584,7 +584,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                             )}
                                             <button
                                                 onClick={addFilter}
-                                                className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                                                className="text-sm text-blue-600 hover:text-blue-700"
                                             >
                                                 + Add Filter
                                             </button>
@@ -593,13 +593,13 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                         {/* Combine Filters */}
                                         {config.filters.length > 1 && (
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                                     Combine Filters
                                                 </label>
                                                 <select
                                                     value={config.combineFilters}
                                                     onChange={(e) => setConfig({ ...config, combineFilters: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                                 >
                                                     <option value="AND">AND</option>
                                                     <option value="OR">OR</option>
@@ -613,13 +613,13 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                     <>
                                         {/* Mapping Mode */}
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                                 Mapping Column Mode
                                             </label>
                                             <select
                                                 value={config.mappingMode}
                                                 onChange={(e) => setConfig({ ...config, mappingMode: e.target.value })}
-                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                             >
                                                 <option value="manual">Map Each Column Manually</option>
                                             </select>
@@ -628,20 +628,20 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                         {/* Column to Match (Update only) */}
                                         {config.operation === 'update' && (
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                                     Column to match on
                                                 </label>
                                                 <select
                                                     value={config.columnToMatch}
                                                     onChange={(e) => setConfig({ ...config, columnToMatch: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                                 >
                                                     <option value="row_number">row_number</option>
                                                     {sheetColumns.map(col => (
                                                         <option key={col} value={col}>{col}</option>
                                                     ))}
                                                 </select>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                <p className="text-xs text-gray-500 mt-1">
                                                     The column to use when matching rows in Google Sheets to the input items of this node. Usually an ID.
                                                 </p>
                                             </div>
@@ -650,11 +650,11 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                         {/* Column Values */}
                                         <div>
                                             {isLoadingColumns ? (
-                                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                <p className="text-sm text-gray-500">
                                                     Đang tải cột...
                                                 </p>
                                             ) : columnError ? (
-                                                <p className="text-sm text-red-500 dark:text-red-400">
+                                                <p className="text-sm text-red-500">
                                                     {columnError}
                                                 </p>
                                             ) : sheetColumns.length > 0 ? (
@@ -662,11 +662,11 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                     {/* For Update: Show match column first */}
                                                     {config.operation === 'update' && (
                                                         <div>
-                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">
                                                                 Value to Match
                                                             </label>
                                                             <div>
-                                                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                                <label className="block text-xs text-gray-600 mb-1">
                                                                     {config.columnToMatch} <span className="text-blue-500">(using to match)</span>
                                                                 </label>
                                                                 <ExpandableTextarea
@@ -680,7 +680,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                                     })}
                                                                     placeholder={`Enter ${config.columnToMatch} value to find the row`}
                                                                     inputData={inputData}
-                                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm"
                                                                     rows={2}
                                                                 />
                                                             </div>
@@ -689,7 +689,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
 
                                                     {/* Values to Send/Update */}
                                                     <div>
-                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">
                                                             {config.operation === 'append' ? 'Values to Send' : 'Values to Update'}
                                                         </label>
                                                         <div className="space-y-3">
@@ -697,7 +697,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                                 .filter(col => config.operation === 'append' || col !== config.columnToMatch)
                                                                 .map(col => (
                                                                     <div key={col}>
-                                                                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                                        <label className="block text-xs text-gray-600 mb-1">
                                                                             {col}
                                                                         </label>
                                                                         <ExpandableTextarea
@@ -711,7 +711,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                                             })}
                                                                             placeholder={`Enter value for ${col}`}
                                                                             inputData={inputData}
-                                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm"
                                                                             rows={2}
                                                                         />
                                                                     </div>
@@ -720,7 +720,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                <p className="text-sm text-gray-500">
                                                     Nhập Document và Sheet URL để tải cột
                                                 </p>
                                             )}
@@ -731,9 +731,9 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                         </div>
 
                         {/* Right Panel - OUTPUT */}
-                        <div className="w-1/3 border-l border-gray-200 dark:border-gray-700 flex flex-col">
-                            <div className="bg-gray-50 dark:bg-gray-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                                <h3 className="font-semibold text-gray-900 dark:text-white">
+                        <div className="w-1/3 border-l border-gray-200 flex flex-col">
+                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                                <h3 className="font-semibold text-gray-900">
                                     OUTPUT
                                     {outputData && (
                                         <span className="ml-2 text-sm font-normal text-gray-500">
@@ -742,13 +742,13 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                     )}
                                 </h3>
                             </div>
-                            <div className="flex-1 p-4 overflow-y-auto bg-white dark:bg-gray-800">
+                            <div className="flex-1 p-4 overflow-y-auto bg-white">
                                 {outputData ? (
-                                    <pre className="text-xs bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-3 rounded border border-gray-200 dark:border-gray-700 whitespace-pre-wrap">
+                                    <pre className="text-xs bg-gray-100 text-gray-900 p-3 rounded border border-gray-200 whitespace-pre-wrap">
                                         {JSON.stringify(outputData, null, 2)}
                                     </pre>
                                 ) : (
-                                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    <div className="text-center text-gray-500 py-8">
                                         <p>Click "Test step" to see output</p>
                                     </div>
                                 )}
