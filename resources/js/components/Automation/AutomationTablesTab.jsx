@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../config/axios';
 
@@ -400,6 +400,19 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         }
     };
 
+    /**
+     * Tối ưu: Dùng refs để lưu latest values của rowsPerPage và debouncedSearch
+     * Điều này cho phép fetchRows có empty dependencies array → stable reference
+     * → Tránh circular dependency và unnecessary re-renders khi search/paginate
+     */
+    const rowsPerPageRef = useRef(rowsPerPage);
+    const debouncedSearchRef = useRef(debouncedSearch);
+
+    useEffect(() => {
+        rowsPerPageRef.current = rowsPerPage;
+        debouncedSearchRef.current = debouncedSearch;
+    }, [rowsPerPage, debouncedSearch]);
+
     const fetchTableDetail = useCallback(async (id) => {
         setLoadingDetail(true);
         try {
@@ -419,9 +432,9 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         try {
             const params = {
                 page,
-                per_page: perPage ?? rowsPerPage,
+                per_page: perPage ?? rowsPerPageRef.current,
             };
-            const searchValue = search ?? debouncedSearch;
+            const searchValue = search ?? debouncedSearchRef.current;
             if (searchValue) {
                 params.search = searchValue;
             }
@@ -432,10 +445,11 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
             setRowsData({ data: rowsArray, meta });
         } catch (error) {
             console.error('Không thể tải dữ liệu hàng automation', error);
+            setRowsData({ data: [], meta: {} });
         } finally {
             setRowsLoading(false);
         }
-    }, [rowsPerPage, debouncedSearch]);
+    }, []); // ✅ Không có dependencies - dùng refs thay thế
 
     const fetchSingleRow = useCallback(async (tableId, rowId) => {
         if (!tableId || !rowId) return;
@@ -520,7 +534,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
             setRowsData({ data: [], meta: {} });
             setSelectedRows([]);
         }
-    }, [hideTopicPanel, selectedTableId, fetchTableDetail, fetchRows]);
+    }, [hideTopicPanel, selectedTableId, fetchTableDetail, fetchRows, onSelectTable]);
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -534,7 +548,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
             return;
         }
         fetchRows(selectedTable.id, 1, { perPage: rowsPerPage, search: debouncedSearch });
-    }, [selectedTable?.id, debouncedSearch, rowsPerPage, fetchRows]);
+    }, [selectedTable?.id, debouncedSearch, rowsPerPage]);
 
     const handleUpdateTable = async (payload) => {
         if (!editingTable) return;
@@ -1200,7 +1214,14 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         }
     };
 
-    const handleInlineChange = (rowId, groupKey, fieldKey, value) => {
+    const sortedStatuses = useMemo(() => {
+        if (!selectedTable?.statuses) return [];
+        return [...selectedTable.statuses].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    }, [selectedTable?.statuses]);
+
+    const defaultStatus = sortedStatuses[0] || null;
+
+    const handleInlineChange = useCallback((rowId, groupKey, fieldKey, value) => {
         if (newRowDraft && rowId === newRowDraft.id) {
             setNewRowDraft((prev) => {
                 if (!prev) return prev;
@@ -1247,9 +1268,9 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
             ...prev,
             [idKey]: true,
         }));
-    };
+    }, [newRowDraft, rowEdits]);
 
-    const handleStatusChange = async (rowId, statusValue) => {
+    const handleStatusChange = useCallback(async (rowId, statusValue) => {
         const statusObject = sortedStatuses.find((status) => status.value === statusValue) || null;
 
         if (newRowDraft && rowId === newRowDraft.id) {
@@ -1353,7 +1374,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                 return next;
             });
         }
-    };
+    }, [dirtyRows, fetchRows, newRowDraft, rowEdits, rowsData.data, rowsData.meta?.current_page, selectedTable, sortedStatuses]);
 
     const handleSaveAll = async () => {
         if (!selectedTable) return;
@@ -1470,29 +1491,22 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         return () => window.removeEventListener('keydown', handleGlobalSave);
     }, [handleSaveAll]);
 
-    const toggleRowSelection = (rowId) => {
+    const toggleRowSelection = useCallback((rowId) => {
         if (String(rowId).startsWith('new-')) {
             return;
         }
         setSelectedRows((prev) =>
             prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]
         );
-    };
+    }, []);
 
-    const toggleSelectAllRows = () => {
+    const toggleSelectAllRows = useCallback(() => {
         if (selectedRows.length === rowsData.data.length) {
             setSelectedRows([]);
         } else {
             setSelectedRows(rowsData.data.map((row) => row.id));
         }
-    };
-
-    const sortedStatuses = useMemo(() => {
-        if (!selectedTable?.statuses) return [];
-        return [...selectedTable.statuses].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-    }, [selectedTable?.statuses]);
-
-    const defaultStatus = sortedStatuses[0] || null;
+    }, [rowsData.data, selectedRows.length]);
 
     const isDirty = useMemo(() => {
         const hasDirtyRows = Object.keys(dirtyRows).length > 0;
@@ -2503,7 +2517,7 @@ const RowsToolbar = ({ rows, selectedRows, onSelectAll, onDeleteSelected }) => (
     </div>
 );
 
-const RowsTable = ({
+const RowsTableComponent = ({
     rows,
     loading,
     primaryInputFields,
@@ -2537,11 +2551,10 @@ const RowsTable = ({
         }
     }, [newRowId]);
 
-    if (loading) {
-        return <div className="text-gray-600">Đang tải dữ liệu dòng...</div>;
-    }
-
     if (!rows || rows.length === 0) {
+        if (loading) {
+            return <div className="text-gray-600">Đang tải dữ liệu dòng...</div>;
+        }
         return <div className="text-gray-400">Chưa có dữ liệu dòng nào. Hãy thêm dòng mới để bắt đầu.</div>;
     }
 
@@ -2664,7 +2677,18 @@ const RowsTable = ({
 
     return (
         <>
-        <div className="overflow-x-auto rounded-2xl border border-surface-muted bg-white shadow-sm" style={{ border: '1px solid var(--border-subtle)' }}>
+        <div className="relative overflow-x-auto rounded-2xl border border-surface-muted bg-white shadow-sm" style={{ border: '1px solid var(--border-subtle)' }}>
+            {loading && (
+                <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex items-center justify-center">
+                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-lg border border-subtle">
+                        <svg className="w-5 h-5 text-primary animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 105 14.32l-1.45-1.45A6 6 0 1112 6v4z" />
+                        </svg>
+                        <span className="text-sm font-medium text-secondary">Đang tải...</span>
+                    </div>
+                </div>
+            )}
             <table className="min-w-full text-sm" style={{ border: 'var(--border-subtle)' }}>
                 <thead className="bg-surface-muted/60 border-b border-subtle">
                     <tr>
@@ -2888,6 +2912,8 @@ const RowsTable = ({
         </>
     );
 };
+
+const RowsTable = React.memo(RowsTableComponent);
 
 const RowExpandedEditor = ({
     row,
