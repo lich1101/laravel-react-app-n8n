@@ -114,6 +114,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/tables/{automationTable}/rows/bulk-delete', [AutomationRowController::class, 'bulkDestroy']);
         Route::post('/tables/{automationTable}/rows/{automationRow}/status', [AutomationRowController::class, 'updateStatus']);
         Route::post('/tables/{automationTable}/rows/{automationRow}/resend', [AutomationRowController::class, 'resendWebhook']);
+        Route::get('/tables/{automationTable}/rows/export', [AutomationRowController::class, 'export']);
     });
 });
 

@@ -8,10 +8,14 @@ use App\Models\AutomationStatus;
 use App\Models\AutomationTable;
 use App\Services\AutomationWebhookService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AutomationRowController extends Controller
 {
@@ -27,20 +31,7 @@ class AutomationRowController extends Controller
             ->with(['status', 'creator:id,name', 'updater:id,name'])
             ->latest();
 
-        if ($statusValue = $request->string('status')->toString()) {
-            $query->whereHas('status', fn (Builder $builder) => $builder->where('value', $statusValue));
-        }
-
-        if ($request->boolean('pending_only')) {
-            $query->where('is_pending_callback', true);
-        }
-
-        if ($search = $request->string('search')->toString()) {
-            $query->where(function (Builder $builder) use ($search) {
-                $builder->where('external_reference', 'like', "%{$search}%")
-                    ->orWhere('uuid', 'like', "%{$search}%");
-            });
-        }
+        $this->applyFilters($request, $automationTable, $query);
 
         /** @var LengthAwarePaginator $paginator */
         $paginator = $query->paginate($perPage);
@@ -141,6 +132,93 @@ class AutomationRowController extends Controller
         ]);
     }
 
+    public function export(Request $request, AutomationTable $automationTable): StreamedResponse
+    {
+        $automationTable->loadMissing(['fields']);
+
+        $query = $automationTable->rows()
+            ->with('status')
+            ->latest();
+
+        $this->applyFilters($request, $automationTable, $query);
+
+        $rows = $query->get();
+
+        $fieldMap = $automationTable->fields
+            ->mapWithKeys(function ($field) {
+                $key = "{$field->group}:{$field->key}";
+                return [
+                    $key => [
+                        'label' => $field->label,
+                        'group' => $field->group,
+                        'key' => $field->key,
+                    ],
+                ];
+            });
+
+        $configuredFields = collect(data_get($automationTable->config, 'exports.fields', []))
+            ->filter(fn ($value) => is_string($value) && str_contains($value, ':'))
+            ->unique()
+            ->values();
+
+        if ($configuredFields->isEmpty()) {
+            $configuredFields = $fieldMap->keys();
+        }
+
+        $selectedFields = $configuredFields
+            ->filter(fn ($fieldKey) => $fieldMap->has($fieldKey))
+            ->values();
+
+        if ($selectedFields->isEmpty()) {
+            abort(422, 'Không có field hợp lệ để xuất Excel.');
+        }
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $headers = $selectedFields->map(fn ($fieldKey) => $fieldMap[$fieldKey]['label'])->all();
+        $sheet->fromArray([$headers]);
+
+        $rowIndex = 2;
+        foreach ($rows as $row) {
+            $line = [];
+            foreach ($selectedFields as $fieldKey) {
+                $definition = $fieldMap[$fieldKey];
+                $value = match ($definition['group']) {
+                    'input' => data_get($row->input_data, $definition['key']),
+                    'output' => data_get($row->output_data, $definition['key']),
+                    'meta' => data_get($row->meta_data, $definition['key']),
+                    default => null,
+                };
+
+                if (is_array($value) || is_object($value)) {
+                    $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+                }
+
+                $line[] = $value ?? '';
+            }
+
+            $sheet->fromArray([$line], null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $sheet->setTitle('Automation Rows');
+
+        $fileName = sprintf(
+            'automation-rows-%s-%s.xlsx',
+            $automationTable->slug ?? $automationTable->id,
+            now()->format('Ymd-His')
+        );
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+            $spreadsheet->disconnectWorksheets();
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
     public function resendWebhook(AutomationTable $automationTable, AutomationRow $automationRow): JsonResponse
     {
         $this->ensureRowBelongsToTable($automationTable, $automationRow);
@@ -198,5 +276,56 @@ class AutomationRowController extends Controller
         }
 
         return null;
+    }
+
+    private function applyFilters(Request $request, AutomationTable $automationTable, Builder|HasMany $query): void
+    {
+        if ($statusValue = $request->string('status')->toString()) {
+            $query->whereHas('status', fn (Builder $builder) => $builder->where('value', $statusValue));
+        }
+
+        if ($request->boolean('pending_only')) {
+            $query->where('is_pending_callback', true);
+        }
+
+        if ($search = trim($request->string('search')->toString())) {
+            $automationTable->loadMissing('fields');
+            $inputKeys = $automationTable->fields->where('group', 'input')->pluck('key')->filter()->all();
+            $outputKeys = $automationTable->fields->where('group', 'output')->pluck('key')->filter()->all();
+            $metaKeys = $automationTable->fields->where('group', 'meta')->pluck('key')->filter()->all();
+
+            $query->where(function (Builder $builder) use ($search, $inputKeys, $outputKeys, $metaKeys) {
+                $builder->where('external_reference', 'like', "%{$search}%")
+                    ->orWhere('uuid', 'like', "%{$search}%");
+
+                foreach ($inputKeys as $key) {
+                    $builder->orWhereRaw(
+                        'JSON_UNQUOTE(JSON_EXTRACT(input_data, ?)) LIKE ?',
+                        [$this->jsonPath($key), "%{$search}%"]
+                    );
+                }
+
+                foreach ($outputKeys as $key) {
+                    $builder->orWhereRaw(
+                        'JSON_UNQUOTE(JSON_EXTRACT(output_data, ?)) LIKE ?',
+                        [$this->jsonPath($key), "%{$search}%"]
+                    );
+                }
+
+                foreach ($metaKeys as $key) {
+                    $builder->orWhereRaw(
+                        'JSON_UNQUOTE(JSON_EXTRACT(meta_data, ?)) LIKE ?',
+                        [$this->jsonPath($key), "%{$search}%"]
+                    );
+                }
+            });
+        }
+    }
+
+    private function jsonPath(string $key): string
+    {
+        $escaped = str_replace(['\\', '"'], ['\\\\', '\"'], $key);
+
+        return '$."' . $escaped . '"';
     }
 }

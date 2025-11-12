@@ -39,6 +39,9 @@ const DEFAULT_CONFIG = {
         sets: [],
         active_set_id: null,
     },
+    exports: {
+        fields: [],
+    },
 };
 
 const collectFieldKeysByGroup = (fields) => {
@@ -84,6 +87,25 @@ const syncDefaultSetsWithFields = (sets, fields) => {
         ...set,
         values: ensureDefaultSetValues(set.values, fieldKeysByGroup),
     }));
+};
+
+const collectExportableFieldKeys = (fields = []) =>
+    fields
+        .filter((field) => field?.group && field?.key)
+        .map((field) => ({
+            id: `${field.group}:${field.key}`,
+            label: field.label ?? field.key,
+            group: field.group,
+            key: field.key,
+        }));
+
+const normalizeExportFields = (exportFields, tableFields) => {
+    const availableKeys = new Set(collectExportableFieldKeys(tableFields).map((item) => item.id));
+    const normalized = toArray(exportFields)
+        .map((value) => String(value))
+        .filter((value) => availableKeys.has(value));
+
+    return Array.from(new Set(normalized));
 };
 
 const areGroupValuesEqual = (a = {}, b = {}) => {
@@ -148,6 +170,7 @@ const normalizeDefaultsConfig = (defaults, fields) => {
 const normalizeConfig = (config, tableFields = []) => {
     const webhook = config?.webhook || {};
     const webhookFields = webhook.fields || {};
+    const exportFields = config?.exports?.fields || [];
 
     return {
         webhook: {
@@ -174,6 +197,10 @@ const normalizeConfig = (config, tableFields = []) => {
             ...(config?.callback || {}),
         },
         defaults: normalizeDefaultsConfig(config?.defaults || {}, tableFields),
+        exports: {
+            ...DEFAULT_CONFIG.exports,
+            fields: normalizeExportFields(exportFields, tableFields),
+        },
     };
 };
 
@@ -220,6 +247,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
     const [editingTable, setEditingTable] = useState(null);
     const [tableModalTopicId, setTableModalTopicId] = useState(null);
     const [showConfigModal, setShowConfigModal] = useState(false);
+    const [showExportConfigModal, setShowExportConfigModal] = useState(false);
     const [showFieldModal, setShowFieldModal] = useState(false);
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [editingField, setEditingField] = useState(null);
@@ -235,6 +263,23 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
     const [dirtyRows, setDirtyRows] = useState({});
     const [newRowDraft, setNewRowDraft] = useState(null);
     const [savingChanges, setSavingChanges] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [rowsPerPage, setRowsPerPage] = useState(25);
+    const [exportingRows, setExportingRows] = useState(false);
+
+    const handleSearchInputChange = (event) => {
+        setSearchTerm(event.target.value);
+    };
+
+    const handleClearSearch = () => {
+        setSearchTerm('');
+    };
+
+    const handlePerPageChange = (value) => {
+        setRowsPerPage(Number(value));
+    };
+
     const topicKey = (id) => {
         if (id === null || id === undefined || id === '' || id === 'null') {
             return UNASSIGNED_TOPIC_ID;
@@ -297,6 +342,20 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
             setSelectedRows([]);
         }
     }, [hideTopicPanel, selectedTableId]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm.trim());
+        }, 400);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        if (!selectedTable?.id) {
+            return;
+        }
+        fetchRows(selectedTable.id, 1, { perPage: rowsPerPage, search: debouncedSearch });
+    }, [selectedTable?.id, debouncedSearch, rowsPerPage]);
 
     const fetchTopics = async ({ preferredTopicId = null, preferredTableId = null } = {}) => {
         setLoadingTopics(true);
@@ -401,10 +460,19 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         }
     };
 
-    const fetchRows = async (id, page = 1) => {
+    const fetchRows = async (id, page = 1, { perPage, search } = {}) => {
         setRowsLoading(true);
         try {
-            const res = await axios.get(`/automation/tables/${id}/rows`, { params: { page } });
+            const params = {
+                page,
+                per_page: perPage ?? rowsPerPage,
+            };
+            const searchValue = search ?? debouncedSearch;
+            if (searchValue) {
+                params.search = searchValue;
+            }
+
+            const res = await axios.get(`/automation/tables/${id}/rows`, { params });
             const rowsArray = toArray(res.data?.data || res.data).map(normalizeRow);
             const meta = res.data && typeof res.data === 'object' && !Array.isArray(res.data) ? res.data : {};
             setRowsData({ data: rowsArray, meta });
@@ -460,6 +528,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
             await axios.put(`/automation/tables/${selectedTable.id}`, { config });
             await fetchTableDetail(selectedTable.id);
             setShowConfigModal(false);
+            setShowExportConfigModal(false);
         } catch (error) {
             console.error('Không thể cập nhật cấu hình', error);
             alert('Cập nhật cấu hình thất bại.');
@@ -606,14 +675,51 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         }
     };
 
-    const handleResendWebhook = async (rowId) => {
+    const handleExportRows = async () => {
         if (!selectedTable) return;
+        setExportingRows(true);
         try {
-            await axios.post(`/automation/tables/${selectedTable.id}/rows/${rowId}/resend`);
-            fetchRows(selectedTable.id, rowsData.meta.current_page || 1);
+            const params = {};
+            if (debouncedSearch) {
+                params.search = debouncedSearch;
+            }
+
+            const response = await axios.get(`/automation/tables/${selectedTable.id}/rows/export`, {
+                params,
+                responseType: 'blob',
+            });
+
+            let filename = `automation-rows-${selectedTable.slug || selectedTable.id}.xlsx`;
+            const disposition =
+                response.headers['content-disposition'] || response.headers['Content-Disposition'];
+            if (disposition) {
+                const match = disposition.match(/filename\*=UTF-8''(.+)$|filename="?([^\";]+)"?/i);
+                const encoded = match?.[1] || match?.[2];
+                if (encoded) {
+                    try {
+                        filename = decodeURIComponent(encoded);
+                    } catch (error) {
+                        filename = encoded;
+                    }
+                }
+            }
+
+            const blob = new Blob([response.data], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
         } catch (error) {
-            console.error('Không thể gửi lại webhook', error);
-            alert('Gửi lại webhook thất bại.');
+            console.error('Không thể xuất Excel', error);
+            alert('Xuất Excel thất bại. Vui lòng thử lại.');
+        } finally {
+            setExportingRows(false);
         }
     };
 
@@ -1381,6 +1487,9 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         setShowDefaultSetDetailModal(false);
         setDefaultSetDetailId(null);
         setShowConfigActions(false);
+        setSearchTerm('');
+        setDebouncedSearch('');
+        setRowsPerPage(25);
     }, [selectedTable?.id]);
 
     const fieldsByGroup = useMemo(() => {
@@ -1762,6 +1871,15 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                                             <button
                                                 onClick={() => {
                                                     setShowConfigActions(false);
+                                                    setShowExportConfigModal(true);
+                                                }}
+                                                className="w-full btn btn-muted justify-start text-sm"
+                                            >
+                                                Cấu hình xuất Excel
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setShowConfigActions(false);
                                                     setEditingField(null);
                                                     setShowFieldModal(true);
                                                 }}
@@ -1803,6 +1921,15 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                             </span>
                         </div>
 
+                        <RowsFilterBar
+                            searchValue={searchTerm}
+                            onSearchChange={handleSearchInputChange}
+                            onClearSearch={handleClearSearch}
+                            exporting={exportingRows}
+                            onExport={handleExportRows}
+                            meta={rowsData.meta}
+                        />
+
                         <RowsToolbar
                             rows={rowsData.data}
                             selectedRows={selectedRows}
@@ -1822,7 +1949,6 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                             onToggleRow={toggleRowSelection}
                             onCellChange={handleInlineChange}
                             onStatusChange={handleStatusChange}
-                            onResend={handleResendWebhook}
                             rowEdits={rowEdits}
                             dirtyRows={dirtyRows}
                             rowStatusLoading={rowStatusLoading}
@@ -1831,7 +1957,12 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                             now={now}
                         />
 
-                        <Pagination meta={rowsData.meta} onChangePage={(page) => fetchRows(selectedTable.id, page)} />
+                        <Pagination
+                            meta={rowsData.meta}
+                            perPage={rowsPerPage}
+                            onChangePerPage={handlePerPageChange}
+                            onChangePage={(page) => fetchRows(selectedTable.id, page)}
+                        />
 
                         {/* <ConfigSummary
                             config={selectedTable.config}
@@ -1846,6 +1977,13 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
 
             {showConfigModal && selectedTable && (
                 <ConfigModal table={selectedTable} onClose={() => setShowConfigModal(false)} onSubmit={handleUpdateConfig} />
+            )}
+            {showExportConfigModal && selectedTable && (
+                <ExportConfigModal
+                    table={selectedTable}
+                    onClose={() => setShowExportConfigModal(false)}
+                    onSubmit={handleUpdateConfig}
+                />
             )}
 
             {showFieldModal && selectedTable && (
@@ -2158,6 +2296,66 @@ const DefaultValueSetDetailModal = ({
     );
 };
 
+const RowsFilterBar = ({ searchValue, onSearchChange, onClearSearch, exporting, onExport, meta }) => {
+    const total = meta?.total ?? 0;
+    const from = meta?.from ?? 0;
+    const to = meta?.to ?? 0;
+
+    return (
+        <div className="rounded-2xl border border-surface-muted bg-white shadow-sm p-4 space-y-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                <div className="flex-1 min-w-[220px]">
+                    <label className="block text-xs font-semibold uppercase text-muted mb-2">Tìm kiếm nhanh</label>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            value={searchValue}
+                            onChange={onSearchChange}
+                            placeholder="Nhập từ khoá để lọc tất cả field..."
+                            className="w-full rounded-xl border border-subtle bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        />
+                        {searchValue && (
+                            <button
+                                type="button"
+                                onClick={onClearSearch}
+                                className="text-xs text-muted hover:text-danger px-3 py-2 border border-subtle rounded-xl bg-surface-muted"
+                            >
+                                Xoá
+                            </button>
+                        )}
+                    </div>
+                </div>
+                <div className="flex items-end justify-end">
+                    <button
+                        type="button"
+                        onClick={onExport}
+                        disabled={exporting || total === 0}
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-60"
+                    >
+                        {exporting ? 'Đang xuất...' : 'Xuất Excel'}
+                    </button>
+                </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+                <div>
+                    {total > 0
+                        ? `Đang hiển thị ${from || 0}-${to || 0} / ${total} dòng`
+                        : 'Không có dữ liệu dòng.'}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="flex items-center gap-1">
+                        Phím tắt:
+                        <span className="inline-flex items-center justify-center px-2 py-0.5 bg-surface-muted border border-subtle rounded text-[11px] font-semibold">
+                            Ctrl+S
+                        </span>
+                    </span>
+                    <span>Lưu toàn bộ thay đổi nhanh chóng</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const RowsToolbar = ({ rows, selectedRows, onSelectAll, onDeleteSelected }) => (
     <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-muted px-3 py-2 rounded-2xl border border-subtle">
         <div className="flex items-center space-x-2 text-muted text-sm">
@@ -2195,7 +2393,6 @@ const RowsTable = ({
     onToggleRow,
     onCellChange,
     onStatusChange,
-    onResend,
     rowEdits,
     dirtyRows,
     rowStatusLoading,
@@ -2345,26 +2542,26 @@ const RowsTable = ({
 
     return (
         <>
-        <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-subtle divide-opacity-40 text-sm bg-surface-elevated shadow-card rounded-2xl overflow-hidden">
-                <thead className="bg-surface-muted">
+        <div className="overflow-x-auto rounded-2xl border border-surface-muted bg-white shadow-sm" style={{ border: '1px solid var(--border-subtle)' }}>
+            <table className="min-w-full text-sm" style={{ border: 'var(--border-subtle)' }}>
+                <thead className="bg-surface-muted/60 border-b border-subtle">
                     <tr>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-muted uppercase tracking-wider">Chọn</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wide">Chọn</th>
                         {primaryInputFields.map((field) => (
-                            <th key={field.id} className="px-3 py-2 text-left text-xs font-semibold text-muted uppercase tracking-wider">
+                            <th key={field.id} className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wide">
                                 {field.label}
                             </th>
                         ))}
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-muted uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wide">Status</th>
                         {primaryOutputFields.map((field) => (
-                            <th key={field.id} className="px-3 py-2 text-left text-xs font-semibold text-muted uppercase tracking-wider">
+                            <th key={field.id} className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wide">
                                 {field.label}
                             </th>
                         ))}
-                        <th className="px-3 py-2" />
+                        <th className="px-4 py-3" />
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-subtle bg-surface-elevated">
+                <tbody className="divide-y divide-subtle bg-white">
                     {rows.map((row) => {
                         const rowKey = String(row.id);
                         const isNewRow = rowKey === String(newRowId);
@@ -2377,10 +2574,11 @@ const RowsTable = ({
                         return (
                         <React.Fragment key={row.id}>
                                 <tr
-                                    className="transition-colors hover:bg-surface-muted/80"
-                                    style={isNewRow || dirtyRow ? { backgroundColor: 'var(--primary-soft)' } : undefined}
+                                    className={`transition-colors divide-subtle ${
+                                        isNewRow || dirtyRow ? 'bg-primary-soft/40' : 'hover:bg-surface-muted/40'
+                                    }`}
                                 >
-                                <td className="px-3 py-2">
+                                <td className="px-4 py-3">
                                         {isNewRow ? (
                                             <span className="text-xs text-muted">Mới</span>
                                         ) : (
@@ -2393,17 +2591,17 @@ const RowsTable = ({
                                         )}
                                 </td>
                                 {primaryInputFields.map((field) => (
-                                        <td key={field.id} className="px-3 py-2">
+                                        <td key={field.id} className="px-4 py-3 align-middle">
                                             {renderTextInput(row, 'input_data', field)}
                                     </td>
                                 ))}
-                                <td className="px-3 py-2">
-                                    <div className="flex items-center gap-3">
+                                <td className="px-4 py-3">
+                                    <div className="flex items-center gap-2">
                                         <select
                                             value={statusValue}
                                             onChange={(event) => onStatusChange(row.id, event.target.value)}
                                             disabled={isNewRow || isStatusUpdating}
-                                            className="bg-surface-muted text-secondary text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2"
+                                            className="bg-white text-secondary text-sm rounded-lg px-3 py-2 border border-subtle focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:bg-surface-muted"
                                             style={
                                                 status?.color
                                                     ? {
@@ -2420,7 +2618,7 @@ const RowsTable = ({
                                             ))}
                                         </select>
                                         {!isNewRow && row.is_pending_callback && (
-                                            <div className="flex items-center space-x-1 text-amber-400 text-xs">
+                                            <div className="flex items-center space-x-1 text-amber-500 text-xs">
                                                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                                     <path
@@ -2450,11 +2648,11 @@ const RowsTable = ({
                                     </div>
                                 </td>
                                 {primaryOutputFields.map((field) => (
-                                        <td key={field.id} className="px-3 py-2">
+                                        <td key={field.id} className="px-4 py-3">
                                             {renderTextInput(row, 'output_data', field)}
                                     </td>
                                 ))}
-                                <td className="px-3 py-2 text-right text-muted">
+                                <td className="px-4 py-3 text-right text-muted">
                                     <div className="flex items-center justify-end gap-2">
                                         {dirtyRow && !isNewRow && (
                                             <span
@@ -2551,7 +2749,7 @@ const RowExpandedEditor = ({
     isDirty,
     onOpenModal,
 }) => (
-    <div className="grid md:grid-cols-3 gap-4 p-4 text-sm text-secondary bg-surface-elevated">
+    <div className="grid md:grid-cols-3 gap-4 p-4 text-sm text-secondary bg-white border-t border-subtle">
         <div>
             <h4 className="text-muted uppercase text-xs mb-2">Input khác</h4>
             <div className="space-y-2">
@@ -2697,26 +2895,111 @@ const RowExpandedEditor = ({
 
 // const RowExpandedContent = () => null;
 
-const Pagination = ({ meta, onChangePage }) => {
-    if (!meta?.last_page || meta.last_page <= 1) {
+const Pagination = ({
+    meta,
+    perPage,
+    perPageOptions = [2,10, 25, 50, 100],
+    onChangePage,
+    onChangePerPage,
+}) => {
+    if (!meta) {
         return null;
     }
 
-    const pages = Array.from({ length: meta.last_page }, (_, i) => i + 1);
+    const lastPage = Math.max(1, meta.last_page ?? 1);
+    const currentPage = Math.min(Math.max(1, meta.current_page ?? 1), lastPage);
+
+    const buildPages = () => {
+        if (lastPage <= 7) {
+            return Array.from({ length: lastPage }, (_, i) => i + 1);
+        }
+
+        const pages = [1];
+        const start = Math.max(2, currentPage - 1);
+        const end = Math.min(lastPage - 1, currentPage + 1);
+
+        if (start > 2) {
+            pages.push('start-ellipsis');
+        }
+
+        for (let page = start; page <= end; page += 1) {
+            pages.push(page);
+        }
+
+        if (end < lastPage - 1) {
+            pages.push('end-ellipsis');
+        }
+
+        pages.push(lastPage);
+        return pages;
+    };
+
+    const pages = buildPages();
+
+    const handlePerPageSelect = (event) => {
+        const value = Number(event.target.value);
+        onChangePerPage?.(value);
+    };
+
+    const goToPage = (page) => {
+        if (page < 1 || page > lastPage || page === currentPage) return;
+        onChangePage?.(page);
+    };
 
     return (
-        <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
-            {pages.map((page) => (
-                <button
-                    key={page}
-                    onClick={() => onChangePage(page)}
-                    className={`px-3 py-1 rounded-lg ${
-                        page === meta.current_page ? 'bg-primary-soft text-primary shadow-card' : 'bg-surface-muted hover:bg-surface-strong'
-                    }`}
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-secondary">
+            <div className="flex items-center gap-2">
+                <span className="text-muted">Hiển thị</span>
+                <select
+                    value={perPage}
+                    onChange={handlePerPageSelect}
+                    className="rounded-lg border border-subtle bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
-                    {page}
+                    {perPageOptions.map((option) => (
+                        <option key={option} value={option}>
+                            {option} dòng
+                        </option>
+                    ))}
+                </select>
+                <span className="text-muted">/ trang</span>
+            </div>
+            <div className="flex items-center gap-1">
+                <button
+                    type="button"
+                    onClick={() => goToPage(currentPage - 1)}
+                    className="px-2 py-1 rounded-lg bg-surface-muted hover:bg-surface-strong text-muted disabled:opacity-40"
+                    disabled={currentPage === 1}
+                >
+                    Trước
                 </button>
-            ))}
+                {pages.map((page) =>
+                    typeof page === 'number' ? (
+                        <button
+                            key={page}
+                            onClick={() => goToPage(page)}
+                            className={`px-3 py-1 rounded-lg ${
+                                page === currentPage
+                                    ? 'bg-primary-soft text-primary shadow-card'
+                                    : 'bg-surface-muted hover:bg-surface-strong'
+                            }`}
+                        >
+                            {page}
+                        </button>
+                    ) : (
+                        <span key={page} className="px-2 text-muted">
+                            …
+                        </span>
+                    )
+                )}
+                <button
+                    type="button"
+                    onClick={() => goToPage(currentPage + 1)}
+                    className="px-2 py-1 rounded-lg bg-surface-muted hover:bg-surface-strong text-muted disabled:opacity-40"
+                    disabled={currentPage === lastPage}
+                >
+                    Tiếp
+                </button>
+            </div>
         </div>
     );
 };
@@ -2931,6 +3214,7 @@ const ConfigModal = ({ table, onClose, onSubmit }) => {
             };
         });
     };
+
 
     return (
         <Modal onClose={onClose} title="Cấu hình webhook & callback">
@@ -3193,6 +3477,208 @@ const ConfigModal = ({ table, onClose, onSubmit }) => {
                     </div>
                 </section>
 
+                <div className="flex justify-end space-x-2">
+                    <button type="button" onClick={onClose} className="btn btn-muted text-sm px-4 py-2">
+                        Đóng
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={saving}
+                        className="btn btn-primary text-sm px-4 py-2 disabled:opacity-50"
+                    >
+                        {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
+                    </button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
+
+const ExportConfigModal = ({ table, onClose, onSubmit }) => {
+    const baseConfig = useMemo(() => normalizeConfig(table.config, table.fields), [table.config, table.fields]);
+    const [selectedFieldIds, setSelectedFieldIds] = useState(() =>
+        normalizeExportFields(baseConfig.exports?.fields, table.fields)
+    );
+    const [saving, setSaving] = useState(false);
+    const [draggingId, setDraggingId] = useState(null);
+
+    useEffect(() => {
+        setSelectedFieldIds(normalizeExportFields(baseConfig.exports?.fields, table.fields));
+    }, [baseConfig.exports?.fields, table.fields]);
+
+    const exportFieldInfo = useMemo(() => {
+        const map = {};
+        table.fields.forEach((field) => {
+            if (!field?.group || !field?.key) return;
+            const id = `${field.group}:${field.key}`;
+            map[id] = field;
+        });
+        return map;
+    }, [table.fields]);
+
+    useEffect(() => {
+        const available = new Set(Object.keys(exportFieldInfo));
+        setSelectedFieldIds((prev) => prev.filter((id) => available.has(id)));
+    }, [exportFieldInfo]);
+
+    const toggleField = (group, key) => {
+        const fieldId = `${group}:${key}`;
+        if (!exportFieldInfo[fieldId]) return;
+        setSelectedFieldIds((prev) => {
+            if (prev.includes(fieldId)) {
+                return prev.filter((id) => id !== fieldId);
+            }
+            return [...prev, fieldId];
+        });
+    };
+
+    const handleDragStart = (event, fieldId) => {
+        setDraggingId(fieldId);
+        event.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (event, overFieldId) => {
+        event.preventDefault();
+        if (!draggingId || draggingId === overFieldId) return;
+        setSelectedFieldIds((prev) => {
+            const current = prev.filter((id) => exportFieldInfo[id]);
+            const fromIndex = current.indexOf(draggingId);
+            const toIndex = current.indexOf(overFieldId);
+            if (fromIndex === -1 || toIndex === -1) return prev;
+            const updated = [...current];
+            const [moved] = updated.splice(fromIndex, 1);
+            updated.splice(toIndex, 0, moved);
+            return updated;
+        });
+    };
+
+    const handleDragEnd = () => {
+        setDraggingId(null);
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const normalizedFields = normalizeExportFields(selectedFieldIds, table.fields);
+            const nextConfig = {
+                ...baseConfig,
+                exports: {
+                    ...(baseConfig.exports || {}),
+                    fields: normalizedFields,
+                },
+            };
+            await onSubmit(nextConfig);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const groupDefinitions = useMemo(
+        () => [
+            { id: 'input', label: 'Input fields' },
+            { id: 'output', label: 'Output fields' },
+            { id: 'meta', label: 'Meta fields' },
+        ],
+        []
+    );
+
+    return (
+        <Modal onClose={onClose} title="Cấu hình xuất Excel">
+            <form onSubmit={handleSubmit} className="space-y-4 text-sm text-gray-600">
+                <p className="text-xs text-muted">
+                    Tick để chọn field cần xuất, kéo thả trong danh sách bên phải để sắp xếp thứ tự cột trong file Excel.
+                </p>
+                <div className="grid md:grid-cols-5 gap-3 items-start">
+                    <div className="md:col-span-3 grid md:grid-cols-3 gap-3">
+                        {groupDefinitions.map(({ id: groupId, label }) => {
+                            const groupFields = table.fields.filter(
+                                (field) => field.group === groupId && field.is_active
+                            );
+
+                            if (groupFields.length === 0) {
+                                return (
+                                    <div
+                                        key={groupId}
+                                        className="border border-dashed border-gray-300 rounded-xl px-3 py-4 text-xs text-gray-500 text-center"
+                                    >
+                                        Chưa có {label.toLowerCase()}.
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div key={groupId} className="space-y-2">
+                                    <div className="text-xs uppercase text-gray-400 font-semibold">{label}</div>
+                                    <div className="space-y-1">
+                                        {groupFields.map((field) => {
+                                            const fieldId = `${groupId}:${field.key}`;
+                                            const checked = selectedFieldIds.includes(fieldId);
+                                            return (
+                                                <label
+                                                    key={field.id || field.key}
+                                                    className="flex items-center space-x-2 rounded px-2 py-1 hover:bg-surface-muted transition"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checked}
+                                                        onChange={() => toggleField(groupId, field.key)}
+                                                        className="rounded border-gray-300"
+                                                    />
+                                                    <span>{field.label}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                        <div className="text-xs uppercase text-gray-400 font-semibold">Thứ tự xuất</div>
+                        <div className="space-y-2 border border-gray-200 rounded-xl p-3 bg-white">
+                            {selectedFieldIds.length === 0 && (
+                                <p className="text-xs text-gray-500">Chưa chọn field nào. Hãy tick ở cột bên trái.</p>
+                            )}
+                            {selectedFieldIds.map((fieldId) => {
+                                const field = exportFieldInfo[fieldId];
+                                if (!field) return null;
+                                return (
+                                    <div
+                                        key={fieldId}
+                                        draggable
+                                        onDragStart={(event) => handleDragStart(event, fieldId)}
+                                        onDragOver={(event) => handleDragOver(event, fieldId)}
+                                        onDragEnd={handleDragEnd}
+                                        className="flex items-center justify-between gap-2 px-3 py-2 bg-surface-muted rounded-lg border border-subtle cursor-grab"
+                                        title="Kéo để sắp xếp thứ tự"
+                                    >
+                                        <div>
+                                            <div className="text-sm font-medium text-secondary">{field.label}</div>
+                                            <div className="text-xs text-muted font-mono">
+                                                {field.group}:{field.key}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleField(field.group, field.key)}
+                                                className="text-muted hover:text-danger"
+                                                title="Bỏ khỏi danh sách xuất"
+                                            >
+                                                ✕
+                                            </button>
+                                            <span className="text-muted select-none">⠿</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <p className="text-xs text-gray-500">
+                            Kéo thả để đổi thứ tự field xuất. Nút ✕ để loại bỏ field khỏi danh sách.
+                        </p>
+                    </div>
+                </div>
                 <div className="flex justify-end space-x-2">
                     <button type="button" onClick={onClose} className="btn btn-muted text-sm px-4 py-2">
                         Đóng

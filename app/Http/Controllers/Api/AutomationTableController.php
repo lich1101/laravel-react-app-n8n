@@ -220,6 +220,9 @@ class AutomationTableController extends Controller
             'config.defaults.sets.*.values.output' => ['sometimes', 'array'],
             'config.defaults.sets.*.values.meta' => ['sometimes', 'array'],
             'config.defaults.active_set_id' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'config.exports' => ['sometimes', 'nullable', 'array'],
+            'config.exports.fields' => ['sometimes', 'nullable', 'array'],
+            'config.exports.fields.*' => ['string'],
         ];
 
         return $request->validate($rules);
@@ -250,6 +253,7 @@ class AutomationTableController extends Controller
         $fields = $webhook['fields'] ?? [];
         $callback = $config['callback'] ?? [];
         $defaults = $config['defaults'] ?? [];
+        $exports = $config['exports'] ?? [];
         $defaultSets = [];
 
         if (!empty($defaults['sets']) && is_array($defaults['sets'])) {
@@ -271,6 +275,15 @@ class AutomationTableController extends Controller
         $activeSetId = $defaults['active_set_id'] ?? null;
         if ($activeSetId && !collect($defaultSets)->contains(fn ($set) => $set['id'] === $activeSetId)) {
             $activeSetId = $defaultSets[0]['id'] ?? null;
+        }
+
+        $exportFields = [];
+        if (!empty($exports['fields']) && is_array($exports['fields'])) {
+            $exportFields = collect($exports['fields'])
+                ->filter(fn ($field) => is_string($field) && str_contains($field, ':'))
+                ->unique()
+                ->values()
+                ->all();
         }
 
         return [
@@ -301,6 +314,9 @@ class AutomationTableController extends Controller
             'defaults' => [
                 'sets' => $defaultSets,
                 'active_set_id' => $activeSetId,
+            ],
+            'exports' => [
+                'fields' => $exportFields,
             ],
         ];
     }

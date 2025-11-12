@@ -405,3 +405,6 @@ body {
 .ring-blue-500 {
     --tw-ring-color: rgb(37 99 235 / 0.35) !important;
 }
+.divide-subtle{
+    border-color: var(--border-subtle) !important;
+}
