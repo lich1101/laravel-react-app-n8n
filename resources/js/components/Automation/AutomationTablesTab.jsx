@@ -2494,6 +2494,7 @@ const RowsTable = ({
                                                 externalValue={getFieldValue(row, 'external_reference', 'external_reference')}
                                                 onExternalChange={(value) => onCellChange(row.id, 'external_reference', 'external_reference', value)}
                                                 isDirty={(datasetKey, fieldKey) => isCellDirty(row, datasetKey, fieldKey)}
+                    onOpenModal={openFieldModal}
                                         />
                                     </td>
                                 </tr>
@@ -2548,6 +2549,7 @@ const RowExpandedEditor = ({
     externalValue,
     onExternalChange,
     isDirty,
+    onOpenModal,
 }) => (
     <div className="grid md:grid-cols-3 gap-4 p-4 text-sm text-secondary bg-surface-elevated">
         <div>
@@ -2557,16 +2559,28 @@ const RowExpandedEditor = ({
                 {extraInputFields.map((field) => (
                     <div key={field.id}>
                         <label className="text-xs text-muted block mb-1">{field.label}</label>
-                        <input
-                            type="text"
-                            value={getValue('input_data', field.key)}
-                            onChange={(event) => onChange('input_data', field.key, event.target.value)}
-                            className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm ${
-                                isDirty('input_data', field.key)
-                                    ? 'border-primary-color-strong bg-primary-soft'
-                                    : 'border-subtle bg-surface'
-                            }`}
-                        />
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={getValue('input_data', field.key)}
+                                onChange={(event) => onChange('input_data', field.key, event.target.value)}
+                                className={`w-full pr-10 pl-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm ${
+                                    isDirty('input_data', field.key)
+                                        ? 'border-primary-color-strong bg-primary-soft'
+                                        : 'border-subtle bg-surface'
+                                }`}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => onOpenModal(row, 'input_data', field)}
+                                className="absolute inset-y-0 right-2 flex items-center justify-center text-muted hover:text-primary transition"
+                                title="Xem nội dung đầy đủ"
+                            >
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V6a2 2 0 012-2h2m10 4V6a2 2 0 00-2-2h-2m4 12v2a2 2 0 01-2 2h-2M8 4H6a2 2 0 00-2 2v2m0 8v2a2 2 0 002 2h2" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -2578,16 +2592,28 @@ const RowExpandedEditor = ({
                 {extraOutputFields.map((field) => (
                     <div key={field.id}>
                         <label className="text-xs text-muted block mb-1">{field.label}</label>
-                        <input
-                            type="text"
-                            value={getValue('output_data', field.key)}
-                            onChange={(event) => onChange('output_data', field.key, event.target.value)}
-                            className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm ${
-                                isDirty('output_data', field.key)
-                                    ? 'border-primary-color-strong bg-primary-soft'
-                                    : 'border-subtle bg-surface'
-                            }`}
-                        />
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={getValue('output_data', field.key)}
+                                onChange={(event) => onChange('output_data', field.key, event.target.value)}
+                                className={`w-full pr-10 pl-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm ${
+                                    isDirty('output_data', field.key)
+                                        ? 'border-primary-color-strong bg-primary-soft'
+                                        : 'border-subtle bg-surface'
+                                }`}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => onOpenModal(row, 'output_data', field)}
+                                className="absolute inset-y-0 right-2 flex items-center justify-center text-muted hover:text-primary transition"
+                                title="Xem nội dung đầy đủ"
+                            >
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V6a2 2 0 012-2h2m10 4V6a2 2 0 00-2-2h-2m4 12v2a2 2 0 01-2 2h-2M8 4H6a2 2 0 00-2 2v2m0 8v2a2 2 0 002 2h2" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 ))}
         </div>
@@ -2600,32 +2626,58 @@ const RowExpandedEditor = ({
                 {metaFields.map((field) => (
                     <div key={field.id}>
                             <label className="text-xs text-muted block mb-1">{field.label}</label>
-                            <input
-                                type="text"
-                                value={getValue('meta_data', field.key)}
-                                onChange={(event) => onChange('meta_data', field.key, event.target.value)}
-                                className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm ${
-                                    isDirty('meta_data', field.key)
-                                        ? 'border-primary-color-strong bg-primary-soft'
-                                        : 'border-subtle bg-surface'
-                                }`}
-                            />
+                        <div className="relative">
+                                <input
+                                    type="text"
+                                    value={getValue('meta_data', field.key)}
+                                    onChange={(event) => onChange('meta_data', field.key, event.target.value)}
+                                    className={`w-full pr-10 pl-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm ${
+                                        isDirty('meta_data', field.key)
+                                            ? 'border-primary-color-strong bg-primary-soft'
+                                            : 'border-subtle bg-surface'
+                                    }`}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => onOpenModal(row, 'meta_data', field)}
+                                    className="absolute inset-y-0 right-2 flex items-center justify-center text-muted hover:text-primary transition"
+                                    title="Xem nội dung đầy đủ"
+                                >
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V6a2 2 0 012-2h2m10 4V6a2 2 0 00-2-2h-2m4 12v2a2 2 0 01-2 2h-2M8 4H6a2 2 0 00-2 2v2m0 8v2a2 2 0 002 2h2" />
+                                    </svg>
+                                </button>
+                            </div>
                     </div>
                 ))}
                 </div>
             </div>
                 <div>
                 <label className="text-xs text-muted block mb-1">External reference</label>
-                <input
-                    type="text"
-                    value={externalValue ?? ''}
-                    onChange={(event) => onExternalChange(event.target.value)}
-                    className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm ${
-                        isDirty('external_reference', 'external_reference')
-                            ? 'border-primary-color-strong bg-primary-soft'
-                            : 'border-subtle bg-surface'
-                    }`}
-                />
+                <div className="relative">
+                    <input
+                        type="text"
+                        value={externalValue ?? ''}
+                        onChange={(event) => onExternalChange(event.target.value)}
+                        className={`w-full pr-10 pl-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm ${
+                            isDirty('external_reference', 'external_reference')
+                                ? 'border-primary-color-strong bg-primary-soft'
+                                : 'border-subtle bg-surface'
+                        }`}
+                    />
+                    <button
+                        type="button"
+                        onClick={() =>
+                            onOpenModal(row, 'external_reference', { key: 'external_reference', label: 'External reference' })
+                        }
+                        className="absolute inset-y-0 right-2 flex items-center justify-center text-muted hover:text-primary transition"
+                        title="Xem nội dung đầy đủ"
+                    >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V6a2 2 0 012-2h2m10 4V6a2 2 0 00-2-2h-2m4 12v2a2 2 0 01-2 2h-2M8 4H6a2 2 0 00-2 2v2m0 8v2a2 2 0 002 2h2" />
+                        </svg>
+                    </button>
+                </div>
                 </div>
                 <div>
                 <label className="text-xs text-muted block mb-1">UUID</label>
