@@ -1924,23 +1924,9 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                         <div className="flex flex-wrap items-center justify-between gap-4">
                             <div>
                                 <h2 className="text-2xl font-semibold text-primary">{selectedTable.name}</h2>
-                                <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
-                                    {/* <span className="px-2 py-1 bg-surface-muted rounded-lg border border-subtle">
-                                        Slug: {selectedTable.slug}
-                                    </span> */}
-                                    <span
-                                        className={`px-2 py-1 rounded-lg border ${
-                                            selectedTable.is_active
-                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                                : 'bg-surface-muted text-muted border-subtle'
-                                        }`}
-                                    >
-                                        {selectedTable.is_active ? 'Active' : 'Inactive'}
-                                    </span>
-                                    {/* <span className="px-2 py-1 bg-primary-soft text-primary rounded-lg border border-blue-200">
-                                        {selectedTable.statuses?.length ?? 0} trạng thái
-                                    </span> */}
-                                </div>
+                                {selectedTable.description && (
+                                    <p className="text-sm text-muted mt-1">{selectedTable.description}</p>
+                                )}
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <button onClick={handleToggleNewRow} className="btn btn-primary text-sm">
