@@ -193,7 +193,6 @@ const UserSidebarNav = ({ collapsed, setCollapsed, topics, workflowFolders, orph
                 <SectionHeader
                     collapsed={collapsed}
                     title="Automations"
-                    icon="🤖"
                     isOpen={automationOpen}
                     onToggle={() => setAutomationOpen((prev) => !prev)}
                 />
@@ -205,7 +204,7 @@ const UserSidebarNav = ({ collapsed, setCollapsed, topics, workflowFolders, orph
                             topics.map((topic) => {
                                 const isExpanded = expandedTopics.has(topic.id);
                                 return (
-                                    <div key={topic.id} className="bg-surface-strong rounded-xl">
+                                    <div key={topic.id} className="rounded-xl">
                                         <button
                                             onClick={() => {
                                                 toggleTopic(topic.id);
@@ -223,24 +222,24 @@ const UserSidebarNav = ({ collapsed, setCollapsed, topics, workflowFolders, orph
                                             </svg>
                                         </button>
                                         {isExpanded && (
-                                            <div className="relative pl-6 pb-3 space-y-1">
-                                                <div className="absolute left-0 top-0 bottom-0 border-l-2 border-surface-strong pointer-events-none" />
+                                            <div className="relative pl-5 pb-3 space-y-1">
+                                                <div className="absolute left-2 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
                                                 {topic.tables.map((table) => (
                                                     <div key={table.id} className="flex items-center">
-                                                        <div className="w-4 -ml-4 border-t-2 border-surface-strong" />
-                                                        <button
-                                                            onClick={() => {
-                                                                onSelectAutomation?.(topic.id, table.id, `/dashboard/automations/table/${table.id}`);
-                                                                navigate(`/dashboard/automations/table/${table.id}`);
-                                                            }}
+                                                        <div className="w-3 -ml-3 border-t border-subtle opacity-60" />
+                                                    <button
+                                                        onClick={() => {
+                                                            onSelectAutomation?.(topic.id, table.id, `/dashboard/automations/table/${table.id}`);
+                                                            navigate(`/dashboard/automations/table/${table.id}`);
+                                                        }}
                                                             className={`flex-1 ml-2 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                                 isActive(`/dashboard/automations/table/${table.id}`)
                                                                     ? 'bg-primary-soft text-primary border border-blue-200 shadow-card'
                                                                     : 'text-secondary hover:bg-surface-muted'
                                                             }`}
-                                                        >
-                                                            {table.name}
-                                                        </button>
+                                                    >
+                                                        {table.name}
+                                                    </button>
                                                     </div>
                                                 ))}
                                                 {topic.tables.length === 0 && (
@@ -271,7 +270,7 @@ const UserSidebarNav = ({ collapsed, setCollapsed, topics, workflowFolders, orph
                             workflowFolders.map((folder) => {
                                 const isExpanded = expandedFolders.has(folder.id);
                                 return (
-                                    <div key={folder.id} className="bg-surface-strong rounded-xl">
+                                    <div key={folder.id} className="rounded-xl">
                                         <button
                                             onClick={() => {
                                                 toggleFolder(folder.id);
@@ -289,24 +288,24 @@ const UserSidebarNav = ({ collapsed, setCollapsed, topics, workflowFolders, orph
                                             </svg>
                                         </button>
                                         {isExpanded && (
-                                            <div className="relative pl-6 pb-3 space-y-1">
-                                                <div className="absolute left-0 top-0 bottom-0 border-l-2 border-surface-strong pointer-events-none" />
+                                            <div className="relative pl-5 pb-3 space-y-1">
+                                                <div className="absolute left-2 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
                                                 {folder.workflows.map((workflow) => (
                                                     <div key={workflow.id} className="flex items-center">
-                                                        <div className="w-4 -ml-4 border-t-2 border-surface-strong" />
-                                                        <button
-                                                            onClick={() => {
-                                                                onSelectWorkflow?.(folder.id, workflow.id, `/dashboard/workflows/${workflow.id}`);
-                                                                navigate(`/dashboard/workflows/${workflow.id}`);
-                                                            }}
+                                                        <div className="w-3 -ml-3 border-t border-subtle opacity-60" />
+                                                    <button
+                                                        onClick={() => {
+                                                            onSelectWorkflow?.(folder.id, workflow.id, `/dashboard/workflows/${workflow.id}`);
+                                                            navigate(`/dashboard/workflows/${workflow.id}`);
+                                                        }}
                                                             className={`flex-1 ml-2 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                                 isActive(`/dashboard/workflows/${workflow.id}`)
                                                                     ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
                                                                     : 'text-secondary hover:bg-surface-muted'
                                                             }`}
-                                                        >
-                                                            {workflow.name}
-                                                        </button>
+                                                    >
+                                                        {workflow.name}
+                                                    </button>
                                                     </div>
                                                 ))}
                                                 {folder.workflows.length === 0 && (
@@ -319,7 +318,7 @@ const UserSidebarNav = ({ collapsed, setCollapsed, topics, workflowFolders, orph
                             })
                         )}
                         {!loading && orphanWorkflows.length > 0 && (
-                            <div className="bg-surface-strong rounded-xl">
+                            <div className="rounded-xl">
                                 <button
                                     onClick={() => {
                                         toggleFolder('unassigned');
@@ -337,24 +336,24 @@ const UserSidebarNav = ({ collapsed, setCollapsed, topics, workflowFolders, orph
                                     </svg>
                                 </button>
                                 {expandedFolders.has('unassigned') && (
-                                    <div className="relative pl-6 pb-3 space-y-1">
-                                        <div className="absolute left-0 top-0 bottom-0 border-l-2 border-surface-strong pointer-events-none" />
+                                    <div className="relative pl-5 pb-3 space-y-1">
+                                        <div className="absolute left-2 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
                                         {orphanWorkflows.map((workflow) => (
                                             <div key={workflow.id} className="flex items-center">
-                                                <div className="w-4 -ml-4 border-t-2 border-surface-strong" />
-                                                <button
-                                                    onClick={() => {
-                                                        onSelectWorkflow?.('unassigned', workflow.id, `/dashboard/workflows/${workflow.id}`);
-                                                        navigate(`/dashboard/workflows/${workflow.id}`);
-                                                    }}
+                                                <div className="w-3 -ml-3 border-t border-subtle opacity-60" />
+                                            <button
+                                                onClick={() => {
+                                                    onSelectWorkflow?.('unassigned', workflow.id, `/dashboard/workflows/${workflow.id}`);
+                                                    navigate(`/dashboard/workflows/${workflow.id}`);
+                                                }}
                                                     className={`flex-1 ml-2 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                         isActive(`/dashboard/workflows/${workflow.id}`)
                                                             ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
                                                             : 'text-secondary hover:bg-surface-muted'
                                                     }`}
-                                                >
-                                                    {workflow.name}
-                                                </button>
+                                            >
+                                                {workflow.name}
+                                            </button>
                                             </div>
                                         ))}
                                     </div>

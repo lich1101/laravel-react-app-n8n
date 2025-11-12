@@ -114,7 +114,7 @@ return result;`,
         if (obj === null || obj === undefined) {
             return (
                 <div className="flex items-center gap-2 py-1">
-                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">null</span>
+                    <span className="text-xs px-1.5 py-0.5 bg-surface-muted text-secondary rounded">null</span>
                 </div>
             );
         }
@@ -126,24 +126,24 @@ return result;`,
             return (
                 <div className="space-y-1">
                     <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
+                        className="flex items-center gap-2 cursor-pointer hover:bg-surface-muted rounded px-1 -mx-1"
                         onClick={() => toggleCollapse(collapseKey)}
                     >
-                        <span className="text-gray-500 text-xs">
+                        <span className="text-muted text-xs">
                             {isCollapsed ? '▶' : '▼'}
                         </span>
                         <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                             {typeInfo.icon}
                         </span>
-                        <span className="text-xs text-gray-500">{obj.length} items</span>
+                        <span className="text-xs text-muted">{obj.length} items</span>
                     </div>
                     {!isCollapsed && (
                         <div className="ml-4 space-y-1">
                             {obj.map((item, index) => {
                                 const itemPath = buildArrayPath(currentPrefix, index);
                                 return (
-                                    <div key={index} className="border-l-2 border-gray-200 pl-3">
-                                        <div className="text-xs text-gray-500 mb-1">[{index}]</div>
+                                    <div key={index} className="border-l border-subtle opacity-70 pl-3">
+                                        <div className="text-xs text-muted mb-1">[{index}]</div>
                                         {renderDraggableJSON(item, itemPath, indent + 1)}
                                     </div>
                                 );
@@ -167,10 +167,10 @@ return result;`,
 
                         return (
                             <div key={key} className="group">
-                                <div className="flex items-start gap-2 py-1 hover:bg-gray-100 rounded px-2 -mx-2">
+                                <div className="flex items-start gap-2 py-1 hover:bg-surface-muted rounded px-2 -mx-2 transition-colors">
                                     {!isPrimitive && (
                                         <span 
-                                            className="text-gray-500 text-xs cursor-pointer mt-1"
+                                            className="text-muted text-xs cursor-pointer mt-1"
                                             onClick={() => toggleCollapse(variablePath)}
                                         >
                                             {isCollapsed ? '▶' : '▼'}
@@ -189,11 +189,11 @@ return result;`,
                                             <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono flex-shrink-0`}>
                                                 {typeInfo.icon}
                                             </span>
-                                            <span className="text-sm font-medium text-gray-700 truncate">
+                                            <span className="text-sm font-medium text-secondary truncate">
                                                 {key}
                                             </span>
                                             {!isPrimitive && isCollapsed && (
-                                                <span className="text-xs text-gray-500">
+                                                <span className="text-xs text-muted">
                                                     {Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`}
                                                 </span>
                                             )}
@@ -201,7 +201,7 @@ return result;`,
                                         
                                         {isPrimitive && (
                                             <div 
-                                                className="mt-1 text-xs text-gray-600 font-mono break-all cursor-move"
+                                                className="mt-1 text-xs text-secondary font-mono break-all cursor-move"
                                                 draggable="true"
                                                 onDragStart={(e) => {
                                                     e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
@@ -222,7 +222,7 @@ return result;`,
                                             navigator.clipboard.writeText(variable);
                                             alert(`✓ Đã copy: ${variable}`);
                                         }}
-                                        className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-opacity flex-shrink-0"
+                                        className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-primary-color text-white rounded transition-opacity flex-shrink-0 shadow-card"
                                         title="Copy variable"
                                     >
                                         📋
@@ -230,7 +230,7 @@ return result;`,
                                 </div>
 
                                 {!isPrimitive && !isCollapsed && (
-                                    <div className="ml-6 mt-1 border-l-2 border-gray-200 pl-3">
+                                    <div className="ml-6 mt-1 border-l border-subtle opacity-70 pl-3">
                                         {renderDraggableJSON(value, variablePath, indent + 1)}
                                     </div>
                                 )}
@@ -247,7 +247,7 @@ return result;`,
                 <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
                     {typeInfo.icon}
                 </span>
-                <span className="text-xs text-gray-600 font-mono">
+                <span className="text-xs text-secondary font-mono">
                     {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
                 </span>
             </div>
@@ -255,14 +255,14 @@ return result;`,
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+            <div className="bg-surface-elevated border border-subtle rounded-3xl shadow-xl w-full max-w-[90vw] h-[90vh] flex flex-col overflow-hidden">
                 {/* Header */}
-                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                <div className="border-b border-subtle px-6 py-4 flex items-center justify-between bg-surface">
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">💻</span>
                         <h2 
-                            className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
+                            className="text-xl font-semibold text-primary cursor-pointer hover:text-primary/80 transition-colors flex items-center gap-2"
                             onClick={() => {
                                 if (onRename) {
                                     onRename();
@@ -271,14 +271,14 @@ return result;`,
                             title="Click để đổi tên node"
                         >
                             {node?.data?.customName || 'Code'}
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                             </svg>
                         </h2>
                     </div>
                     <button
                         onClick={handleClose}
-                        className="text-gray-400 hover:text-gray-600"
+                        className="text-muted hover:text-primary transition-colors"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -289,7 +289,7 @@ return result;`,
                 {/* Content */}
                 <div className="flex-1 flex overflow-hidden">
                     {/* Left Panel - INPUT */}
-                    <div className="w-1/3 border-r border-subtle flex flex-col">
+                    <div className="w-1/3 border-r border-subtle flex flex-col bg-surface">
                         <div className="bg-surface-muted px-4 py-3 border-b border-subtle">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold text-primary">INPUT</h3>
@@ -325,15 +325,15 @@ return result;`,
                                     {inputViewMode === 'schema' && Object.entries(inputData).map(([nodeName, data]) => {
                                         return (
                                             <div key={nodeName}>
-                                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
-                                                    <span className="text-xs font-semibold text-gray-700">
+                                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-subtle">
+                                                    <span className="text-xs font-semibold text-secondary">
                                                         {nodeName}
                                                     </span>
-                                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                                    <span className="text-xs px-2 py-0.5 bg-primary-soft text-primary rounded">
                                                         {Object.keys(data || {}).length} fields
                                                     </span>
                                                 </div>
-                                                <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                                <div className="bg-surface p-3 rounded-lg border border-subtle shadow-inner">
                                                     {renderDraggableJSON(data, nodeName)}
                                                 </div>
                                             </div>
@@ -342,24 +342,24 @@ return result;`,
                                     
                                     {inputViewMode === 'json' && Object.entries(inputData).map(([nodeName, data]) => (
                                         <div key={nodeName}>
-                                            <div className="text-xs font-semibold text-gray-700 mb-2">
+                                            <div className="text-xs font-semibold text-secondary mb-2">
                                                 {nodeName}:
                                             </div>
-                                            <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
+                                            <pre className="text-xs bg-surface p-3 rounded border border-subtle overflow-auto whitespace-pre-wrap text-secondary">
                                                 {JSON.stringify(data, null, 2)}
                                             </pre>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                    <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="flex flex-col items-center justify-center h-full text-muted">
+                                    <svg className="w-16 h-16 mb-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                     </svg>
                                     <p className="text-center text-sm">
                                         Connect this node to receive input data
                                     </p>
-                                    <p className="text-center text-xs mt-2">
+                                    <p className="text-center text-xs mt-2 text-muted">
                                         Access via $input.first() hoặc $input.all()
                                     </p>
                                 </div>
@@ -368,22 +368,22 @@ return result;`,
                     </div>
 
                     {/* Center Panel - Code Editor */}
-                    <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                            <button className="px-4 py-1.5 bg-green-600 text-white rounded text-sm font-medium">
+                    <div className="w-1/3 flex flex-col bg-surface">
+                        <div className="bg-surface-muted px-4 py-3 border-b border-subtle">
+                            <button className="btn text-sm px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-card transition-colors">
                                 JavaScript Code
                             </button>
                         </div>
                         <div className="flex-1 flex flex-col p-4 space-y-4 overflow-y-auto">
                             {/* Language Selector */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-sm font-medium text-secondary mb-1">
                                     Language
                                 </label>
                                 <select
                                     value={config.language}
                                     onChange={(e) => setConfig({ ...config, language: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                    className="w-full px-3 py-2 border border-subtle rounded-lg bg-surface text-primary shadow-inner"
                                 >
                                     <option value="javascript">JavaScript</option>
                                 </select>
@@ -391,30 +391,30 @@ return result;`,
 
                             {/* Code Editor */}
                             <div className="flex-1 flex flex-col">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-secondary mb-2">
                                     JavaScript Code *
                                 </label>
                                 <textarea
                                     value={config.code}
                                     onChange={(e) => setConfig({ ...config, code: e.target.value })}
                                     placeholder="// Write your JavaScript code here..."
-                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-900 text-gray-100 font-mono text-sm"
+                                    className="flex-1 px-3 py-3 border border-subtle rounded-xl bg-surface text-secondary font-mono text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/40"
                                     style={{ minHeight: '400px', fontFamily: 'Monaco, Menlo, monospace' }}
                                 />
                             </div>
 
                             {/* Help Text */}
-                            <div className="text-xs text-gray-500 space-y-3">
-                                <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
+                            <div className="text-xs text-muted space-y-3">
+                                <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 space-y-2 text-secondary">
                                     <p><strong>💡 Input Helper:</strong></p>
-                                    <p>• <code className="bg-gray-200 px-1 rounded">$input.first()</code> - Lấy input đầu tiên</p>
-                                    <p>• <code className="bg-gray-200 px-1 rounded">$input.all()</code> - Lấy tất cả inputs (array)</p>
-                                    <p>• <code className="bg-gray-200 px-1 rounded">$input.item(0)</code> - Lấy input theo index</p>
+                                    <p>• <code className="bg-surface-muted px-1 rounded">$input.first()</code> - Lấy input đầu tiên</p>
+                                    <p>• <code className="bg-surface-muted px-1 rounded">$input.all()</code> - Lấy tất cả inputs (array)</p>
+                                    <p>• <code className="bg-surface-muted px-1 rounded">$input.item(0)</code> - Lấy input theo index</p>
                                 </div>
                                 
-                                <div className="bg-green-50 p-3 rounded border border-green-200 space-y-2">
+                                <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 space-y-2 text-secondary">
                                     <p><strong>✅ Example:</strong></p>
-                                    <pre className="bg-gray-800 text-gray-100 p-2 rounded text-xs overflow-x-auto">
+                                    <pre className="bg-surface text-secondary border border-subtle rounded-lg p-3 text-xs overflow-x-auto shadow-inner">
 {`const item = $input.first();
 const text = item.choices[0].message.content;
 
@@ -425,10 +425,10 @@ return {
                                     </pre>
                                 </div>
                                 
-                                <div className="bg-amber-50 p-3 rounded border border-amber-200">
+                                <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-secondary">
                                     <p><strong>⚠️ Lưu ý:</strong></p>
                                     <p>• Code chạy trên <strong>Node.js v18</strong></p>
-                                    <p>• Phải có <code className="bg-gray-200 px-1 rounded">return</code> để trả output</p>
+                                    <p>• Phải có <code className="bg-surface-muted px-1 rounded">return</code> để trả output</p>
                                     <p>• Support async/await</p>
                                 </div>
                             </div>
@@ -436,11 +436,11 @@ return {
                     </div>
 
                     {/* Right Panel - OUTPUT */}
-                    <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <div className="w-1/3 flex flex-col bg-surface">
+                        <div className="bg-surface-muted px-4 py-3 border-b border-subtle">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                    <h3 className="font-semibold text-gray-900">OUTPUT</h3>
+                                    <h3 className="font-semibold text-primary">OUTPUT</h3>
                                 </div>
                                 {getDisplayOutput() && (
                                     <div className="flex space-x-1">
@@ -472,7 +472,7 @@ return {
                                     <button
                                         onClick={handleTest}
                                         disabled={isTesting || !config.code}
-                                        className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-sm font-medium"
+                                        className="btn text-sm px-4 py-1.5 bg-rose-500 hover:bg-rose-600 text-white disabled:bg-surface-muted disabled:text-muted disabled:cursor-not-allowed transition-colors"
                                     >
                                         {isTesting ? 'Executing...' : 'Test step'}
                                     </button>
@@ -481,27 +481,27 @@ return {
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
                             {isTesting ? (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mb-4"></div>
+                                <div className="flex flex-col items-center justify-center h-full text-muted">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-color mb-4"></div>
                                     <p className="text-center">Executing JavaScript code...</p>
                                 </div>
                             ) : getDisplayOutput() ? (
                                 <div className="relative">
                                     {outputViewMode === 'schema' && (
-                                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                        <div className="bg-surface p-3 rounded-lg border border-subtle shadow-inner">
                                             {renderDraggableJSON(getDisplayOutput(), 'output')}
                                         </div>
                                     )}
                                     
                                     {outputViewMode === 'json' && (
-                                        <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
+                                        <pre className="text-xs bg-surface p-3 rounded border border-subtle overflow-auto whitespace-pre-wrap text-secondary shadow-inner">
                                             {JSON.stringify(getDisplayOutput(), null, 2)}
                                         </pre>
                                     )}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                    <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="flex flex-col items-center justify-center h-full text-muted">
+                                    <svg className="w-16 h-16 mb-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                     <p className="text-center">

@@ -212,15 +212,15 @@ const FolderWorkflowView = ({ folder, onBack }) => {
                 </div>
             )}
 
-    <div className="mb-4">
-        <input
-            type="text"
-            placeholder="Search workflows..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            <div className="mb-4">
+                <input
+                    type="text"
+                    placeholder="Search workflows..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-4 py-2 border border-subtle rounded-xl bg-surface text-secondary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-    </div>
+                />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredWorkflows.length === 0 ? (
@@ -229,48 +229,48 @@ const FolderWorkflowView = ({ folder, onBack }) => {
                     </div>
                 ) : (
                     filteredWorkflows.map((workflow) => (
-                    <div
-                        key={workflow.id}
+                        <div
+                            key={workflow.id}
                         className="bg-surface-elevated rounded-2xl shadow-card p-6 hover:shadow-card transition-shadow border border-subtle relative"
-                    >
-                            <div className="flex items-start justify-between mb-2">
-                        <h3
-                            onClick={() => handleWorkflowClick(workflow.id)}
-                            className="text-lg font-semibold text-primary truncate cursor-pointer hover:text-primary/80"
                         >
+                            <div className="flex items-start justify-between mb-2">
+                                <h3
+                                    onClick={() => handleWorkflowClick(workflow.id)}
+                            className="text-lg font-semibold text-primary truncate cursor-pointer hover:text-primary/80"
+                                >
                                     {workflow.name}
                                 </h3>
-                        <div className="flex items-center space-x-2">
-                            <span
-                                className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                    workflow.active
+                                <div className="flex items-center space-x-2">
+                                    <span
+                                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                            workflow.active
                                         ? 'bg-emerald-50 text-emerald-600'
                                         : 'bg-surface-muted text-muted'
-                                }`}
-                            >
+                                        }`}
+                                    >
                                         {workflow.active ? 'Active' : 'Inactive'}
                                     </span>
-                        <button
-                            onClick={(e) => handleDeleteWorkflow(workflow.id, e)}
+                                    <button
+                                        onClick={(e) => handleDeleteWorkflow(workflow.id, e)}
                             className="text-rose-600 hover:text-rose-500 text-sm"
-                            title="Delete workflow"
-                        >
+                                        title="Delete workflow"
+                                    >
                                         ×
                                     </button>
                                 </div>
                             </div>
-                    {workflow.description && (
-                        <p
-                            onClick={() => handleWorkflowClick(workflow.id)}
+                            {workflow.description && (
+                                <p
+                                    onClick={() => handleWorkflowClick(workflow.id)}
                             className="text-sm text-muted mb-3 line-clamp-2 cursor-pointer"
-                        >
+                                >
                                     {workflow.description}
                                 </p>
                             )}
-                    <div
-                        onClick={() => handleWorkflowClick(workflow.id)}
+                            <div
+                                onClick={() => handleWorkflowClick(workflow.id)}
                         className="flex items-center justify-between text-xs text-muted cursor-pointer"
-                    >
+                            >
                                 <span>Updated {getTimeAgo(workflow.updated_at)}</span>
                                 <span>{formatDate(workflow.updated_at)}</span>
                             </div>

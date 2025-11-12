@@ -211,6 +211,15 @@ class AutomationTableController extends Controller
             'config.callback.method' => ['sometimes', 'nullable', 'string', 'in:get,post'],
             'config.callback.path' => ['sometimes', 'nullable', 'string', 'max:255'],
             'config.callback.token' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'config.defaults' => ['sometimes', 'nullable', 'array'],
+            'config.defaults.sets' => ['sometimes', 'array'],
+            'config.defaults.sets.*.id' => ['sometimes', 'string', 'max:255'],
+            'config.defaults.sets.*.name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'config.defaults.sets.*.values' => ['sometimes', 'array'],
+            'config.defaults.sets.*.values.input' => ['sometimes', 'array'],
+            'config.defaults.sets.*.values.output' => ['sometimes', 'array'],
+            'config.defaults.sets.*.values.meta' => ['sometimes', 'array'],
+            'config.defaults.active_set_id' => ['sometimes', 'nullable', 'string', 'max:255'],
         ];
 
         return $request->validate($rules);
@@ -240,6 +249,29 @@ class AutomationTableController extends Controller
         $authorization = $webhook['authorization'] ?? [];
         $fields = $webhook['fields'] ?? [];
         $callback = $config['callback'] ?? [];
+        $defaults = $config['defaults'] ?? [];
+        $defaultSets = [];
+
+        if (!empty($defaults['sets']) && is_array($defaults['sets'])) {
+            foreach ($defaults['sets'] as $index => $set) {
+                $values = $set['values'] ?? [];
+
+                $defaultSets[] = [
+                    'id' => (string) ($set['id'] ?? $set['key'] ?? Str::uuid()->toString()),
+                    'name' => $set['name'] ?? 'Giá trị mặc định ' . ($index + 1),
+                    'values' => [
+                        'input' => isset($values['input']) && is_array($values['input']) ? $values['input'] : [],
+                        'output' => isset($values['output']) && is_array($values['output']) ? $values['output'] : [],
+                        'meta' => isset($values['meta']) && is_array($values['meta']) ? $values['meta'] : [],
+                    ],
+                ];
+            }
+        }
+
+        $activeSetId = $defaults['active_set_id'] ?? null;
+        if ($activeSetId && !collect($defaultSets)->contains(fn ($set) => $set['id'] === $activeSetId)) {
+            $activeSetId = $defaultSets[0]['id'] ?? null;
+        }
 
         return [
             'webhook' => [
@@ -265,6 +297,10 @@ class AutomationTableController extends Controller
                 'method' => strtolower($callback['method'] ?? 'post'),
                 'path' => $callback['path'] ?? null,
                 'token' => $callback['token'] ?? null,
+            ],
+            'defaults' => [
+                'sets' => $defaultSets,
+                'active_set_id' => $activeSetId,
             ],
         ];
     }

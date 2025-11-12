@@ -285,12 +285,12 @@ const WorkflowList = ({ basePath = '/workflows' }) => {
     return (
         <>
             <div className="min-h-screen bg-surface text-primary">
-                {/* Header */}
+            {/* Header */}
                 <nav className="toolbar px-6 py-4">
-                    <div className="flex justify-between items-center">
-                        <h1 className="text-xl font-semibold">My Workspace</h1>
-                        <div className="flex items-center space-x-4">
-                            {activeTab === 'workflows' && (
+                <div className="flex justify-between items-center">
+                    <h1 className="text-xl font-semibold">My Workspace</h1>
+                    <div className="flex items-center space-x-4">
+                        {activeTab === 'workflows' && (
                                 <>
                                     <button
                                         onClick={() => openFolderModal()}
@@ -298,85 +298,85 @@ const WorkflowList = ({ basePath = '/workflows' }) => {
                                     >
                                         New Folder
                                     </button>
-                                    <button
-                                        onClick={() => navigate(`${basePath}/new`)}
+                            <button
+                                onClick={() => navigate(`${basePath}/new`)}
                                         className="btn btn-primary text-sm"
-                                    >
-                                        New Workflow
-                                    </button>
+                            >
+                                New Workflow
+                            </button>
                                 </>
-                            )}
-                            <button
-                                onClick={handleLogout}
+                        )}
+                        <button
+                            onClick={handleLogout}
                                 className="btn btn-danger text-sm"
-                            >
-                                Logout
-                            </button>
-                        </div>
-                    </div>
-                </nav>
-
-                {/* Tabs */}
-                <div className="border-b border-subtle bg-surface-elevated">
-                    <div className="px-6">
-                        <nav className="flex space-x-2" aria-label="Tabs">
-                            <button
-                                onClick={() => setActiveTab('workflows')}
-                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                                    activeTab === 'workflows'
-                                        ? 'bg-primary-soft text-primary shadow-card'
-                                        : 'text-muted hover:text-primary hover:bg-surface-muted'
-                                }`}
-                            >
-                                Workflows
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('credentials')}
-                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                                    activeTab === 'credentials'
-                                        ? 'bg-primary-soft text-primary shadow-card'
-                                        : 'text-muted hover:text-primary hover:bg-surface-muted'
-                                }`}
-                            >
-                                Credentials
-                            </button>
-                        </nav>
+                        >
+                            Logout
+                        </button>
                     </div>
                 </div>
+            </nav>
 
-                <div className="px-6 py-6">{activeTab === 'credentials' ? (
-                        <CredentialsTab />
-                    ) : (
-                        <>
-                    {/* Search and Filter Bar */}
-                    <div className="flex items-center space-x-3 mb-6">
-                        <div className="flex-1 relative">
+            {/* Tabs */}
+                <div className="border-b border-subtle bg-surface-elevated">
+                <div className="px-6">
+                        <nav className="flex space-x-2" aria-label="Tabs">
+                        <button
+                            onClick={() => setActiveTab('workflows')}
+                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                                activeTab === 'workflows'
+                                        ? 'bg-primary-soft text-primary shadow-card'
+                                        : 'text-muted hover:text-primary hover:bg-surface-muted'
+                            }`}
+                        >
+                            Workflows
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('credentials')}
+                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                                activeTab === 'credentials'
+                                        ? 'bg-primary-soft text-primary shadow-card'
+                                        : 'text-muted hover:text-primary hover:bg-surface-muted'
+                            }`}
+                        >
+                            Credentials
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            <div className="px-6 py-6">{activeTab === 'credentials' ? (
+                    <CredentialsTab />
+                ) : (
+                    <>
+                {/* Search and Filter Bar */}
+                <div className="flex items-center space-x-3 mb-6">
+                    <div className="flex-1 relative">
                             <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            <input
-                                type="text"
-                                placeholder="Search"
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                            type="text"
+                            placeholder="Search"
                                 className="w-full bg-surface-elevated border border-subtle rounded-xl px-10 py-2 text-sm text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                        <button className="bg-surface-elevated border border-subtle rounded-xl px-4 py-2 text-sm flex items-center space-x-2 text-secondary hover:bg-surface-muted">
-                            <span>Sort by last updated</span>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </button>
-                        <button className="bg-surface-elevated border border-subtle rounded-xl px-4 py-2 text-sm text-secondary hover:bg-surface-muted">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                            </svg>
-                        </button>
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                     </div>
+                        <button className="bg-surface-elevated border border-subtle rounded-xl px-4 py-2 text-sm flex items-center space-x-2 text-secondary hover:bg-surface-muted">
+                        <span>Sort by last updated</span>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                        <button className="bg-surface-elevated border border-subtle rounded-xl px-4 py-2 text-sm text-secondary hover:bg-surface-muted">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                    </button>
+                </div>
 
-                    {/* Folder Tree */}
-                    <div className="space-y-2">
+                {/* Folder Tree */}
+                <div className="space-y-2">
                     {/* Folders with workflows */}
                     {folders.map((folder) => (
                         <div
@@ -427,15 +427,15 @@ const WorkflowList = ({ basePath = '/workflows' }) => {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M16 3l5 5M16 3l-5 5M21 8l-5-5" />
                                         </svg>
                                     </button>
-                                    <button
-                                        onClick={(e) => handleDeleteFolder(folder.id, folder.name, e)}
+                                <button
+                                    onClick={(e) => handleDeleteFolder(folder.id, folder.name, e)}
                                         className="text-muted hover:text-danger p-2"
-                                        title="Delete folder and all workflows inside"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
+                                    title="Delete folder and all workflows inside"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
                                 </div>
                             </div>
 
@@ -514,79 +514,79 @@ const WorkflowList = ({ basePath = '/workflows' }) => {
                                 </div>
                             ) : (
                                 workflowsWithoutFolder.map((workflow) => (
-                                    <div
-                                        key={workflow.id}
+                        <div
+                            key={workflow.id}
                                         draggable
                                         onDragStart={(event) => handleWorkflowDragStart(event, workflow, null)}
                                         onDragEnd={handleWorkflowDragEnd}
-                                        onClick={() => navigate(`${basePath}/${workflow.id}`)}
+                            onClick={() => navigate(`${basePath}/${workflow.id}`)}
                                         className={`bg-surface-elevated border border-subtle rounded-2xl px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-surface-muted transition-colors shadow-card ${
                                             draggedWorkflow?.id === workflow.id ? 'opacity-60' : ''
                                         }`}
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center space-x-2 mb-1">
+                        >
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
                                                 <h3 className="text-primary font-medium">{workflow.name}</h3>
-                                                {workflow.is_from_folder && (
+                                    {workflow.is_from_folder && (
                                                     <span className="px-2 py-0.5 bg-purple-100 text-purple-600 text-xs rounded-full flex items-center space-x-1">
-                                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                                                             <path
                                                                 fillRule="evenodd"
                                                                 d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
                                                                 clipRule="evenodd"
                                                             />
-                                                        </svg>
-                                                        <span>From Folder</span>
-                                                    </span>
-                                                )}
-                                            </div>
+                                            </svg>
+                                            <span>From Folder</span>
+                                        </span>
+                                    )}
+                                </div>
                                             <div className="flex items-center space-x-3 text-sm text-muted">
-                                                <span>Last updated {getTimeAgo(workflow.updated_at)}</span>
-                                                <span>|</span>
-                                                <span>Created {formatDate(workflow.created_at)}</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center space-x-6 ml-4">
-                                            <div className="flex items-center space-x-2">
+                                    <span>Last updated {getTimeAgo(workflow.updated_at)}</span>
+                                    <span>|</span>
+                                    <span>Created {formatDate(workflow.created_at)}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-6 ml-4">
+                                <div className="flex items-center space-x-2">
                                                 <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                </svg>
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
                                                 <span className="text-sm text-muted">Personal</span>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
+                                </div>
+                                <div className="flex items-center space-x-2">
                                                 <span className={`text-sm ${workflow.active ? 'text-emerald-600' : 'text-muted'}`}>
-                                                    {workflow.active ? 'Active' : 'Inactive'}
-                                                </span>
-                                                <button
-                                                    onClick={(e) => handleToggleActive(workflow, e)}
-                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                        {workflow.active ? 'Active' : 'Inactive'}
+                                    </span>
+                                    <button
+                                        onClick={(e) => handleToggleActive(workflow, e)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                                                         workflow.active ? 'bg-emerald-500' : 'bg-surface-muted'
-                                                    }`}
-                                                >
-                                                    <span
-                                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                                            workflow.active ? 'translate-x-6' : 'translate-x-1'
-                                                        }`}
-                                                    />
-                                                </button>
-                                            </div>
-                                            <div className="relative">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDelete(workflow.id, workflow, e);
-                                                    }}
+                                        }`}
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                workflow.active ? 'translate-x-6' : 'translate-x-1'
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
+                                <div className="relative">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDelete(workflow.id, workflow, e);
+                                        }}
                                                     className="text-muted hover:text-danger p-2"
                                                     title={workflow.is_from_folder ? 'Delete workflow from folder' : 'Delete workflow'}
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                                 ))
                             )}
                         </div>

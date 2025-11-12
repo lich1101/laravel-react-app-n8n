@@ -695,11 +695,11 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                                 <div className="text-xs font-semibold text-gray-700 mb-2">
                                                     Will execute path:
                                                 </div>
-                                                    <div className={`text-sm font-mono ${
-                                                        testResults.result 
+                                                <div className={`text-sm font-mono ${
+                                                    testResults.result 
                                                             ? 'text-emerald-600'
                                                             : 'text-rose-600'
-                                                    }`}>
+                                                }`}>
                                                     {testResults.result ? '→ TRUE branch' : '→ FALSE branch'}
                                                 </div>
                                             </div>
