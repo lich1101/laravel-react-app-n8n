@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../config/axios';
 
@@ -268,6 +268,15 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
     const [rowsPerPage, setRowsPerPage] = useState(25);
     const [exportingRows, setExportingRows] = useState(false);
 
+    const sanitizeConfigForRequest = (config) => {
+        const cloned = JSON.parse(JSON.stringify(config || {}));
+        if (cloned?.webhook) {
+            const url = cloned.webhook.url;
+            cloned.webhook.url = url && typeof url === 'string' ? url.trim() || null : url ?? null;
+        }
+        return cloned;
+    };
+
     const handleSearchInputChange = (event) => {
         setSearchTerm(event.target.value);
     };
@@ -301,61 +310,6 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
 
     const selectedTopicId = controlledTopicId ?? selectedTopicIdState;
     const selectedTableId = controlledTableId ?? selectedTableIdState;
-
-    useEffect(() => {
-        if (!hideTopicPanel) {
-            fetchTopics({ preferredTopicId: selectedTopicId, preferredTableId: selectedTableId });
-        }
-    }, [hideTopicPanel]);
-
-    useEffect(() => {
-        if (hideTopicPanel) {
-            setTopics([]);
-            setSelectedTopicIdState(null);
-            setTables([]);
-            if (initialTableId) {
-                setSelectedTableIdState(initialTableId);
-            } else {
-                setSelectedTableIdState(null);
-            }
-        }
-    }, [hideTopicPanel, initialTableId]);
-
-    useEffect(() => {
-        const interval = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(interval);
-    }, []);
-
-    useEffect(() => {
-        if (!hideTopicPanel) {
-            return;
-        }
-
-        if (selectedTableId) {
-            setSelectedRows([]);
-            fetchTableDetail(selectedTableId);
-            fetchRows(selectedTableId);
-            onSelectTable?.(selectedTableId);
-        } else {
-            setSelectedTable(null);
-            setRowsData({ data: [], meta: {} });
-            setSelectedRows([]);
-        }
-    }, [hideTopicPanel, selectedTableId]);
-
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedSearch(searchTerm.trim());
-        }, 400);
-        return () => clearTimeout(handler);
-    }, [searchTerm]);
-
-    useEffect(() => {
-        if (!selectedTable?.id) {
-            return;
-        }
-        fetchRows(selectedTable.id, 1, { perPage: rowsPerPage, search: debouncedSearch });
-    }, [selectedTable?.id, debouncedSearch, rowsPerPage]);
 
     const fetchTopics = async ({ preferredTopicId = null, preferredTableId = null } = {}) => {
         setLoadingTopics(true);
@@ -446,7 +400,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         }
     };
 
-    const fetchTableDetail = async (id) => {
+    const fetchTableDetail = useCallback(async (id) => {
         setLoadingDetail(true);
         try {
             const res = await axios.get(`/automation/tables/${id}`);
@@ -458,9 +412,9 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         } finally {
             setLoadingDetail(false);
         }
-    };
+    }, []);
 
-    const fetchRows = async (id, page = 1, { perPage, search } = {}) => {
+    const fetchRows = useCallback(async (id, page = 1, { perPage, search } = {}) => {
         setRowsLoading(true);
         try {
             const params = {
@@ -481,7 +435,31 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         } finally {
             setRowsLoading(false);
         }
-    };
+    }, [rowsPerPage, debouncedSearch]);
+
+    const fetchSingleRow = useCallback(async (tableId, rowId) => {
+        if (!tableId || !rowId) return;
+        try {
+            const res = await axios.get(`/automation/tables/${tableId}/rows/${rowId}`);
+            const returnedRow = normalizeRow(res.data);
+            if (!returnedRow) {
+                return;
+            }
+            setRowsData((prev) => ({
+                data: (prev.data || []).map((row) => (Number(row.id) === Number(rowId) ? returnedRow : row)),
+                meta: prev.meta,
+            }));
+            setSelectedTable((prev) => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    rows: toArray(prev.rows).map((row) => (Number(row.id) === Number(rowId) ? returnedRow : row)),
+                };
+            });
+        } catch (error) {
+            console.error('Không thể tải dòng automation', error);
+        }
+    }, []);
 
     const handleAddTable = async (payload) => {
         const targetTopicId = tableModalTopicId ?? selectedTopicId ?? UNASSIGNED_TOPIC_ID;
@@ -502,6 +480,61 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
             alert('Tạo bảng thất bại. Vui lòng kiểm tra và thử lại.');
         }
     };
+
+    useEffect(() => {
+        if (!hideTopicPanel) {
+            fetchTopics({ preferredTopicId: selectedTopicId, preferredTableId: selectedTableId });
+        }
+    }, [hideTopicPanel]);
+
+    useEffect(() => {
+        if (hideTopicPanel) {
+            setTopics([]);
+            setSelectedTopicIdState(null);
+            setTables([]);
+            if (initialTableId) {
+                setSelectedTableIdState(initialTableId);
+            } else {
+                setSelectedTableIdState(null);
+            }
+        }
+    }, [hideTopicPanel, initialTableId]);
+
+    useEffect(() => {
+        const interval = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        if (!hideTopicPanel) {
+            return;
+        }
+
+        if (selectedTableId) {
+            setSelectedRows([]);
+            fetchTableDetail(selectedTableId);
+            fetchRows(selectedTableId);
+            onSelectTable?.(selectedTableId);
+        } else {
+            setSelectedTable(null);
+            setRowsData({ data: [], meta: {} });
+            setSelectedRows([]);
+        }
+    }, [hideTopicPanel, selectedTableId, fetchTableDetail, fetchRows]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm.trim());
+        }, 400);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        if (!selectedTable?.id) {
+            return;
+        }
+        fetchRows(selectedTable.id, 1, { perPage: rowsPerPage, search: debouncedSearch });
+    }, [selectedTable?.id, debouncedSearch, rowsPerPage, fetchRows]);
 
     const handleUpdateTable = async (payload) => {
         if (!editingTable) return;
@@ -525,7 +558,8 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
     const handleUpdateConfig = async (config) => {
         if (!selectedTable) return;
         try {
-            await axios.put(`/automation/tables/${selectedTable.id}`, { config });
+            const payload = sanitizeConfigForRequest(config);
+            await axios.put(`/automation/tables/${selectedTable.id}`, { config: payload });
             await fetchTableDetail(selectedTable.id);
             setShowConfigModal(false);
             setShowExportConfigModal(false);
@@ -667,8 +701,32 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         if (!window.confirm(`Xoá ${selectedRows.length} dòng đã chọn?`)) return;
         try {
             await axios.post(`/automation/tables/${selectedTable.id}/rows/bulk-delete`, { ids: selectedRows });
+            setRowsData((prev) => {
+                const remaining = (prev.data || []).filter((row) => !selectedRows.includes(row.id));
+                const nextMeta = {
+                    ...prev.meta,
+                    total: Math.max(0, (prev.meta?.total || 0) - selectedRows.length),
+                };
+                return { data: remaining, meta: nextMeta };
+            });
+            setSelectedTable((prev) => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    rows: toArray(prev.rows).filter((row) => !selectedRows.includes(row.id)),
+                };
+            });
             setSelectedRows([]);
-            fetchRows(selectedTable.id, 1);
+            setRowEdits((prev) => {
+                const next = { ...prev };
+                selectedRows.forEach((id) => delete next[String(id)]);
+                return next;
+            });
+            setDirtyRows((prev) => {
+                const next = { ...prev };
+                selectedRows.forEach((id) => delete next[String(id)]);
+                return next;
+            });
         } catch (error) {
             console.error('Không thể xoá các dòng đã chọn', error);
             alert('Xoá dòng thất bại.');
@@ -1301,7 +1359,8 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         if (!selectedTable) return;
         if (!isDirty) return;
 
-        const requests = [];
+        const createPromises = [];
+        const updatePromises = [];
 
         if (newRowDraft && newRowDraft.isDirty) {
             const payload = {
@@ -1311,7 +1370,9 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                 status_value: newRowDraft.status_value,
                 external_reference: newRowDraft.external_reference || null,
             };
-            requests.push(axios.post(`/automation/tables/${selectedTable.id}/rows`, payload));
+            createPromises.push(
+                axios.post(`/automation/tables/${selectedTable.id}/rows`, payload).then((res) => normalizeRow(res.data))
+            );
         }
 
         Object.keys(dirtyRows).forEach((rowIdKey) => {
@@ -1330,22 +1391,65 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
             if (draft.external_reference !== undefined) {
                 payload.external_reference = draft.external_reference;
             }
-            requests.push(axios.put(`/automation/tables/${selectedTable.id}/rows/${original.id}`, payload));
+            updatePromises.push(
+                axios
+                    .put(`/automation/tables/${selectedTable.id}/rows/${original.id}`, payload)
+                    .then((res) => normalizeRow(res.data))
+            );
         });
 
-        if (requests.length === 0) {
+        if (createPromises.length === 0 && updatePromises.length === 0) {
             return;
         }
 
         setSavingChanges(true);
 
         try {
-            await Promise.all(requests);
+            const [createdRows, updatedRows] = await Promise.all([
+                Promise.all(createPromises),
+                Promise.all(updatePromises),
+            ]);
+
+            setRowsData((prev) => {
+                let nextData = [...(prev.data || [])];
+
+                if (createdRows.length > 0) {
+                    nextData = [...createdRows, ...nextData];
+                }
+
+                if (updatedRows.length > 0) {
+                    const updatedMap = new Map(updatedRows.map((row) => [Number(row.id), row]));
+                    nextData = nextData.map((row) => updatedMap.get(Number(row.id)) || row);
+                }
+
+                return {
+                    data: nextData,
+                    meta: {
+                        ...prev.meta,
+                        total: (prev.meta?.total || 0) + createdRows.length,
+                    },
+                };
+            });
+
+            setSelectedTable((prev) => {
+                if (!prev) return prev;
+                const currentRows = toArray(prev.rows);
+                const updatedMap = new Map(updatedRows.map((row) => [Number(row.id), row]));
+                const nextRows = currentRows
+                    .map((row) => updatedMap.get(Number(row.id)) || row)
+                    .filter(Boolean);
+                if (createdRows.length > 0) {
+                    createdRows.forEach((row) => nextRows.unshift(row));
+                }
+                return {
+                    ...prev,
+                    rows: nextRows,
+                };
+            });
+
             setRowEdits({});
             setDirtyRows({});
             setNewRowDraft(null);
-            await fetchRows(selectedTable.id, rowsData.meta.current_page || 1);
-            await fetchTableDetail(selectedTable.id);
         } catch (error) {
             console.error('Không thể lưu thay đổi', error);
             alert('Lưu thay đổi thất bại. Vui lòng thử lại.');
@@ -1403,6 +1507,14 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         }
         return currentRows;
     }, [rowsData.data, newRowDraft]);
+
+    const pendingCallbackRowIds = useMemo(
+        () =>
+            (rowsData.data || [])
+                .filter((row) => row?.is_pending_callback)
+                .map((row) => row.id),
+        [rowsData.data]
+    );
 
     const activeDefaultSet = useMemo(
         () => defaultValueSets.find((set) => set.id === activeDefaultSetId) || null,
@@ -1491,6 +1603,16 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         setDebouncedSearch('');
         setRowsPerPage(25);
     }, [selectedTable?.id]);
+
+    useEffect(() => {
+        if (!selectedTable?.id || pendingCallbackRowIds.length === 0) {
+            return;
+        }
+        const interval = setInterval(() => {
+            pendingCallbackRowIds.forEach((rowId) => fetchSingleRow(selectedTable.id, rowId));
+        }, 3000);
+        return () => clearInterval(interval);
+    }, [selectedTable?.id, pendingCallbackRowIds, fetchSingleRow]);
 
     const fieldsByGroup = useMemo(() => {
         const groups = { input: [], output: [], meta: [] };
@@ -2570,12 +2692,34 @@ const RowsTable = ({
                         const statusValue = status?.value ?? '';
                         const pendingSeconds = getPendingSeconds(row);
                         const isStatusUpdating = !!rowStatusLoading?.[rowKey];
+                        const callbackPayload = row?.last_callback_payload || {};
+                        const rawStatusInfo = callbackPayload?.status;
+                        const statusInfo =
+                            typeof rawStatusInfo === 'string'
+                                ? { value: rawStatusInfo }
+                                : rawStatusInfo && typeof rawStatusInfo === 'object'
+                                ? rawStatusInfo
+                                : {};
+                        const callbackStatusValue = statusInfo?.value
+                            ? String(statusInfo.value).trim().toLowerCase()
+                            : null;
+                        const callbackStatusMessage =
+                            statusInfo?.message ??
+                            callbackPayload?.status_message ??
+                            callbackPayload?.message ??
+                            null;
+                        const isCallbackError =
+                            callbackStatusValue === 'error' && callbackStatusMessage;
 
                         return (
                         <React.Fragment key={row.id}>
                                 <tr
                                     className={`transition-colors divide-subtle ${
-                                        isNewRow || dirtyRow ? 'bg-primary-soft/40' : 'hover:bg-surface-muted/40'
+                                        isCallbackError
+                                            ? 'bg-rose-50/70'
+                                            : isNewRow || dirtyRow
+                                            ? 'bg-primary-soft/40'
+                                            : 'hover:bg-surface-muted/40'
                                     }`}
                                 >
                                 <td className="px-4 py-3">
@@ -2644,6 +2788,14 @@ const RowsTable = ({
                                                     d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 105 14.32l-1.45-1.45A6 6 0 1112 6v4z"
                                                 />
                                             </svg>
+                                        )}
+                                        {isCallbackError && (
+                                            <span
+                                                className="inline-flex items-center justify-center w-5 h-5 text-rose-600 border border-rose-400 rounded-full text-xs font-semibold cursor-help bg-white"
+                                                title={callbackStatusMessage}
+                                            >
+                                                !
+                                            </span>
                                         )}
                                     </div>
                                 </td>
@@ -2898,7 +3050,7 @@ const RowExpandedEditor = ({
 const Pagination = ({
     meta,
     perPage,
-    perPageOptions = [2,10, 25, 50, 100],
+    perPageOptions = [10, 25, 50, 100],
     onChangePage,
     onChangePerPage,
 }) => {
@@ -3586,7 +3738,7 @@ const ExportConfigModal = ({ table, onClose, onSubmit }) => {
     return (
         <Modal onClose={onClose} title="Cấu hình xuất Excel">
             <form onSubmit={handleSubmit} className="space-y-4 text-sm text-gray-600">
-                <p className="text-xs text-muted">
+                    <p className="text-xs text-muted">
                     Tick để chọn field cần xuất, kéo thả trong danh sách bên phải để sắp xếp thứ tự cột trong file Excel.
                 </p>
                 <div className="grid md:grid-cols-5 gap-3 items-start">

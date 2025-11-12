@@ -109,6 +109,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/tables/{automationTable}/rows', [AutomationRowController::class, 'index']);
         Route::post('/tables/{automationTable}/rows', [AutomationRowController::class, 'store']);
+        Route::get('/tables/{automationTable}/rows/{automationRow}', [AutomationRowController::class, 'show']);
         Route::put('/tables/{automationTable}/rows/{automationRow}', [AutomationRowController::class, 'update']);
         Route::delete('/tables/{automationTable}/rows/{automationRow}', [AutomationRowController::class, 'destroy']);
         Route::post('/tables/{automationTable}/rows/bulk-delete', [AutomationRowController::class, 'bulkDestroy']);

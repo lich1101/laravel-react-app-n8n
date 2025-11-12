@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\Api\AutomationCallbackController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 
-Route::match(['get', 'post'], '/{slug}/{path}/{uuid}', [AutomationCallbackController::class, 'handle'])
+Route::match(['get', 'post'], '/automation-{slug}/{path}/{uuid}', [AutomationCallbackController::class, 'handle'])
+    ->withoutMiddleware([VerifyCsrfToken::class])
     ->where([
-        'slug' => 'automation-[A-Za-z0-9\-]+',
+        'slug' => '[A-Za-z0-9\-]+',
         'path' => '[A-Za-z0-9\-]+',
         'uuid' => '[0-9a-fA-F\-]{36}',
     ]);

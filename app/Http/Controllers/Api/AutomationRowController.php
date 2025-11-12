@@ -39,6 +39,15 @@ class AutomationRowController extends Controller
         return response()->json($paginator);
     }
 
+    public function show(AutomationTable $automationTable, AutomationRow $automationRow): JsonResponse
+    {
+        $this->ensureRowBelongsToTable($automationTable, $automationRow);
+
+        return response()->json(
+            $automationRow->load(['status', 'creator:id,name', 'updater:id,name'])
+        );
+    }
+
     public function store(Request $request, AutomationTable $automationTable): JsonResponse
     {
         $data = $this->validateRow($request);
