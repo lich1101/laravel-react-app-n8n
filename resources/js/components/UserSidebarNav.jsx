@@ -268,7 +268,7 @@ const UserSidebarNav = ({
                                                                 navigate(detailPath);
                                                             }
                                                         }}
-                                                        className={`flex-1 ml-3 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                        className={`flex-1 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                             isTableActive
                                                                 ? 'bg-primary-soft text-primary border border-blue-200 shadow-card'
                                                                 : 'text-secondary hover:bg-surface-muted'
@@ -340,7 +340,7 @@ const UserSidebarNav = ({
                                                                     navigate(workflowPath);
                                                                 }
                                                             }}
-                                                            className={`flex-1 ml-3 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                            className={`flex-1 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                                 isWorkflowActive
                                                                     ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
                                                                     : 'text-secondary hover:bg-surface-muted'
@@ -394,7 +394,7 @@ const UserSidebarNav = ({
                                                         navigate(workflowPath);
                                                     }
                                                 }}
-                                                className={`flex-1 ml-3 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                className={`flex-1 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                     isWorkflowActive
                                                         ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
                                                         : 'text-secondary hover:bg-surface-muted'
