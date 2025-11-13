@@ -35,6 +35,11 @@ const UserSidebarNav = ({
     user = null,
     onLogout = () => {},
     footerText = 'v1.0.0',
+    managementLinks = null,
+    automationManagePath = '/dashboard/automations/manage',
+    workflowManagePath = '/dashboard/workflows/manage',
+    automationDetailPathBuilder = (tableId) => `/dashboard/automations/table/${tableId}`,
+    workflowDetailPathBuilder = (workflowId) => `/dashboard/workflows/${workflowId}`,
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -63,6 +68,27 @@ const UserSidebarNav = ({
         });
         return map;
     }, [workflowFolders]);
+
+    const defaultManagementLinks = [
+        { id: 'manage-automations', label: 'Quản lý Automation', to: automationManagePath, icon: '🛠' },
+        { id: 'manage-workflows', label: 'Quản lý Workflows', to: workflowManagePath, icon: '🔁' },
+    ];
+
+    const resolvedManagementLinks =
+        managementLinks && managementLinks.length > 0 ? managementLinks : defaultManagementLinks;
+
+    const username = user?.name || '';
+
+    const isLinkActive = (link) => {
+        if (!link) return false;
+        if (typeof link.isActive === 'function') {
+            return link.isActive(location.pathname);
+        }
+        if (link.to) {
+            return location.pathname.startsWith(link.to);
+        }
+        return false;
+    };
 
     useEffect(() => {
         const path = location.pathname;
@@ -125,43 +151,25 @@ const UserSidebarNav = ({
         });
     };
 
-    const isActive = (targetPath) => location.pathname === targetPath;
-
     const collapsedIcons = (
         <div className="flex flex-col items-center space-y-4 py-6">
-            <button
-                title="Quản lý"
-                onClick={() => navigate('/dashboard/automations/manage')}
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors border ${
-                    location.pathname.includes('/dashboard/automations/manage')
-                        ? 'bg-amber-400 text-white border-amber-400 shadow-card'
-                        : 'bg-surface-elevated text-muted border-subtle hover:bg-surface-muted'
-                }`}
-            >
-                🛠
-            </button>
-            <button
-                title="Automation"
-                onClick={() => navigate('/dashboard/automations/manage')}
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors border ${
-                    location.pathname.includes('/dashboard/automations')
-                        ? 'bg-blue-500 text-white border-blue-500 shadow-card'
-                        : 'bg-surface-elevated text-muted border-subtle hover:bg-surface-muted'
-                }`}
-            >
-            
-            </button>
-            <button
-                title="Workflows"
-                onClick={() => navigate('/dashboard/workflows/manage')}
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors border ${
-                    location.pathname.includes('/dashboard/workflows')
-                        ? 'bg-purple-500 text-white border-purple-500 shadow-card'
-                        : 'bg-surface-elevated text-muted border-subtle hover:bg-surface-muted'
-                }`}
-            >
-                🔁
-            </button>
+            {resolvedManagementLinks.map((link) => {
+                const active = isLinkActive(link);
+                return (
+                    <button
+                        key={link.id}
+                        title={link.label}
+                        onClick={() => link.to && navigate(link.to)}
+                        className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors border ${
+                            active
+                                ? 'bg-amber-400 text-white border-amber-400 shadow-card'
+                                : 'bg-surface-elevated text-muted border-subtle hover:bg-surface-muted'
+                        }`}
+                    >
+                        {link.icon || link.label?.charAt(0) || '•'}
+                    </button>
+                );
+            })}
         </div>
     );
 
@@ -177,26 +185,35 @@ const UserSidebarNav = ({
                 />
                 {managementOpen && (
                     <div className="mt-1 space-y-1">
-                        <button
-                            onClick={() => navigate('/dashboard/automations/manage')}
-                            className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${
-                                isActive('/dashboard/automations/manage')
-                                    ? 'bg-amber-100 text-amber-700 border border-amber-300 shadow-card'
-                                    : 'text-secondary hover:bg-surface-muted'
-                            }`}
-                        >
-                            Quản lý Automation
-                        </button>
-                        <button
-                            onClick={() => navigate('/dashboard/workflows/manage')}
-                            className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${
-                                isActive('/dashboard/workflows/manage')
-                                    ? 'bg-amber-100 text-amber-700 border border-amber-300 shadow-card'
-                                    : 'text-secondary hover:bg-surface-muted'
-                            }`}
-                        >
-                            Quản lý Workflows
-                        </button>
+                        {resolvedManagementLinks.map((link) => {
+                            const active = isLinkActive(link);
+                            return (
+                                <button
+                                    key={link.id}
+                                    onClick={() => {
+                                        if (link.onClick) {
+                                            link.onClick();
+                                            return;
+                                        }
+                                        if (link.to) {
+                                            navigate(link.to);
+                                        }
+                                    }}
+                                    className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${
+                                        active
+                                            ? 'bg-amber-100 text-amber-700 border border-amber-300 shadow-card'
+                                            : 'text-secondary hover:bg-surface-muted'
+                                    }`}
+                                >
+                                    {link.label}
+                                </button>
+                            );
+                        })}
+                        {resolvedManagementLinks.length === 0 && (
+                            <div className="px-3 py-2 text-xs text-muted border border-dashed border-subtle rounded-xl">
+                                Không có mục
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -236,24 +253,30 @@ const UserSidebarNav = ({
                                         {isExpanded && (
                                             <div className="relative pl-5 pb-3 space-y-1">
                                                 <div className="absolute left-2 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
-                                                {topic.tables.map((table) => (
-                                                    <div key={table.id} className="flex items-center">
+                                                {topic.tables.map((table) => {
+                                                    const detailPath = automationDetailPathBuilder(table.id);
+                                                    const isTableActive = detailPath && location.pathname.startsWith(detailPath);
+                                                    return (
+                                                        <div key={table.id} className="flex items-center">
                                                         <div className="w-3 -ml-3 border-t border-subtle opacity-60" />
                                                     <button
                                                         onClick={() => {
-                                                            onSelectAutomation?.(topic.id, table.id, `/dashboard/automations/table/${table.id}`);
-                                                            navigate(`/dashboard/automations/table/${table.id}`);
+                                                            onSelectAutomation?.(topic.id, table.id, detailPath);
+                                                            if (detailPath) {
+                                                                navigate(detailPath);
+                                                            }
                                                         }}
-                                                            className={`flex-1 ml-2 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                                                isActive(`/dashboard/automations/table/${table.id}`)
-                                                                    ? 'bg-primary-soft text-primary border border-blue-200 shadow-card'
-                                                                    : 'text-secondary hover:bg-surface-muted'
-                                                            }`}
+                                                        className={`flex-1 ml-2 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                            isTableActive
+                                                                ? 'bg-primary-soft text-primary border border-blue-200 shadow-card'
+                                                                : 'text-secondary hover:bg-surface-muted'
+                                                        }`}
                                                     >
                                                         {table.name}
                                                     </button>
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                                 {topic.tables.length === 0 && (
                                                     <p className="px-3 py-1 text-xs text-muted">Chưa có bảng</p>
                                                 )}
@@ -302,24 +325,30 @@ const UserSidebarNav = ({
                                         {isExpanded && (
                                             <div className="relative pl-5 pb-3 space-y-1">
                                                 <div className="absolute left-2 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
-                                                {folder.workflows.map((workflow) => (
-                                                    <div key={workflow.id} className="flex items-center">
+                                                {folder.workflows.map((workflow) => {
+                                                    const workflowPath = workflowDetailPathBuilder(workflow.id);
+                                                    const isWorkflowActive = workflowPath && location.pathname.startsWith(workflowPath);
+                                                    return (
+                                                        <div key={workflow.id} className="flex items-center">
                                                         <div className="w-3 -ml-3 border-t border-subtle opacity-60" />
                                                     <button
                                                         onClick={() => {
-                                                            onSelectWorkflow?.(folder.id, workflow.id, `/dashboard/workflows/${workflow.id}`);
-                                                            navigate(`/dashboard/workflows/${workflow.id}`);
+                                                            onSelectWorkflow?.(folder.id, workflow.id, workflowPath);
+                                                            if (workflowPath) {
+                                                                navigate(workflowPath);
+                                                            }
                                                         }}
-                                                            className={`flex-1 ml-2 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                                                isActive(`/dashboard/workflows/${workflow.id}`)
-                                                                    ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
-                                                                    : 'text-secondary hover:bg-surface-muted'
-                                                            }`}
+                                                        className={`flex-1 ml-2 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                            isWorkflowActive
+                                                                ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
+                                                                : 'text-secondary hover:bg-surface-muted'
+                                                        }`}
                                                     >
                                                         {workflow.name}
                                                     </button>
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                                 {folder.workflows.length === 0 && (
                                                     <p className="px-3 py-1 text-xs text-muted">Chưa có workflow</p>
                                                 )}
@@ -350,24 +379,30 @@ const UserSidebarNav = ({
                                 {expandedFolders.has('unassigned') && (
                                     <div className="relative pl-5 pb-3 space-y-1">
                                         <div className="absolute left-2 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
-                                        {orphanWorkflows.map((workflow) => (
-                                            <div key={workflow.id} className="flex items-center">
+                                        {orphanWorkflows.map((workflow) => {
+                                            const workflowPath = workflowDetailPathBuilder(workflow.id);
+                                            const isWorkflowActive = workflowPath && location.pathname.startsWith(workflowPath);
+                                            return (
+                                                <div key={workflow.id} className="flex items-center">
                                                 <div className="w-3 -ml-3 border-t border-subtle opacity-60" />
                                             <button
                                                 onClick={() => {
-                                                    onSelectWorkflow?.('unassigned', workflow.id, `/dashboard/workflows/${workflow.id}`);
-                                                    navigate(`/dashboard/workflows/${workflow.id}`);
+                                                    onSelectWorkflow?.('unassigned', workflow.id, workflowPath);
+                                                    if (workflowPath) {
+                                                        navigate(workflowPath);
+                                                    }
                                                 }}
-                                                    className={`flex-1 ml-2 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                                        isActive(`/dashboard/workflows/${workflow.id}`)
-                                                            ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
-                                                            : 'text-secondary hover:bg-surface-muted'
-                                                    }`}
+                                                className={`flex-1 ml-2 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                    isWorkflowActive
+                                                        ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
+                                                        : 'text-secondary hover:bg-surface-muted'
+                                                }`}
                                             >
                                                 {workflow.name}
                                             </button>
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -404,7 +439,7 @@ const UserSidebarNav = ({
                 <div className={`flex items-center ${collapsed ? 'flex-col gap-3' : 'justify-between gap-3'}`}>
                     {!collapsed && (
                         <div className="flex-1 truncate text-sm text-secondary">
-                            <div className="font-semibold">{user?.name || 'Người dùng'}</div>
+                            <div className="font-semibold">{username || 'Người dùng'}</div>
                             <div className="text-xs text-muted">{footerText}</div>
                         </div>
                     )}
