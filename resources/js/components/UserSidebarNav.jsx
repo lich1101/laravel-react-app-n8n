@@ -361,7 +361,7 @@ const UserSidebarNav = ({
                             })
                         )}
                         {!loading && orphanWorkflows.length > 0 && (
-                            <div className="rounded-xl pl-4">
+                            <div className="rounded-xl">
                                 <button
                                     onClick={() => {
                                         toggleFolder('unassigned');
