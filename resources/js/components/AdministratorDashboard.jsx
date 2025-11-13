@@ -106,7 +106,7 @@ const AdministratorDashboard = () => {
                 </nav>
 
                 <div className="flex-1 bg-surface-muted overflow-y-auto">
-                    <div className="p-6">
+                    <div className="">
                         <div className="border border-subtle rounded-2xl bg-surface-elevated shadow-card p-6">
                             <Routes>
                                 <Route index element={<Navigate to="/administrator/projects" replace />} />
