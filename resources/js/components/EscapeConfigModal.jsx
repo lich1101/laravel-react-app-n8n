@@ -280,7 +280,7 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
                 {/* Header */}
                 <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">

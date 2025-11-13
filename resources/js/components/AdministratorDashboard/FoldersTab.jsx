@@ -584,7 +584,7 @@ const FoldersTab = () => {
 
             {/* Create Workflow Modal */}
             {showCreateWorkflowModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 w-full max-w-md">
                         <h3 className="text-xl font-semibold text-gray-900 mb-4">
                             Create New Workflow
@@ -640,7 +640,7 @@ const FoldersTab = () => {
 
             {/* Edit/Add Folder Modal */}
             {showEditModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 w-full max-w-md">
                         <h3 className="text-xl font-semibold text-gray-900 mb-4">
                             {editingFolder ? 'Edit Folder' : 'Add New Folder'}
@@ -737,7 +737,7 @@ const WorkflowModal = ({ folder, workflows, onClose, onSave }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Manage Workflows - {folder.name}
@@ -807,7 +807,7 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Assign to Projects - {folder.name}

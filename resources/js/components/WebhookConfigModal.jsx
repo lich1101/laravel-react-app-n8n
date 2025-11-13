@@ -308,14 +308,14 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                     font-family: monospace;
                 }
             `}</style>
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={handleClose}>
-            <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={handleClose}>
+            <div className="bg-surface-elevated border border-subtle rounded-2xl shadow-card w-full max-w-4xl max-h-[90vh] overflow-hidden text-secondary" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
-                <div className="border-b border-gray-700 px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                <div className="border-b border-subtle px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-primary">
                         <span className="text-3xl">🔗</span>
                         <h2 
-                            className="text-xl font-semibold text-white cursor-pointer hover:text-blue-400 transition-colors flex items-center gap-2"
+                            className="text-xl font-semibold cursor-pointer hover:text-primary/70 transition-colors flex items-center gap-2"
                             onClick={() => {
                                 if (onRename) {
                                     onRename();
@@ -324,7 +324,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                             title="Click để đổi tên node"
                         >
                             {node?.data?.customName || 'Webhook'}
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                             </svg>
                         </h2>
@@ -333,21 +333,15 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                         <button
                             onClick={isListening ? handleStopListening : handleTestStep}
                             disabled={isListening && !testOutput}
-                            className={`px-4 py-2 rounded text-sm font-medium ${
-                                isListening
-                                    ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                                    : 'bg-green-600 hover:bg-green-700 text-white'
-                            }`}
+                            className={`btn text-sm ${isListening ? 'btn-danger' : 'btn-success'}`}
                         >
                             {isListening ? 'Stop Listening' : 'Test step'}
                         </button>
                         <button 
                             onClick={handleClose} 
                             disabled={pathError}
-                            className={`${
-                                pathError 
-                                    ? 'text-gray-600 cursor-not-allowed' 
-                                    : 'text-gray-400 hover:text-white'
+                            className={`btn btn-muted text-sm px-3 py-2 ${
+                                pathError ? 'cursor-not-allowed opacity-60' : ''
                             }`}
                             title={pathError ? 'Phải sửa lỗi path trước khi đóng' : 'Close'}
                         >
@@ -364,19 +358,19 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                         <div>
                             {/* Webhook URL */}
                             <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Webhook URL</label>
-                                <div className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300">
+                                <label className="block text-sm font-medium text-secondary mb-2">Webhook URL</label>
+                                <div className="bg-surface border border-subtle rounded-lg px-3 py-2 text-sm text-secondary">
                                     {config.method} {baseUrl}/api/webhook/{config.path || 'your-path'}
                                 </div>
                             </div>
 
                             {/* HTTP Method */}
                             <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-300 mb-2">HTTP Method</label>
+                                <label className="block text-sm font-medium text-secondary mb-2">HTTP Method</label>
                                 <select
                                     value={config.method}
                                     onChange={(e) => setConfig({ ...config, method: e.target.value })}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                    className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
                                 >
                                     <option value="GET">GET</option>
                                     <option value="POST">POST</option>
@@ -388,20 +382,20 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
 
                             {/* Path */}
                             <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Path</label>
+                                <label className="block text-sm font-medium text-secondary mb-2">Path</label>
                                 <div className="relative">
                                     <VariableInput
                                         value={config.path}
                                         onChange={(newValue) => setConfig({ ...config, path: newValue })}
                                         rows={1}
                                         placeholder="test"
-                                        className={`w-full bg-gray-900 border rounded px-3 py-2 text-white ${
-                                            pathError ? 'border-red-500' : 'border-gray-700'
+                                        className={`w-full bg-surface border rounded-lg px-3 py-2 text-secondary ${
+                                            pathError ? 'border-danger-color' : 'border-subtle'
                                         }`}
                                     />
                                     {isCheckingPath && (
                                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                            <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <svg className="animate-spin h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                             </svg>
@@ -409,7 +403,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     )}
                                 </div>
                                 {pathError && (
-                                    <p className="mt-2 text-sm text-red-400 flex items-start">
+                                    <p className="mt-2 text-sm text-danger flex items-start">
                                         <svg className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                         </svg>
@@ -420,11 +414,11 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
 
                             {/* Authentication */}
                             <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Authentication</label>
+                                <label className="block text-sm font-medium text-secondary mb-2">Authentication</label>
                                 <select
                                     value={config.auth}
                                     onChange={(e) => setConfig({ ...config, auth: e.target.value, authType: 'bearer' })}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                    className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
                                 >
                                     <option value="none">None</option>
                                     <option value="header">Header Auth</option>
@@ -436,11 +430,11 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                             {config.auth !== 'none' && (
                                 <>
                                     <div className="mb-6">
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">Authentication Type</label>
+                                        <label className="block text-sm font-medium text-secondary mb-2">Authentication Type</label>
                                         <select
                                             value={config.authType}
                                             onChange={(e) => setConfig({ ...config, authType: e.target.value })}
-                                            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                            className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
                                         >
                                             <option value="bearer">Bearer Token</option>
                                             <option value="basic">Basic Auth</option>
@@ -454,12 +448,12 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     {/* Bearer Token */}
                                     {config.authType === 'bearer' && (
                                         <div className="mb-6">
-                                            <label className="block text-sm font-medium text-gray-300 mb-2">Bearer Token Credential</label>
+                                            <label className="block text-sm font-medium text-secondary mb-2">Bearer Token Credential</label>
                                             <div className="flex space-x-2">
                                                 <select
                                                     value={config.credentialId || ''}
                                                     onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
-                                                    className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                                    className="flex-1 bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
                                                 >
                                                     <option value="">Select Credential...</option>
                                                     {Array.isArray(credentials) && credentials
@@ -476,19 +470,19 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                         setSelectedCredentialType('bearer');
                                                         setShowCredentialModal(true);
                                                     }}
-                                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                                    className="btn btn-success text-sm whitespace-nowrap"
                                                     title="Create new Bearer Token"
                                                 >
                                                     + New
                                                 </button>
                                             </div>
                                             {!config.credentialId && (
-                                                <p className="mt-1 text-xs text-orange-400">
+                                                <p className="mt-1 text-xs text-warning">
                                                     ⚠️ Please select a credential or create a new one
                                                 </p>
                                             )}
                                             {config.credentialId && (
-                                                <p className="mt-1 text-xs text-green-400">
+                                                <p className="mt-1 text-xs text-success">
                                                     ✓ Credential selected
                                                 </p>
                                             )}
@@ -499,7 +493,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     {config.authType === 'basic' && (
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                                                <label className="block text-sm font-medium text-secondary mb-1">Username</label>
                                                 <ExpandableTextarea
                                                     value={config.username || ''}
                                                     onChange={(newValue) => setConfig({ ...config, username: newValue })}
@@ -508,7 +502,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
+                                                <label className="block text-sm font-medium text-secondary mb-1">Password</label>
                                                 <ExpandableTextarea
                                                     value={config.password || ''}
                                                     onChange={(newValue) => setConfig({ ...config, password: newValue })}
@@ -523,7 +517,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     {config.authType === 'apiKey' && (
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-300 mb-1">Header/Query Param Name</label>
+                                                <label className="block text-sm font-medium text-secondary mb-1">Header/Query Param Name</label>
                                                 <ExpandableTextarea
                                                     value={config.apiKeyName || ''}
                                                     onChange={(newValue) => setConfig({ ...config, apiKeyName: newValue })}
@@ -532,7 +526,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-300 mb-1">API Key Value</label>
+                                                <label className="block text-sm font-medium text-secondary mb-1">API Key Value</label>
                                                 <ExpandableTextarea
                                                     value={config.apiKeyValue || ''}
                                                     onChange={(newValue) => setConfig({ ...config, apiKeyValue: newValue })}
@@ -547,7 +541,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     {config.authType === 'digest' && (
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                                                <label className="block text-sm font-medium text-secondary mb-1">Username</label>
                                                 <ExpandableTextarea
                                                     value={config.username || ''}
                                                     onChange={(newValue) => setConfig({ ...config, username: newValue })}
@@ -556,7 +550,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
+                                                <label className="block text-sm font-medium text-secondary mb-1">Password</label>
                                                 <ExpandableTextarea
                                                     value={config.password || ''}
                                                     onChange={(newValue) => setConfig({ ...config, password: newValue })}
@@ -570,12 +564,12 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     {/* OAuth 2.0 */}
                                     {config.authType === 'oauth2' && (
                                         <div className="mb-6">
-                                            <label className="block text-sm font-medium text-gray-300 mb-2">OAuth2 Credential</label>
+                                            <label className="block text-sm font-medium text-secondary mb-2">OAuth2 Credential</label>
                                             <div className="flex space-x-2">
                                                 <select
                                                     value={config.credentialId || ''}
                                                     onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
-                                                    className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                                    className="flex-1 bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
                                                 >
                                                     <option value="">Select Credential...</option>
                                                     {Array.isArray(credentials) && credentials
@@ -592,7 +586,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                         setSelectedCredentialType('oauth2');
                                                         setShowCredentialModal(true);
                                                     }}
-                                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                                    className="btn btn-success text-sm whitespace-nowrap"
                                                     title="Create new OAuth2 Credential"
                                                 >
                                                     + New
@@ -618,7 +612,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     {config.authType === 'custom' && (
                                         <>
                                             <div className="mb-6">
-                                                <label className="block text-sm font-medium text-gray-300 mb-2">Header Name</label>
+                                                <label className="block text-sm font-medium text-secondary mb-2">Header Name</label>
                                                 <ExpandableTextarea
                                                     value={config.customHeaderName || ''}
                                                     onChange={(newValue) => setConfig({ ...config, customHeaderName: newValue })}
@@ -627,7 +621,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 />
                                             </div>
                                             <div className="mb-6">
-                                                <label className="block text-sm font-medium text-gray-300 mb-2">Header Value</label>
+                                                <label className="block text-sm font-medium text-secondary mb-2">Header Value</label>
                                                 <ExpandableTextarea
                                                     value={config.customHeaderValue || ''}
                                                     onChange={(newValue) => setConfig({ ...config, customHeaderValue: newValue })}
@@ -642,11 +636,11 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
 
                             {/* Respond */}
                             <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Respond</label>
+                                <label className="block text-sm font-medium text-secondary mb-2">Respond</label>
                                 <select
                                     value={config.respond}
                                     onChange={(e) => setConfig({ ...config, respond: e.target.value })}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white"
+                                    className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
                                 >
                                     <option value="immediately">Immediately</option>
                                     <option value="when_last_node_finishes">When last node finishes</option>
@@ -657,18 +651,18 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                     </div>
 
                     {/* Right Panel - Output */}
-                    <div className="w-1/2 border-l border-gray-700 px-6 py-4 bg-gray-900 flex flex-col">
-                        <h3 className="text-sm font-medium text-gray-400 mb-4">OUTPUT</h3>
+                    <div className="w-1/2 border-l border-subtle px-6 py-4 bg-surface flex flex-col">
+                        <h3 className="text-sm font-medium text-secondary mb-4">OUTPUT</h3>
                         
                         {/* Tabs */}
                         {(testOutput || outputData) && (
-                            <div className="flex gap-2 mb-3 border-b border-gray-700">
+                            <div className="flex gap-2 mb-3 border-b border-subtle">
                                 <button
                                     onClick={() => setActiveTab('schema')}
                                     className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                                         activeTab === 'schema'
-                                            ? 'text-blue-400 border-b-2 border-blue-400'
-                                            : 'text-gray-400 hover:text-gray-300'
+                                            ? 'text-primary border-b-2 border-primary'
+                                            : 'text-muted hover:text-secondary'
                                     }`}
                                 >
                                     Schema
@@ -677,8 +671,8 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     onClick={() => setActiveTab('json')}
                                     className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                                         activeTab === 'json'
-                                            ? 'text-blue-400 border-b-2 border-blue-400'
-                                            : 'text-gray-400 hover:text-gray-300'
+                                            ? 'text-primary border-b-2 border-primary'
+                                            : 'text-muted hover:text-secondary'
                                     }`}
                                 >
                                     JSON
@@ -686,55 +680,55 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                             </div>
                         )}
                         
-                        <div className="flex-1 bg-gray-950 rounded p-4 overflow-y-auto">
+                        <div className="flex-1 bg-surface-muted rounded-lg p-4 overflow-y-auto border border-subtle">
                             {isListening ? (
                                 <div className="flex flex-col items-center justify-center h-full text-center">
                                     <div className="animate-pulse mb-4">
-                                        <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-16 h-16 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                         </svg>
                                     </div>
-                                    <p className="text-green-400 font-medium mb-2">Listening for webhook...</p>
-                                    <p className="text-gray-400 text-sm">Send a request to the webhook URL below</p>
+                                    <p className="text-success font-medium mb-2">Listening for webhook...</p>
+                                    <p className="text-muted text-sm">Send a request to the webhook URL below</p>
                                     
                                     <div className="mt-4 w-full max-w-lg space-y-3">
                                         {/* Test URL */}
-                                        <div className="bg-gray-900 rounded p-3 text-left">
-                                            <p className="text-xs text-gray-400 mb-1">Test URL:</p>
-                                            <code className="text-xs text-green-400 break-all">
+                                        <div className="bg-surface rounded-lg border border-subtle p-3 text-left">
+                                            <p className="text-xs text-muted mb-1">Test URL:</p>
+                                            <code className="text-xs text-success break-all">
                                                 {config.method} {baseUrl}/api/webhook-test/{config.path}
                                             </code>
                                         </div>
 
                                         {/* Authentication Info */}
                                         {config.auth !== 'none' && (
-                                            <div className="bg-orange-900/30 border border-orange-600/50 rounded p-3 text-left">
-                                                <p className="text-xs text-orange-400 font-semibold mb-2">🔐 Authentication Required:</p>
+                                            <div className="bg-warning/10 border border-warning/40 rounded-lg p-3 text-left">
+                                                <p className="text-xs text-warning font-semibold mb-2">🔐 Authentication Required:</p>
                                                 
                                                 {/* Bearer Token */}
                                                 {config.authType === 'bearer' && config.credentialId && (
                                                     <>
-                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">Bearer Token</span></p>
+                                                        <p className="text-xs text-secondary mb-1">Type: <span className="text-primary">Bearer Token</span></p>
                                                         {selectedCredential ? (
                                                             <>
                                                                 {config.auth === 'header' ? (
                                                                     <>
-                                                                        <p className="text-xs text-gray-400 mt-2">Header:</p>
-                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1 break-all">
+                                                                        <p className="text-xs text-muted mt-2">Header:</p>
+                                                                        <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 break-all border border-subtle">
                                                                             Authorization: Bearer {(selectedCredential.data?.token || selectedCredential.data?.headerValue || '')?.replace('Bearer ', '') || '[TOKEN NOT FOUND]'}
                                                                         </code>
                                                                     </>
                                                                 ) : (
                                                                     <>
-                                                                        <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
-                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1 break-all">
+                                                                        <p className="text-xs text-muted mt-2">Query Parameter:</p>
+                                                                        <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 break-all border border-subtle">
                                                                             ?token={(selectedCredential.data?.token || selectedCredential.data?.headerValue || '')?.replace('Bearer ', '') || '[TOKEN NOT FOUND]'}
                                                                         </code>
                                                                     </>
                                                                 )}
                                                             </>
                                                         ) : (
-                                                            <p className="text-xs text-gray-400 mt-2">Loading credential...</p>
+                                                            <p className="text-xs text-muted mt-2">Loading credential...</p>
                                                         )}
                                                     </>
                                                 )}
@@ -742,18 +736,18 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 {/* Basic Auth */}
                                                 {config.authType === 'basic' && (
                                                     <>
-                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">Basic Auth</span></p>
+                                                        <p className="text-xs text-secondary mb-1">Type: <span className="text-primary">Basic Auth</span></p>
                                                         {config.auth === 'header' ? (
                                                             <>
-                                                                <p className="text-xs text-gray-400 mt-2">Header:</p>
-                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                <p className="text-xs text-muted mt-2">Header:</p>
+                                                                <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 border border-subtle">
                                                                     Authorization: Basic {btoa(`${config.username}:${config.password}`)}
                                                                 </code>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <p className="text-xs text-gray-400 mt-2">Query Parameters:</p>
-                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                <p className="text-xs text-muted mt-2">Query Parameters:</p>
+                                                                <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 border border-subtle">
                                                                     ?username={config.username}&password={config.password}
                                                                 </code>
                                                             </>
@@ -764,18 +758,18 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 {/* API Key */}
                                                 {config.authType === 'apiKey' && (
                                                     <>
-                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">API Key</span></p>
+                                                        <p className="text-xs text-secondary mb-1">Type: <span className="text-primary">API Key</span></p>
                                                         {config.auth === 'header' ? (
                                                             <>
-                                                                <p className="text-xs text-gray-400 mt-2">Header:</p>
-                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                <p className="text-xs text-muted mt-2">Header:</p>
+                                                                <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 border border-subtle">
                                                                     {config.apiKeyName}: {config.apiKeyValue}
                                                                 </code>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
-                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                <p className="text-xs text-muted mt-2">Query Parameter:</p>
+                                                                <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 border border-subtle">
                                                                     ?{config.apiKeyName}={config.apiKeyValue}
                                                                 </code>
                                                             </>
@@ -786,18 +780,18 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 {/* Custom Header */}
                                                 {config.authType === 'custom' && (
                                                     <>
-                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">Custom Header</span></p>
+                                                        <p className="text-xs text-secondary mb-1">Type: <span className="text-primary">Custom Header</span></p>
                                                         {config.auth === 'header' ? (
                                                             <>
-                                                                <p className="text-xs text-gray-400 mt-2">Header:</p>
-                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                <p className="text-xs text-muted mt-2">Header:</p>
+                                                                <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 border border-subtle">
                                                                     {config.customHeaderName}: {config.customHeaderValue}
                                                                 </code>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
-                                                                <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1">
+                                                                <p className="text-xs text-muted mt-2">Query Parameter:</p>
+                                                                <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 border border-subtle">
                                                                     ?{config.customHeaderName}={config.customHeaderValue}
                                                                 </code>
                                                             </>
@@ -808,27 +802,27 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 {/* OAuth2 */}
                                                 {config.authType === 'oauth2' && config.credentialId && (
                                                     <>
-                                                        <p className="text-xs text-gray-300 mb-1">Type: <span className="text-blue-400">OAuth 2.0</span></p>
+                                                        <p className="text-xs text-secondary mb-1">Type: <span className="text-primary">OAuth 2.0</span></p>
                                                         {selectedCredential ? (
                                                             <>
                                                                 {config.auth === 'header' ? (
                                                                     <>
-                                                                        <p className="text-xs text-gray-400 mt-2">Header:</p>
-                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1 break-all">
+                                                                        <p className="text-xs text-muted mt-2">Header:</p>
+                                                                        <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 break-all border border-subtle">
                                                                             Authorization: Bearer {selectedCredential.data?.accessToken?.replace('Bearer ', '') || '[TOKEN NOT FOUND]'}
                                                                         </code>
                                                                     </>
                                                                 ) : (
                                                                     <>
-                                                                        <p className="text-xs text-gray-400 mt-2">Query Parameter:</p>
-                                                                        <code className="text-xs text-yellow-400 bg-gray-800 px-2 py-1 rounded block mt-1 break-all">
+                                                                        <p className="text-xs text-muted mt-2">Query Parameter:</p>
+                                                                        <code className="text-xs text-primary bg-surface px-2 py-1 rounded block mt-1 break-all border border-subtle">
                                                                             ?access_token={selectedCredential.data?.accessToken?.replace('Bearer ', '') || '[TOKEN NOT FOUND]'}
                                                                         </code>
                                                                     </>
                                                                 )}
                                                             </>
                                                         ) : (
-                                                            <p className="text-xs text-gray-400 mt-2">Loading credential...</p>
+                                                            <p className="text-xs text-muted mt-2">Loading credential...</p>
                                                         )}
                                                     </>
                                                 )}
@@ -838,24 +832,24 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                 </div>
                             ) : testError ? (
                                 <div className="flex flex-col items-center justify-center h-full text-center">
-                                    <svg className="w-12 h-12 text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-12 h-12 text-danger mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                     </svg>
-                                    <p className="text-red-400 font-medium">{testError}</p>
+                                    <p className="text-danger font-medium">{testError}</p>
                                 </div>
                             ) : (testOutput || outputData) ? (
                                 <div className="space-y-2">
                                     {activeTab === 'schema' ? (
                                         <JsonViewer data={testOutput || outputData} />
                                     ) : (
-                                        <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                                        <pre className="text-xs text-secondary whitespace-pre-wrap font-mono">
                                             {JSON.stringify(testOutput || outputData, null, 2)}
                                         </pre>
                                     )}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 text-sm">
-                                    <svg className="w-12 h-12 mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="flex flex-col items-center justify-center h-full text-center text-muted text-sm">
+                                    <svg className="w-12 h-12 mb-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                     </svg>
                                     <p>Click "Test step" to start listening for webhook requests</p>
@@ -942,7 +936,7 @@ const JsonViewer = ({ data }) => {
     };
 
     return (
-        <pre className="text-xs bg-gray-900 p-4 rounded border border-gray-700 overflow-x-auto font-mono">
+        <pre className="text-xs bg-surface p-4 rounded border border-subtle overflow-x-auto font-mono text-secondary">
             {renderValue(data)}
         </pre>
     );

@@ -1873,7 +1873,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
 
     const renderManageView = () => (
         <>
-            <div className="space-y-6 p-5">
+            <div className="space-y-6 p-5 bg-surface-elevated">
                 <div className="">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -2085,7 +2085,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
 
     const renderDetailView = () => (
         <>
-            <div className="bg-surface-elevated border border-subtle rounded-2xl p-6 shadow-card">
+            <div className="bg-surface-elevated p-6 shadow-card">
                 {loadingDetail || !selectedTable ? (
                     <div className="text-muted">
                         {loadingDetail ? 'Đang tải chi tiết...' : 'Không tìm thấy bảng automation.'}
@@ -2605,7 +2605,7 @@ const RowsFilterBar = ({ searchValue, onSearchChange, onClearSearch, exporting, 
     const to = meta?.to ?? 0;
 
     return (
-        <div className="rounded-2xl border border-surface-muted bg-white shadow-sm p-4 space-y-3">
+        <div className="rounded-2xl border border-subtle bg-white shadow-sm p-4 space-y-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-end">
                 <div className="flex-1 min-w-[220px]">
                     <label className="block text-xs font-semibold uppercase text-muted mb-2">Tìm kiếm nhanh</label>
@@ -4448,7 +4448,7 @@ const StatusManagerModal = ({ table, editingStatus, onClose, onEdit, onSave, onD
 };
 
 const Modal = ({ children, onClose, title }) => (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
         <div className="bg-surface-elevated rounded-2xl shadow-card w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-subtle">
             <div className="flex items-center justify-between px-6 py-4 border-b border-subtle">
                 <h3 className="text-lg font-semibold text-primary">{title}</h3>

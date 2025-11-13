@@ -49,7 +49,7 @@ function RenameNodeModal({ isOpen, currentName, onRename, onClose, existingNames
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100]">
             <div className="bg-white rounded-lg shadow-2xl w-[400px] border border-gray-200">
                 {/* Header */}
                 <div className="border-b border-gray-200 px-6 py-4">

@@ -320,27 +320,27 @@ const WorkflowList = ({ basePath = '/workflows', onStructureChange }) => {
             {/* Tabs */}
                 <div className="border-b border-subtle bg-surface-elevated">
                 <div className="px-6">
-                        <nav className="flex space-x-2" aria-label="Tabs">
-                        <button
-                            onClick={() => setActiveTab('workflows')}
-                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                                activeTab === 'workflows'
-                                        ? 'bg-primary-soft text-primary shadow-card'
-                                        : 'text-muted hover:text-primary hover:bg-surface-muted'
-                            }`}
-                        >
-                            Workflows
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('credentials')}
-                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                                activeTab === 'credentials'
-                                        ? 'bg-primary-soft text-primary shadow-card'
-                                        : 'text-muted hover:text-primary hover:bg-surface-muted'
-                            }`}
-                        >
-                            Credentials
-                        </button>
+                        <nav className="flex space-x-2 p-4 items-center justify-center gap-4" aria-label="Tabs">
+                            <button
+                                onClick={() => setActiveTab('workflows')}
+                                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                                    activeTab === 'workflows'
+                                            ? 'bg-primary-soft text-primary shadow-card border border-subtle rounded-xl'
+                                            : 'text-muted hover:text-primary hover:bg-surface-muted border border-subtle rounded-xl'
+                                }`}
+                            >
+                                Workflows
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('credentials')}
+                                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                                    activeTab === 'credentials'
+                                            ? 'bg-primary-soft text-primary shadow-card border border-subtle rounded-xl'
+                                            : 'text-muted hover:text-primary hover:bg-surface-muted border border-subtle rounded-xl'
+                                }`}
+                            >
+                                Credentials
+                            </button>
                     </nav>
                 </div>
             </div>
@@ -603,7 +603,7 @@ const WorkflowList = ({ basePath = '/workflows', onStructureChange }) => {
             </div>
         </div>
         {showCreateFolderModal && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
                 <div className="bg-surface-elevated border border-subtle rounded-2xl shadow-card w-full max-w-md p-6 space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-primary">{editingFolder ? 'Edit Folder' : 'New Folder'}</h2>

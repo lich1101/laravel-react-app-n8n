@@ -33,18 +33,6 @@ import { splitVariablePath, traverseVariableSegments, resolveVariableValue } fro
 const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [], selected }) => {
     const isRunning = data?.isRunning || false;
     const isCompleted = data?.isCompleted || false;
-    const [showQuickAdd, setShowQuickAdd] = useState(false);
-    const [quickAddHandle, setQuickAddHandle] = useState(null);
-
-    const handleQuickAddClick = (handleId) => {
-        setQuickAddHandle(handleId);
-        setShowQuickAdd(true);
-    };
-
-    const handleSelectNode = (type) => {
-        onQuickAdd(data.nodeId, type, quickAddHandle);
-        setShowQuickAdd(false);
-    };
 
     // Determine border color: completed > selected > default
     const getBorderClass = () => {
@@ -174,7 +162,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleQuickAddClick(output.id);
+                                        onQuickAdd?.(data.nodeId, output.id);
                                     }}
                                     className={`absolute w-5 h-5 border-2 rounded-lg flex items-center justify-center text-xs font-bold shadow-card z-10 transition-colors ${
                                         output.color === 'green' ? 'bg-emerald-500 hover:bg-emerald-600 border-emerald-600 text-white' :
@@ -212,30 +200,6 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                     </React.Fragment>
                 );
             })}
-            
-            {/* Quick add dropdown */}
-            {showQuickAdd && (
-                <div 
-                    className="absolute menu-panel py-1 z-[100] min-w-[180px]"
-                    style={{ 
-                        left: 'calc(100% + 42px)',
-                        top: quickAddHandle === 'false' ? '60%' : '20%',
-                    }}
-                >
-                    <button onClick={() => handleSelectNode('http')} className="menu-item text-sm">🌐 HTTP Request</button>
-                    <button onClick={() => handleSelectNode('perplexity')} className="menu-item text-sm">🤖 Perplexity AI</button>
-                    <button onClick={() => handleSelectNode('claude')} className="menu-item text-sm">🤖 Claude AI</button>
-                    <button onClick={() => handleSelectNode('code')} className="menu-item text-sm">💻 Code</button>
-                    <button onClick={() => handleSelectNode('escape')} className="menu-item text-sm">✂️ Escape & Set</button>
-                    <button onClick={() => handleSelectNode('if')} className="menu-item text-sm">🔀 If</button>
-                    <button onClick={() => handleSelectNode('switch')} className="menu-item text-sm">🔀 Switch</button>
-                    <button onClick={() => handleSelectNode('googledocs')} className="menu-item text-sm">📄 Google Docs</button>
-                    <button onClick={() => handleSelectNode('googlesheets')} className="menu-item text-sm">📊 Google Sheets</button>
-                    <button onClick={() => handleSelectNode('gemini')} className="menu-item text-sm">🤖 Gemini AI</button>
-                    <div className="border-t border-subtle my-1"></div>
-                    <button onClick={() => setShowQuickAdd(false)} className="menu-item menu-item--danger text-sm">Cancel</button>
-                </div>
-            )}
         </div>
     );
 };
@@ -412,6 +376,20 @@ const nodeTypes = {
     ),
 };
 
+const ADD_NODE_OPTIONS = [
+    { type: 'webhook', label: 'Webhook', icon: '🌐' },
+    { type: 'schedule', label: 'Schedule Trigger', icon: '⏰' },
+    { type: 'http', label: 'HTTP Request', icon: '🔗' },
+    { type: 'perplexity', label: 'Perplexity AI', icon: '🤖' },
+    { type: 'claude', label: 'Claude AI', icon: '🤖' },
+    { type: 'gemini', label: 'Gemini AI', icon: '🤖' },
+    { type: 'code', label: 'Code', icon: '💻' },
+    { type: 'escape', label: 'Escape & Set', icon: '✂️' },
+    { type: 'if', label: 'If', icon: '🔀' },
+    { type: 'switch', label: 'Switch', icon: '🔁' },
+    { type: 'googledocs', label: 'Google Docs', icon: '📄' },
+    { type: 'googlesheets', label: 'Google Sheets', icon: '📊' },
+];
 
 
 function WorkflowEditor() {
@@ -440,6 +418,7 @@ function WorkflowEditor() {
     const [hasChanges, setHasChanges] = useState(false);
     const [showNodeMenu, setShowNodeMenu] = useState(false);
     const [showEdgeNodeMenu, setShowEdgeNodeMenu] = useState(false);
+    const [quickAddContext, setQuickAddContext] = useState(null);
     const [selectedNode, setSelectedNode] = useState(null);
     const [copiedNodes, setCopiedNodes] = useState([]);
     const [showNodeContextMenu, setShowNodeContextMenu] = useState(false);
@@ -504,6 +483,14 @@ function WorkflowEditor() {
 
             const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
             const ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
+
+            // Open add-node sidebar with Tab
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                setQuickAddContext(null);
+                setShowNodeMenu(true);
+                return;
+            }
 
             // Copy: Cmd+C or Ctrl+C
             if (ctrlOrCmd && e.key === 'c') {
@@ -934,6 +921,16 @@ function WorkflowEditor() {
         }
     };
 
+    const getNodeLabel = (type) => {
+        const option = ADD_NODE_OPTIONS.find((item) => item.type === type);
+        if (option) return option.label;
+        const fallbackLabels = {
+            schedule: 'Schedule Trigger',
+            schedule_trigger: 'Schedule Trigger',
+        };
+        return fallbackLabels[type] || type;
+    };
+
     const addNode = (type, label, position = null, sourceNodeId = null, sourceHandle = null) => {
         // Generate unique custom name
         const existingNames = nodes.map(n => n.data.customName).filter(Boolean);
@@ -970,12 +967,28 @@ function WorkflowEditor() {
         }
         
         setShowNodeMenu(false);
+        setQuickAddContext(null);
         setHasChanges(true);
         setSaved(false);
     };
 
+    const handleAddNodeFromSidebar = (type) => {
+        const label = getNodeLabel(type);
+        if (quickAddContext) {
+            addNode(
+                type,
+                label,
+                quickAddContext.position,
+                quickAddContext.sourceNodeId,
+                quickAddContext.sourceHandle
+            );
+        } else {
+            addNode(type, label);
+        }
+    };
+
     // Handle quick-add node from output handle
-    const handleQuickAddNode = (sourceNodeId, nodeType, sourceHandle) => {
+    const handleQuickAddNode = (sourceNodeId, sourceHandle) => {
         const sourceNode = nodes.find(n => n.id === sourceNodeId);
         if (!sourceNode) return;
 
@@ -985,21 +998,12 @@ function WorkflowEditor() {
             y: sourceNode.position.y + (sourceHandle === 'false' ? 80 : 0),
         };
 
-        const labels = {
-            webhook: 'Webhook',
-            http: 'HTTP Request',
-            perplexity: 'Perplexity AI',
-            claude: 'Claude AI',
-            gemini: 'Gemini AI',
-            code: 'Code',
-            escape: 'Escape & Set',
-            if: 'If',
-            switch: 'Switch',
-            googledocs: 'Google Docs',
-            googlesheets: 'Google Sheets',
-        };
-
-        addNode(nodeType, labels[nodeType], position, sourceNodeId, sourceHandle);
+        setQuickAddContext({
+            sourceNodeId,
+            sourceHandle,
+            position,
+        });
+        setShowNodeMenu(true);
     };
 
     const handleNodeContextMenu = (event, node) => {
@@ -2098,90 +2102,15 @@ function WorkflowEditor() {
                         </div>
                     </div>
                     <div className="flex items-center space-x-3">
-                        <div className="relative">
-                            <button
-                                onClick={() => setShowNodeMenu(!showNodeMenu)}
-                                className="btn btn-primary text-sm"
-                            >
-                                + Add Node
-                            </button>
-                            {showNodeMenu && (
-                                <div className="absolute right-0 mt-2 w-56 menu-panel p-2 z-20">
-                                    <button
-                                        onClick={() => { addNode('webhook', 'Webhook'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        Webhook
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('schedule', 'Schedule Trigger'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        ⏰ Schedule Trigger
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('http', 'HTTP Request'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        HTTP Request
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('perplexity', 'Perplexity AI'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        Perplexity AI
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('claude', 'Claude AI'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        Claude AI
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('gemini', 'Gemini AI'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        Gemini AI
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('code', 'Code'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        Code
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('escape', 'Escape & Set'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        Escape & Set
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('if', 'If'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        If
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('switch', 'Switch'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        Switch
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('googledocs', 'Google Docs'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        Google Docs
-                                    </button>
-                                    <button
-                                        onClick={() => { addNode('googlesheets', 'Google Sheets'); setShowNodeMenu(false); }}
-                                        className="menu-item text-sm"
-                                    >
-                                        Google Sheets
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                        <button
+                            onClick={() => {
+                                setQuickAddContext(null);
+                                setShowNodeMenu((prev) => !prev);
+                            }}
+                            className="btn btn-primary text-sm"
+                        >
+                            + Add Node
+                        </button>
                         
                         {/* Export Button */}
                         <button
@@ -2248,6 +2177,64 @@ function WorkflowEditor() {
 
             {/* Content Area */}
             <div className="flex-1 relative" ref={reactFlowWrapper}>
+                {/* Overlay for node sidebar */}
+                <div
+                    onClick={() => {
+                        setShowNodeMenu(false);
+                        setQuickAddContext(null);
+                    }}
+                    className={`fixed inset-0 z-[1500] transition-opacity duration-200 ${
+                        showNodeMenu ? 'opacity-100 pointer-events-auto bg-black/15 backdrop-blur-sm' : 'opacity-0 pointer-events-none'
+                    }`}
+                />
+
+                {/* Node library sidebar */}
+                <aside
+                    className={`fixed top-0 right-0 h-screen w-72 max-w-full bg-surface-elevated border-l border-subtle shadow-card z-[2001] transform transition-transform duration-300 ${
+                        showNodeMenu ? 'translate-x-0 pointer-events-auto' : 'translate-x-full pointer-events-none'
+                    }`}
+                >
+                    <div className="h-full flex flex-col pt-[72px]">
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-subtle">
+                            <div>
+                                <p className="text-xs uppercase tracking-wide text-muted">Thư viện node</p>
+                                <h3 className="text-base font-semibold text-primary mt-1">Thêm node mới</h3>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowNodeMenu(false);
+                                    setQuickAddContext(null);
+                                }}
+                                className="p-2 rounded-full hover:bg-surface-muted text-muted hover:text-primary transition-colors"
+                                title="Đóng"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="px-5 py-3 border-b border-subtle">
+                            <p className="text-sm text-muted">
+                                Chọn loại node để chèn vào workflow. Sidebar sẽ tự đóng sau khi bạn chọn.
+                            </p>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+                            {ADD_NODE_OPTIONS.map((option) => (
+                                <button
+                                    key={option.type}
+                                    onClick={() => handleAddNodeFromSidebar(option.type)}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-sm font-medium text-secondary hover:text-primary hover:bg-surface-muted transition-colors"
+                                >
+                                    <span className="text-lg leading-none">{option.icon}</span>
+                                    <span>{option.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </aside>
+
                 {activeTab === 'editor' ? (
                     <>
                         <ReactFlow

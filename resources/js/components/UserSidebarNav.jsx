@@ -151,30 +151,32 @@ const UserSidebarNav = ({
         });
     };
 
-    const collapsedIcons = (
-        <div className="flex flex-col items-center space-y-4 py-6">
-            {resolvedManagementLinks.map((link) => {
-                const active = isLinkActive(link);
-                return (
-                    <button
-                        key={link.id}
-                        title={link.label}
-                        onClick={() => link.to && navigate(link.to)}
-                        className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors border ${
-                            active
-                                ? 'bg-amber-400 text-white border-amber-400 shadow-card'
-                                : 'bg-surface-elevated text-muted border-subtle hover:bg-surface-muted'
-                        }`}
-                    >
-                        {link.icon || link.label?.charAt(0) || '•'}
-                    </button>
-                );
-            })}
+    const collapsedContent = (
+        <div className="h-full overflow-y-auto">
+            <div className="flex flex-col items-center space-y-4 py-6">
+                {resolvedManagementLinks.map((link) => {
+                    const active = isLinkActive(link);
+                    return (
+                        <button
+                            key={link.id}
+                            title={link.label}
+                            onClick={() => link.to && navigate(link.to)}
+                            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors border ${
+                                active
+                                    ? 'bg-amber-400 text-white border-amber-400 shadow-card'
+                                    : 'bg-surface-elevated text-muted border-subtle hover:bg-surface-muted'
+                            }`}
+                        >
+                            {link.icon || link.label?.charAt(0) || '•'}
+                        </button>
+                    );
+                })}
+            </div>
         </div>
     );
 
-    const fullSidebar = (
-        <div className="flex-1 overflow-y-auto px-3 py-4">
+    const expandedContent = (
+        <div className="h-full overflow-y-auto px-3 py-4">
             <div className="py-3">
                 <SectionHeader
                     collapsed={collapsed}
@@ -184,7 +186,7 @@ const UserSidebarNav = ({
                     onToggle={() => setManagementOpen((prev) => !prev)}
                 />
                 {managementOpen && (
-                    <div className="mt-1 space-y-1">
+                    <div className="mt-1 space-y-1 pl-4">
                         {resolvedManagementLinks.map((link) => {
                             const active = isLinkActive(link);
                             return (
@@ -226,7 +228,7 @@ const UserSidebarNav = ({
                     onToggle={() => setAutomationOpen((prev) => !prev)}
                 />
                 {automationOpen && (
-                    <div className="mt-1 space-y-2">
+                    <div className="mt-1 space-y-2 pl-4">
                         {loading ? (
                             <p className="px-3 py-2 text-xs text-muted">Đang tải chủ đề...</p>
                         ) : (
@@ -238,7 +240,7 @@ const UserSidebarNav = ({
                                             onClick={() => {
                                                 toggleTopic(topic.id);
                                             }}
-                                            className="w-full flex items-center justify-between px-3 py-2 text-sm text-secondary hover:bg-surface-muted rounded-xl"
+                                            className="w-full flex items-center justify-between pl-4 pr-3 py-2 text-sm text-secondary hover:bg-surface-muted rounded-xl"
                                         >
                                             <span>{topic.name}</span>
                                             <svg
@@ -251,8 +253,8 @@ const UserSidebarNav = ({
                                             </svg>
                                         </button>
                                         {isExpanded && (
-                                            <div className="relative pl-9 pb-3 space-y-1">
-                                                <div className="absolute left-3.5 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
+                                            <div className="relative pl-7 pb-3 space-y-1">
+                                                <div className="absolute left-3 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
                                                 {topic.tables.map((table) => {
                                                     const detailPath = automationDetailPathBuilder(table.id);
                                                     const isTableActive = detailPath && location.pathname.startsWith(detailPath);
@@ -266,7 +268,7 @@ const UserSidebarNav = ({
                                                                 navigate(detailPath);
                                                             }
                                                         }}
-                                                        className={`flex-1 ml-6 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                        className={`flex-1 ml-3 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                             isTableActive
                                                                 ? 'bg-primary-soft text-primary border border-blue-200 shadow-card'
                                                                 : 'text-secondary hover:bg-surface-muted'
@@ -298,7 +300,7 @@ const UserSidebarNav = ({
                     onToggle={() => setWorkflowsOpen((prev) => !prev)}
                 />
                 {workflowsOpen && (
-                    <div className="mt-1 space-y-2">
+                    <div className="mt-1 space-y-2 pl-4">
                         {loading ? (
                             <p className="px-3 py-2 text-xs text-muted">Đang tải workflows...</p>
                         ) : (
@@ -310,7 +312,7 @@ const UserSidebarNav = ({
                                             onClick={() => {
                                                 toggleFolder(folder.id);
                                             }}
-                                            className="w-full flex items-center justify-between px-3 py-2 text-sm text-secondary hover:bg-surface-muted rounded-xl"
+                                            className="w-full flex items-center justify-between pl-4 pr-3 py-2 text-sm text-secondary hover:bg-surface-muted rounded-xl"
                                         >
                                             <span>{folder.name}</span>
                                             <svg
@@ -323,29 +325,29 @@ const UserSidebarNav = ({
                                             </svg>
                                         </button>
                                         {isExpanded && (
-                                            <div className="relative pl-9 pb-3 space-y-1">
-                                                <div className="absolute left-3.5 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
+                                            <div className="relative pl-7 pb-3 space-y-1">
+                                                <div className="absolute left-3 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
                                                 {folder.workflows.map((workflow) => {
                                                     const workflowPath = workflowDetailPathBuilder(workflow.id);
                                                     const isWorkflowActive = workflowPath && location.pathname.startsWith(workflowPath);
                                                     return (
                                                         <div key={workflow.id} className="flex items-center">
                                                         <div className="w-3 -ml-2 border-t border-subtle opacity-60" />
-                                                    <button
-                                                        onClick={() => {
-                                                            onSelectWorkflow?.(folder.id, workflow.id, workflowPath);
-                                                            if (workflowPath) {
-                                                                navigate(workflowPath);
-                                                            }
-                                                        }}
-                                                className={`flex-1 ml-6 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                                            isWorkflowActive
-                                                                ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
-                                                                : 'text-secondary hover:bg-surface-muted'
-                                                        }`}
-                                                    >
-                                                        {workflow.name}
-                                                    </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                onSelectWorkflow?.(folder.id, workflow.id, workflowPath);
+                                                                if (workflowPath) {
+                                                                    navigate(workflowPath);
+                                                                }
+                                                            }}
+                                                            className={`flex-1 ml-3 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                                isWorkflowActive
+                                                                    ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
+                                                                    : 'text-secondary hover:bg-surface-muted'
+                                                            }`}
+                                                        >
+                                                            {workflow.name}
+                                                        </button>
                                                     </div>
                                                     );
                                                 })}
@@ -359,12 +361,12 @@ const UserSidebarNav = ({
                             })
                         )}
                         {!loading && orphanWorkflows.length > 0 && (
-                            <div className="rounded-xl">
+                            <div className="rounded-xl pl-4">
                                 <button
                                     onClick={() => {
                                         toggleFolder('unassigned');
                                     }}
-                                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-secondary hover:bg-surface-muted rounded-xl"
+                                    className="w-full flex items-center justify-between pl-4 pr-3 py-2 text-sm text-secondary hover:bg-surface-muted rounded-xl"
                                 >
                                     <span>Không thuộc folder</span>
                                     <svg
@@ -377,8 +379,8 @@ const UserSidebarNav = ({
                                     </svg>
                                 </button>
                                 {expandedFolders.has('unassigned') && (
-                                    <div className="relative pl-9 pb-3 space-y-1">
-                                        <div className="absolute left-3.5 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
+                                    <div className="relative pl-7 pb-3 space-y-1">
+                                        <div className="absolute left-3 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
                                         {orphanWorkflows.map((workflow) => {
                                             const workflowPath = workflowDetailPathBuilder(workflow.id);
                                             const isWorkflowActive = workflowPath && location.pathname.startsWith(workflowPath);
@@ -392,7 +394,7 @@ const UserSidebarNav = ({
                                                         navigate(workflowPath);
                                                     }
                                                 }}
-                                                className={`flex-1 ml-6 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                className={`flex-1 ml-3 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                     isWorkflowActive
                                                         ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
                                                         : 'text-secondary hover:bg-surface-muted'
@@ -415,7 +417,7 @@ const UserSidebarNav = ({
 
     return (
         <div className={`${collapsed ? 'w-16' : 'w-72'} bg-surface-elevated text-secondary min-h-screen transition-all duration-300 flex flex-col border-r border-subtle shadow-card`}>
-            <div className="p-4 flex items-center justify-between border-b border-subtle">
+            <div className="px-4 py-3 flex items-center justify-between">
                 {!collapsed && <span className="text-lg font-semibold text-primary">Menu</span>}
                 <button
                     onClick={() => setCollapsed((prev) => !prev)}
@@ -433,7 +435,9 @@ const UserSidebarNav = ({
                 </button>
             </div>
 
-            {collapsed ? collapsedIcons : fullSidebar}
+            <div className="flex-1 overflow-hidden">
+                {collapsed ? collapsedContent : expandedContent}
+            </div>
 
             <div className="p-4 border-t border-subtle">
                 <div className={`flex items-center ${collapsed ? 'flex-col gap-3' : 'justify-between gap-3'}`}>
