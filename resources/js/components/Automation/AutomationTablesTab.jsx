@@ -267,6 +267,8 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [rowsPerPage, setRowsPerPage] = useState(25);
     const [exportingRows, setExportingRows] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importingTable, setImportingTable] = useState(false);
 
     const sanitizeConfigForRequest = (config) => {
         const cloned = JSON.parse(JSON.stringify(config || {}));
@@ -792,6 +794,160 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
             alert('Xuất Excel thất bại. Vui lòng thử lại.');
         } finally {
             setExportingRows(false);
+        }
+    };
+
+    const handleExportTableJSON = () => {
+        if (!selectedTable) return;
+        
+        try {
+            // Chuẩn bị data để export
+            const exportData = {
+                version: '1.0',
+                exported_at: new Date().toISOString(),
+                table: {
+                    name: selectedTable.name,
+                    description: selectedTable.description || '',
+                    slug: selectedTable.slug,
+                },
+                fields: selectedTable.fields.map(field => ({
+                    label: field.label,
+                    key: field.key,
+                    group: field.group,
+                    data_type: field.data_type,
+                    is_required: field.is_required,
+                    display_order: field.display_order,
+                    is_active: field.is_active,
+                })),
+                statuses: selectedTable.statuses.map(status => ({
+                    label: status.label,
+                    value: status.value,
+                    color: status.color,
+                    is_default: status.is_default,
+                    is_terminal: status.is_terminal,
+                    sort_order: status.sort_order,
+                })),
+                config: {
+                    webhook: selectedTable.config?.webhook || DEFAULT_CONFIG.webhook,
+                    callback: selectedTable.config?.callback || DEFAULT_CONFIG.callback,
+                    defaults: selectedTable.config?.defaults || DEFAULT_CONFIG.defaults,
+                    exports: selectedTable.config?.exports || DEFAULT_CONFIG.exports,
+                },
+            };
+
+            // Tạo file JSON và download
+            const jsonString = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            const filename = `automation-table-${selectedTable.slug || selectedTable.id}-${Date.now()}.json`;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Không thể export JSON', error);
+            alert('Export JSON thất bại. Vui lòng thử lại.');
+        }
+    };
+
+    const handleImportTableJSON = async (file) => {
+        if (!file) return;
+        
+        setImportingTable(true);
+        try {
+            // Đọc file JSON
+            const text = await file.text();
+            const importData = JSON.parse(text);
+
+            // Validate structure
+            if (!importData.table || !importData.fields || !importData.statuses) {
+                throw new Error('File JSON không đúng định dạng');
+            }
+
+            // Chuẩn hoá dữ liệu fields & statuses trước khi gửi lên backend
+            const sanitizedFields = toArray(importData.fields).map((field, index) => {
+                const parsedDisplayOrder = Number(field.display_order);
+                return {
+                    label: field.label,
+                    key: field.key,
+                    group: field.group || 'input',
+                    data_type: field.data_type || 'string',
+                    is_required: Boolean(field.is_required),
+                    is_unique: Boolean(field.is_unique),
+                    options: field.options || [],
+                    validation_rules: field.validation_rules || [],
+                    display_order: Number.isFinite(parsedDisplayOrder) ? parsedDisplayOrder : index,
+                    is_active: field.is_active ?? true,
+                };
+            });
+
+            const sanitizedStatuses = toArray(importData.statuses).map((status, index) => {
+                const parsedSortOrder = Number(status.sort_order);
+                return {
+                    label: status.label,
+                    value: status.value ?? undefined,
+                    color: status.color ?? null,
+                    is_default: Boolean(status.is_default),
+                    is_terminal: Boolean(status.is_terminal),
+                    sort_order: Number.isFinite(parsedSortOrder) ? parsedSortOrder : index,
+                    metadata: status.metadata || {},
+                };
+            });
+
+            if (sanitizedStatuses.length > 0 && !sanitizedStatuses.some((status) => status.is_default)) {
+                sanitizedStatuses[0].is_default = true;
+            }
+
+            // Tạo table mới với tên unique
+            // Thêm timestamp ngắn gọn để tránh trùng slug
+            const now = new Date();
+            const shortTimestamp = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+            const tablePayload = {
+                name: `${importData.table.name} (copy ${shortTimestamp})`,
+                description: importData.table.description || '',
+                automation_topic_id: null, // Không thuộc chủ đề nào
+                fields: sanitizedFields,
+                statuses: sanitizedStatuses,
+            };
+
+            if (importData.config) {
+                tablePayload.config = sanitizeConfigForRequest(importData.config);
+            }
+
+            const tableRes = await axios.post('/automation/tables', tablePayload);
+            const newTableId = tableRes.data.id;
+
+            // Refresh topics và chọn table mới
+            await fetchTopics({
+                preferredTopicId: UNASSIGNED_TOPIC_ID,
+                preferredTableId: newTableId,
+            });
+
+            setShowImportModal(false);
+            alert(`Import thành công! Bảng "${tableRes.data.name}" đã được tạo.`);
+            onStructureChange?.();
+        } catch (error) {
+            console.error('Không thể import JSON', error);
+            
+            // Hiển thị error message chi tiết
+            let errorMessage = 'Import thất bại. ';
+            if (error.response?.data?.message) {
+                errorMessage += error.response.data.message;
+            } else if (error.response?.data?.errors) {
+                const errors = Object.values(error.response.data.errors).flat();
+                errorMessage += errors.join(', ');
+            } else if (error.message) {
+                errorMessage += error.message;
+            } else {
+                errorMessage += 'Vui lòng kiểm tra file JSON và thử lại.';
+            }
+            
+            alert(errorMessage);
+        } finally {
+            setImportingTable(false);
         }
     };
 
@@ -1701,6 +1857,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
 
             {showTableModal && (
                 <TableModal
+                    key={editingTable?.id || 'new'}
                     onClose={closeTableModal}
                     onSubmit={editingTable ? handleUpdateTable : handleAddTable}
                     topicName={resolveTopicName(tableModalTopicId)}
@@ -1727,6 +1884,12 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                         </div>
                         {canManage && (
                             <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setShowImportModal(true)}
+                                    className="btn btn-muted text-sm px-3 py-2"
+                                >
+                                    Import JSON
+                                </button>
                                 <button
                                     onClick={() => openTopicModal()}
                                     className="btn btn-primary text-sm px-3 py-2"
@@ -1909,6 +2072,14 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                 </div>
             </div>
             {renderTopicModals()}
+            
+            {showImportModal && (
+                <ImportTableModal
+                    onClose={() => setShowImportModal(false)}
+                    onImport={handleImportTableJSON}
+                    importing={importingTable}
+                />
+            )}
         </>
     );
 
@@ -2027,6 +2198,16 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                                                 className="w-full btn text-sm bg-sky-500 hover:bg-sky-600 text-white shadow-card justify-start"
                                             >
                                                 Quản lý giá trị mặc định
+                                            </button>
+                                            <div className="border-t border-subtle my-2" />
+                                            <button
+                                                onClick={() => {
+                                                    setShowConfigActions(false);
+                                                    handleExportTableJSON();
+                                                }}
+                                                className="w-full btn btn-muted justify-start text-sm"
+                                            >
+                                                Export JSON
                                             </button>
                                         </div>
                                     </div>
@@ -3241,10 +3422,6 @@ const TableModal = ({ onClose, onSubmit, topicName, initialForm = { name: '', de
     const [form, setForm] = useState(initialForm);
     const [saving, setSaving] = useState(false);
 
-    useEffect(() => {
-        setForm(initialForm);
-    }, [initialForm]);
-
     const handleChange = (field) => (event) => {
         const value = event.target.value;
         setForm((prev) => ({ ...prev, [field]: value }));
@@ -4285,6 +4462,140 @@ const Modal = ({ children, onClose, title }) => (
         </div>
     </div>
 );
+
+const ImportTableModal = ({ onClose, onImport, importing }) => {
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [preview, setPreview] = useState(null);
+    const [previewName, setPreviewName] = useState('');
+    const fileInputRef = useRef(null);
+
+    const handleFileSelect = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (!file.name.endsWith('.json')) {
+            alert('Vui lòng chọn file JSON');
+            return;
+        }
+
+        setSelectedFile(file);
+
+        // Preview
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+            setPreview(data);
+            
+            // Tính toán tên bảng sẽ được tạo (với timestamp)
+            const now = new Date();
+            const shortTimestamp = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+            setPreviewName(`${data.table?.name || 'Untitled'} (copy ${shortTimestamp})`);
+        } catch (error) {
+            alert('File JSON không hợp lệ');
+            setSelectedFile(null);
+            setPreview(null);
+            setPreviewName('');
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!selectedFile) {
+            alert('Vui lòng chọn file JSON');
+            return;
+        }
+        await onImport(selectedFile);
+    };
+
+    return (
+        <Modal onClose={onClose} title="Import Automation Table từ JSON">
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                        Chọn file JSON để import
+                    </label>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".json"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                    />
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full px-4 py-3 border-2 border-dashed border-subtle rounded-xl bg-surface-muted hover:bg-surface-strong text-secondary transition"
+                    >
+                        {selectedFile ? (
+                            <div className="flex items-center justify-center gap-2">
+                                <span className="text-emerald-600">✓</span>
+                                <span>{selectedFile.name}</span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center gap-2">
+                                <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                                <span>Click để chọn file JSON</span>
+                            </div>
+                        )}
+                    </button>
+                </div>
+
+                {preview && (
+                    <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-secondary">Preview:</h4>
+                        <div className="bg-surface-muted border border-subtle rounded-xl p-4 space-y-2 text-sm">
+                            <div>
+                                <span className="text-muted">Tên bảng gốc:</span>{' '}
+                                <span className="text-secondary">{preview.table?.name}</span>
+                            </div>
+                            <div>
+                                <span className="text-muted">Tên sẽ tạo:</span>{' '}
+                                <span className="text-primary font-medium">{previewName}</span>
+                            </div>
+                            <div>
+                                <span className="text-muted">Số fields:</span>{' '}
+                                <span className="text-secondary font-medium">{preview.fields?.length || 0}</span>
+                            </div>
+                            <div>
+                                <span className="text-muted">Số statuses:</span>{' '}
+                                <span className="text-secondary font-medium">{preview.statuses?.length || 0}</span>
+                            </div>
+                            {preview.table?.description && (
+                                <div>
+                                    <span className="text-muted">Mô tả:</span>{' '}
+                                    <span className="text-secondary">{preview.table.description}</span>
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-xs text-muted">
+                            ℹ️ Bảng mới sẽ được đặt vào mục "Không thuộc chủ đề". Suffix thời gian (HHMMSS) đảm bảo slug không bị trùng.
+                        </p>
+                    </div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={importing}
+                        className="btn btn-muted text-sm px-4 py-2"
+                    >
+                        Huỷ
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={!selectedFile || importing}
+                        className="btn btn-primary text-sm px-4 py-2 disabled:opacity-50"
+                    >
+                        {importing ? 'Đang import...' : 'Import'}
+                    </button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
 
 const formatValue = (value) => {
     if (value === null || value === undefined || value === '') {

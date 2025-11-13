@@ -98,7 +98,7 @@ class AutomationTableController extends Controller
         $data = $this->validatePayload($request, isUpdate: true);
 
         return DB::transaction(function () use ($automationTable, $data) {
-            if (isset($data['automation_topic_id'])) {
+            if (array_key_exists('automation_topic_id', $data)) {
                 $automationTable->automation_topic_id = $data['automation_topic_id'];
             }
             if (isset($data['name'])) {
@@ -159,8 +159,13 @@ class AutomationTableController extends Controller
 
     private function validatePayload(Request $request, bool $isUpdate = false): array
     {
+        $topicRules = ['nullable', 'integer', 'exists:automation_topics,id'];
+        if ($isUpdate) {
+            array_unshift($topicRules, 'sometimes');
+        }
+        
         $rules = [
-            'automation_topic_id' => [$isUpdate ? 'sometimes' : 'required', 'integer', 'exists:automation_topics,id'],
+            'automation_topic_id' => $topicRules,
             'name' => [$isUpdate ? 'sometimes' : 'required', 'string', 'max:255'],
             'slug' => ['sometimes', 'nullable', 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'string'],
