@@ -2151,7 +2151,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                                                 : 'opacity-0 -translate-y-2 pointer-events-none'
                                         }`}
                                     >
-                                        <div className="rounded-2xl border border-subtle bg-surface-elevated shadow-card p-3 space-y-2">
+                                        <div className="border border-subtle bg-surface-elevated shadow-card p-3 space-y-2">
                                             <button
                                                 onClick={() => {
                                                     setShowConfigActions(false);

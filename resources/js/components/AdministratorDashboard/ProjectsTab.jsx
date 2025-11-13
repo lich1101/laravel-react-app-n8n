@@ -111,7 +111,7 @@ const ProjectsTab = () => {
     }
 
     return (
-        <div>
+        <div className="bg-surface-elevated shadow-card p-4">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Projects</h2>
                 <button
