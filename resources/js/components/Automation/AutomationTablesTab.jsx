@@ -1873,8 +1873,8 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
 
     const renderManageView = () => (
         <>
-            <div className="space-y-6">
-                <div className="bg-surface-elevated border border-subtle rounded-2xl p-5 shadow-card">
+            <div className="space-y-6 p-5">
+                <div className="">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h2 className="text-xl font-semibold text-primary">Automation Topics</h2>

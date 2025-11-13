@@ -264,7 +264,7 @@ const UsersTab = () => {
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="bg-surface-elevated divide-y divide-subtle">
+                    <tbody className="bg-surface-elevated divide-y divide-subtle border-subtle">
                         {users.map((user) => (
                             <tr key={user.id}>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
