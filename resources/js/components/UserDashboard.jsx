@@ -137,6 +137,9 @@ const UserDashboard = () => {
                 workflowFolders={workflowFolders}
                 orphanWorkflows={orphanWorkflows}
                 loading={loadingSidebar}
+                user={user}
+                onLogout={handleLogout}
+                footerText="v1.0.0"
                 onSelectAutomation={(topicId, tableId, route) => {
                     setSelectedAutomationTopicId(topicId);
                     setSelectedAutomationTableId(tableId);
@@ -151,47 +154,28 @@ const UserDashboard = () => {
                 }}
             />
 
-            <div className="flex-1 flex flex-col bg-surface-elevated">
-                <nav className="toolbar">
-                    <div className="px-4 sm:px-6 lg:px-8">
-                        <div className="flex justify-between h-16 items-center">
-                            <h1 className="text-xl font-semibold text-primary">User Dashboard</h1>
-                            <div className="flex items-center space-x-4">
-                                <span className="text-muted">{user.name || 'User'}</span>
-                                <button
-                                    onClick={handleLogout}
-                                    className="btn btn-danger text-sm"
-                                >
-                                    Logout
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </nav>
-
-                <div className="flex-1 bg-surface-muted">
-                    <Routes>
-                        <Route path="/" element={<Navigate to="automations/manage" replace />} />
-                        <Route
-                            path="automations/manage"
-                            element={
-                                <AutomationTablesTab
-                                    canManage
-                                    selectedTopicId={selectedAutomationTopicId}
-                                    selectedTableId={selectedAutomationTableId}
-                                    onSelectTable={setSelectedAutomationTableId}
-                                    onStructureChange={handleAutomationStructureChange}
-                                />
-                            }
-                        />
-                        <Route
-                            path="automations/table/:tableId"
-                            element={<AutomationTableDetailRoute onStructureChange={handleAutomationStructureChange} />}
-                        />
-                        <Route path="workflows/manage" element={<WorkflowList basePath="/dashboard/workflows" />} />
-                        <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
-                    </Routes>
-                </div>
+            <div className="flex-1 bg-surface-muted">
+                <Routes>
+                    <Route path="/" element={<Navigate to="automations/manage" replace />} />
+                    <Route
+                        path="automations/manage"
+                        element={
+                            <AutomationTablesTab
+                                canManage
+                                selectedTopicId={selectedAutomationTopicId}
+                                selectedTableId={selectedAutomationTableId}
+                                onSelectTable={setSelectedAutomationTableId}
+                                onStructureChange={handleAutomationStructureChange}
+                            />
+                        }
+                    />
+                    <Route
+                        path="automations/table/:tableId"
+                        element={<AutomationTableDetailRoute onStructureChange={handleAutomationStructureChange} />}
+                    />
+                    <Route path="workflows/manage" element={<WorkflowList basePath="/dashboard/workflows" />} />
+                    <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
+                </Routes>
             </div>
         </div>
     );

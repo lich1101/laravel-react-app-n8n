@@ -23,7 +23,19 @@ const SectionHeader = ({ collapsed, title, icon, isOpen, onToggle }) => (
     </button>
 );
 
-const UserSidebarNav = ({ collapsed, setCollapsed, topics, workflowFolders, orphanWorkflows = [], loading, onSelectAutomation, onSelectWorkflow }) => {
+const UserSidebarNav = ({
+    collapsed,
+    setCollapsed,
+    topics,
+    workflowFolders,
+    orphanWorkflows = [],
+    loading,
+    onSelectAutomation,
+    onSelectWorkflow,
+    user = null,
+    onLogout = () => {},
+    footerText = 'v1.0.0',
+}) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [managementOpen, setManagementOpen] = useState(true);
@@ -388,8 +400,29 @@ const UserSidebarNav = ({ collapsed, setCollapsed, topics, workflowFolders, orph
 
             {collapsed ? collapsedIcons : fullSidebar}
 
-            <div className="p-4 border-t border-subtle text-xs text-muted text-center">
-                {!collapsed ? 'v1.0.0' : 'v1'}
+            <div className="p-4 border-t border-subtle">
+                <div className={`flex items-center ${collapsed ? 'flex-col gap-3' : 'justify-between gap-3'}`}>
+                    {!collapsed && (
+                        <div className="flex-1 truncate text-sm text-secondary">
+                            <div className="font-semibold">{user?.name || 'Người dùng'}</div>
+                            <div className="text-xs text-muted">{footerText}</div>
+                        </div>
+                    )}
+                    <button
+                        onClick={onLogout}
+                        className="flex items-center gap-2 text-red-600 hover:text-red-700 text-sm font-semibold"
+                        title="Đăng xuất"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V8a4 4 0 014-4h2" />
+                        </svg>
+                        {!collapsed && <span>Đăng xuất</span>}
+                    </button>
+                </div>
+                {collapsed && (
+                    <div className="text-center mt-2 text-2xs text-muted">{footerText?.split('.')[0] ?? 'v1'}</div>
+                )}
             </div>
         </div>
     );
