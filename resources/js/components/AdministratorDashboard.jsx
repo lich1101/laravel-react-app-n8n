@@ -217,7 +217,15 @@ const AdministratorDashboard = () => {
                             />
                             <Route path="users" element={<UsersTab />} />
                             <Route path="settings" element={<Settings />} />
-                            <Route path="workflows" element={<WorkflowList basePath="/administrator/workflows" />} />
+                            <Route
+                                path="workflows"
+                                element={
+                                    <WorkflowList
+                                        basePath="/administrator/workflows"
+                                        onStructureChange={fetchWorkflowFolders}
+                                    />
+                                }
+                            />
                             <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
                             <Route path="*" element={<Navigate to="/administrator/projects" replace />} />
                         </Routes>

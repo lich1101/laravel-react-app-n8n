@@ -211,10 +211,18 @@ const AdminDashboard = () => {
                                 path="automations/table/:tableId"
                                 element={<AutomationTableDetailRoute onStructureChange={handleAutomationStructureChange} />}
                             />
-                            <Route path="folders" element={<FoldersTab />} />
-                            <Route path="users" element={<UsersTab />} />
-                            <Route path="workflows" element={<WorkflowList basePath="/admin/workflows" />} />
-                            <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
+                        <Route path="folders" element={<FoldersTab />} />
+                        <Route path="users" element={<UsersTab />} />
+                        <Route
+                            path="workflows"
+                            element={
+                                <WorkflowList
+                                    basePath="/admin/workflows"
+                                    onStructureChange={fetchWorkflowFolders}
+                                />
+                            }
+                        />
+                        <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
                             <Route path="*" element={<Navigate to="/admin/automations" replace />} />
                         </Routes>
                     </div>

@@ -3,7 +3,7 @@ import axios from '../config/axios';
 import { useNavigate } from 'react-router-dom';
 import CredentialsTab from './CredentialsTab';
 
-const WorkflowList = ({ basePath = '/workflows' }) => {
+const WorkflowList = ({ basePath = '/workflows', onStructureChange }) => {
     const [workflows, setWorkflows] = useState([]);
     const [folders, setFolders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -39,6 +39,7 @@ const WorkflowList = ({ basePath = '/workflows' }) => {
             ]);
             setWorkflows(workflowsRes.data);
             setFolders(foldersRes.data);
+            onStructureChange?.();
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
