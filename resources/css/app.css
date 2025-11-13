@@ -408,3 +408,6 @@ body {
 .divide-subtle{
     border-color: var(--border-subtle) !important;
 }
+.align-left {
+    text-align: left !important;
+}
