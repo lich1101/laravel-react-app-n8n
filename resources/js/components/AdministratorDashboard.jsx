@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import AutomationTablesTab from './Automation/AutomationTablesTab';
-import FoldersTab from './AdministratorDashboard/FoldersTab';
 import ProjectsTab from './AdministratorDashboard/ProjectsTab';
 import UsersTab from './AdministratorDashboard/UsersTab';
 import Settings from '../pages/Settings';
@@ -42,7 +41,6 @@ const AdministratorDashboard = () => {
             title: 'Quản lý',
             icon: '🛠',
             links: [
-                { id: 'folders-link', label: 'Folders', icon: '📁', to: '/administrator/folders' },
                 { id: 'projects-link', label: 'Projects', icon: '🏢', to: '/administrator/projects' },
                 { id: 'automation-link', label: 'Automation', icon: '🤖', to: '/administrator/automations' },
                 { id: 'workflows-link', label: 'Workflows', icon: '🔁', to: '/administrator/workflows' },
@@ -65,9 +63,6 @@ const AdministratorDashboard = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
     const pageTitle = useMemo(() => {
-        if (location.pathname.startsWith('/administrator/folders')) {
-            return 'Quản lý Folders';
-        }
         if (location.pathname.startsWith('/administrator/projects')) {
             return 'Quản lý Projects';
         }
@@ -114,8 +109,7 @@ const AdministratorDashboard = () => {
                     <div className="p-6">
                         <div className="border border-subtle rounded-2xl bg-surface-elevated shadow-card p-6">
                             <Routes>
-                                <Route index element={<Navigate to="/administrator/folders" replace />} />
-                                <Route path="folders" element={<FoldersTab />} />
+                                <Route index element={<Navigate to="/administrator/projects" replace />} />
                                 <Route path="projects" element={<ProjectsTab />} />
                                 <Route path="automations" element={<AutomationTablesTab canManage />} />
                                 <Route path="automations/table/:tableId" element={<AutomationTableDetailRoute />} />
@@ -123,7 +117,7 @@ const AdministratorDashboard = () => {
                                 <Route path="settings" element={<Settings />} />
                                 <Route path="workflows" element={<WorkflowList basePath="/administrator/workflows" />} />
                                 <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
-                                <Route path="*" element={<Navigate to="/administrator/folders" replace />} />
+                                <Route path="*" element={<Navigate to="/administrator/projects" replace />} />
                             </Routes>
                         </div>
                     </div>
