@@ -12,6 +12,17 @@ const WorkflowEditorRoute = () => {
     return <WorkflowEditor key={workflowId} />;
 };
 
+const AutomationTableDetailRoute = () => {
+    const { tableId } = useParams();
+    return (
+        <AutomationTablesTab
+            canManage
+            hideTopicPanel
+            initialTableId={tableId}
+        />
+    );
+};
+
 const AdminDashboard = () => {
     const [collapsed, setCollapsed] = useState(false);
     const navigate = useNavigate();
@@ -88,13 +99,14 @@ const AdminDashboard = () => {
                     <div className="p-6">
                         <div className="border border-subtle rounded-2xl bg-surface-elevated shadow-card p-6">
                             <Routes>
-                                <Route index element={<Navigate to="automations" replace />} />
+                                <Route index element={<Navigate to="/admin/automations" replace />} />
                                 <Route path="automations" element={<AutomationTablesTab canManage />} />
+                                <Route path="automations/table/:tableId" element={<AutomationTableDetailRoute />} />
                                 <Route path="folders" element={<FoldersTab />} />
                                 <Route path="users" element={<UsersTab />} />
                                 <Route path="workflows" element={<WorkflowList basePath="/admin/workflows" />} />
                                 <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
-                                <Route path="*" element={<Navigate to="automations" replace />} />
+                                <Route path="*" element={<Navigate to="/admin/automations" replace />} />
                             </Routes>
                         </div>
                     </div>
