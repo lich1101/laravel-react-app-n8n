@@ -251,8 +251,8 @@ const UserSidebarNav = ({
                                             </svg>
                                         </button>
                                         {isExpanded && (
-                                            <div className="relative pl-7 pb-3 space-y-1">
-                                                <div className="absolute left-3 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
+                                            <div className="relative pl-9 pb-3 space-y-1">
+                                                <div className="absolute left-3.5 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
                                                 {topic.tables.map((table) => {
                                                     const detailPath = automationDetailPathBuilder(table.id);
                                                     const isTableActive = detailPath && location.pathname.startsWith(detailPath);
@@ -266,7 +266,7 @@ const UserSidebarNav = ({
                                                                 navigate(detailPath);
                                                             }
                                                         }}
-                                                        className={`flex-1 ml-4 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                        className={`flex-1 ml-6 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                             isTableActive
                                                                 ? 'bg-primary-soft text-primary border border-blue-200 shadow-card'
                                                                 : 'text-secondary hover:bg-surface-muted'
@@ -323,8 +323,8 @@ const UserSidebarNav = ({
                                             </svg>
                                         </button>
                                         {isExpanded && (
-                                            <div className="relative pl-7 pb-3 space-y-1">
-                                                <div className="absolute left-3 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
+                                            <div className="relative pl-9 pb-3 space-y-1">
+                                                <div className="absolute left-3.5 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
                                                 {folder.workflows.map((workflow) => {
                                                     const workflowPath = workflowDetailPathBuilder(workflow.id);
                                                     const isWorkflowActive = workflowPath && location.pathname.startsWith(workflowPath);
@@ -338,7 +338,7 @@ const UserSidebarNav = ({
                                                                 navigate(workflowPath);
                                                             }
                                                         }}
-                                                className={`flex-1 ml-4 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                className={`flex-1 ml-6 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                             isWorkflowActive
                                                                 ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
                                                                 : 'text-secondary hover:bg-surface-muted'
@@ -377,8 +377,8 @@ const UserSidebarNav = ({
                                     </svg>
                                 </button>
                                 {expandedFolders.has('unassigned') && (
-                                    <div className="relative pl-7 pb-3 space-y-1">
-                                        <div className="absolute left-3 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
+                                    <div className="relative pl-9 pb-3 space-y-1">
+                                        <div className="absolute left-3.5 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
                                         {orphanWorkflows.map((workflow) => {
                                             const workflowPath = workflowDetailPathBuilder(workflow.id);
                                             const isWorkflowActive = workflowPath && location.pathname.startsWith(workflowPath);
@@ -392,7 +392,7 @@ const UserSidebarNav = ({
                                                         navigate(workflowPath);
                                                     }
                                                 }}
-                                                className={`flex-1 ml-4 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                className={`flex-1 ml-6 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                                                     isWorkflowActive
                                                         ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
                                                         : 'text-secondary hover:bg-surface-muted'
