@@ -1,16 +1,23 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import ProjectsTab from './AdministratorDashboard/ProjectsTab';
+import React, { useMemo, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import AutomationTablesTab from './Automation/AutomationTablesTab';
 import FoldersTab from './AdministratorDashboard/FoldersTab';
+import ProjectsTab from './AdministratorDashboard/ProjectsTab';
 import UsersTab from './AdministratorDashboard/UsersTab';
 import Settings from '../pages/Settings';
-import Sidebar from './Sidebar';
-import AutomationTablesTab from './Automation/AutomationTablesTab';
+import WorkflowList from './WorkflowList';
+import WorkflowEditor from './WorkflowEditor';
+import DashboardSidebarNav from './DashboardSidebarNav';
+
+const WorkflowEditorRoute = () => {
+    const { workflowId } = useParams();
+    return <WorkflowEditor key={workflowId} />;
+};
 
 const AdministratorDashboard = () => {
-    const [activeTab, setActiveTab] = useState('folders');
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -18,63 +25,96 @@ const AdministratorDashboard = () => {
         navigate('/login');
     };
 
-    const menuItems = [
-        { id: 'folders', label: 'Folders', icon: '📁' },
-        { id: 'projects', label: 'Projects', icon: '🏢' },
-        { id: 'automation', label: 'Automation', icon: '🤖' },
-        { id: 'users', label: 'Users', icon: '👥' },
-        { id: 'settings', label: 'Settings', icon: '⚙️' },
+    const sections = [
+        {
+            id: 'management',
+            title: 'Quản lý',
+            icon: '🛠',
+            links: [
+                { id: 'folders-link', label: 'Folders', icon: '📁', to: '/administrator/folders' },
+                { id: 'projects-link', label: 'Projects', icon: '🏢', to: '/administrator/projects' },
+                { id: 'automation-link', label: 'Automation', icon: '🤖', to: '/administrator/automations' },
+                { id: 'workflows-link', label: 'Workflows', icon: '🔁', to: '/administrator/workflows' },
+            ],
+        },
+        {
+            id: 'people',
+            title: 'Người dùng',
+            icon: '👥',
+            links: [{ id: 'users-link', label: 'Users', icon: '👥', to: '/administrator/users' }],
+        },
+        {
+            id: 'system',
+            title: 'Hệ thống',
+            icon: '⚙️',
+            links: [{ id: 'settings-link', label: 'Settings', icon: '⚙️', to: '/administrator/settings', exact: true }],
+        },
     ];
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
+    const pageTitle = useMemo(() => {
+        if (location.pathname.startsWith('/administrator/folders')) {
+            return 'Quản lý Folders';
+        }
+        if (location.pathname.startsWith('/administrator/projects')) {
+            return 'Quản lý Projects';
+        }
+        if (location.pathname.startsWith('/administrator/automations')) {
+            return 'Quản lý Automation';
+        }
+        if (location.pathname.startsWith('/administrator/workflows')) {
+            return 'Quản lý Workflows';
+        }
+        if (location.pathname.startsWith('/administrator/users')) {
+            return 'Quản lý Users';
+        }
+        if (location.pathname.startsWith('/administrator/settings')) {
+            return 'Cài đặt hệ thống';
+        }
+        return 'Administrator Dashboard';
+    }, [location.pathname]);
+
     return (
-        <div className="flex min-h-screen bg-gray-50">
-            {/* Sidebar */}
-            <Sidebar
-                isCollapsed={isCollapsed}
-                setIsCollapsed={setIsCollapsed}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                menuItems={menuItems}
+        <div className="flex min-h-screen bg-surface">
+            <DashboardSidebarNav
+                collapsed={collapsed}
+                setCollapsed={setCollapsed}
+                sections={sections}
+                footerText="v1.0.0"
             />
 
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col">
-                {/* Header */}
-                <nav className="bg-white shadow">
+            <div className="flex-1 flex flex-col bg-surface-elevated">
+                <nav className="toolbar">
                     <div className="px-4 sm:px-6 lg:px-8">
-                        <div className="flex justify-between h-16">
-                            <div className="flex items-center">
-                                <h1 className="text-xl font-semibold text-gray-900">
-                                    Administrator Dashboard
-                                </h1>
-                            </div>
-                            <div className="flex items-center space-x-4">
-                                <span className="text-gray-700">{user.name}</span>
-                                <button
-                                    onClick={handleLogout}
-                                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                                >
-                                    Logout
+                        <div className="flex justify-between h-16 items-center">
+                            <h1 className="text-xl font-semibold text-primary">{pageTitle}</h1>
+                            <div className="flex items-center gap-4">
+                                <span className="text-muted">{user.name || 'Administrator'}</span>
+                                <button onClick={handleLogout} className="btn btn-danger text-sm">
+                                    Đăng xuất
                                 </button>
                             </div>
                         </div>
                     </div>
                 </nav>
 
-                {/* Content Area */}
-                <div className="flex-1 p-6">
-                    {activeTab === 'settings' ? (
-                        <Settings />
-                    ) : (
-                    <div className="bg-white shadow rounded-lg p-6">
-                        {activeTab === 'folders' && <FoldersTab />}
-                        {activeTab === 'projects' && <ProjectsTab />}
-                        {activeTab === 'automation' && <AutomationTablesTab />}
-                        {activeTab === 'users' && <UsersTab />}
+                <div className="flex-1 bg-surface-muted overflow-y-auto">
+                    <div className="p-6">
+                        <div className="border border-subtle rounded-2xl bg-surface-elevated shadow-card p-6">
+                            <Routes>
+                                <Route index element={<Navigate to="folders" replace />} />
+                                <Route path="folders" element={<FoldersTab />} />
+                                <Route path="projects" element={<ProjectsTab />} />
+                                <Route path="automations" element={<AutomationTablesTab canManage />} />
+                                <Route path="users" element={<UsersTab />} />
+                                <Route path="settings" element={<Settings />} />
+                                <Route path="workflows" element={<WorkflowList basePath="/administrator/workflows" />} />
+                                <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
+                                <Route path="*" element={<Navigate to="folders" replace />} />
+                            </Routes>
+                        </div>
                     </div>
-                    )}
                 </div>
             </div>
         </div>

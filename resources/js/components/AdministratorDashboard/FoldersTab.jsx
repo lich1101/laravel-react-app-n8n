@@ -319,22 +319,26 @@ const FoldersTab = () => {
             {/* Folders Tree View */}
             <div className="space-y-2">
                 {folders.map((folder) => (
-                    <div 
-                        key={folder.id} 
-                        className="bg-gray-800 rounded-lg overflow-hidden"
+                    <div
+                        key={folder.id}
+                        className="rounded-2xl border border-subtle bg-surface-elevated shadow-card overflow-hidden transition-all"
                         onDragOver={(e) => handleDragOver(e, folder.id)}
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, folder.id)}
                     >
                         {/* Folder Header */}
-                        <div className={`flex items-center justify-between p-4 hover:bg-gray-750 ${
-                            dragOverFolder === folder.id ? 'bg-blue-900 border-2 border-blue-500' : ''
-                        }`}>
+                        <div
+                            className={`flex items-center justify-between p-4 transition-colors ${
+                                dragOverFolder === folder.id
+                                    ? 'bg-primary-soft border-b border-blue-200 shadow-card'
+                                    : 'border-b border-subtle hover:bg-surface-muted'
+                            }`}
+                        >
                             <div className="flex items-center space-x-3 flex-1">
                                 {/* Expand/Collapse Button */}
                                 <button
                                     onClick={() => toggleFolder(folder.id)}
-                                    className="text-gray-400 hover:text-white"
+                                    className="text-muted hover:text-primary transition-colors"
                                 >
                                     <svg
                                         className={`w-5 h-5 transition-transform ${expandedFolders[folder.id] ? 'transform rotate-90' : ''}`}
@@ -354,16 +358,16 @@ const FoldersTab = () => {
                                 {/* Folder Name & Info */}
                                 <div className="flex-1">
                                     <div className="flex items-center space-x-2">
-                                        <span className="text-white font-medium">{folder.name}</span>
-                                        <span className="text-gray-400 text-sm">({folder.workflows?.length || 0})</span>
+                                        <span className="text-secondary font-semibold">{folder.name}</span>
+                                        <span className="text-muted text-sm">({folder.workflows?.length || 0})</span>
                                         {isAdministrator && folder.projects?.length > 0 && (
-                                            <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
                                                 {folder.projects.length} project{folder.projects.length > 1 ? 's' : ''}
                                             </span>
                                         )}
                                     </div>
                                     {folder.description && (
-                                        <p className="text-gray-400 text-sm mt-1">{folder.description}</p>
+                                        <p className="text-muted text-sm mt-1">{folder.description}</p>
                                     )}
                                 </div>
                             </div>
@@ -429,7 +433,7 @@ const FoldersTab = () => {
 
                         {/* Workflows List (when expanded) */}
                         {expandedFolders[folder.id] && (
-                            <div className="bg-gray-900 px-4 py-2">
+                            <div className="bg-surface-muted px-4 py-2">
                                 {folder.workflows && folder.workflows.length > 0 ? (
                                     <div className="space-y-1">
                                         {folder.workflows.map((workflow) => (
@@ -439,19 +443,25 @@ const FoldersTab = () => {
                                                 onDragStart={(e) => handleDragStart(e, workflow, folder.id)}
                                                 onDragEnd={handleDragEnd}
                                                 onDoubleClick={() => navigate(`/workflows/${workflow.id}`)}
-                                                className="pl-12 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded flex items-center justify-between cursor-move"
+                                                className="pl-12 py-2 text-sm text-secondary hover:bg-surface-elevated rounded-xl flex items-center justify-between cursor-move border border-transparent hover:border-subtle transition-colors"
                                             >
                                                 <div className="flex items-center space-x-2">
-                                                    <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                                    <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
                                                         <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
                                                     </svg>
                                                     <span>{workflow.name}</span>
                                                 </div>
                                                 <div className="flex items-center space-x-2">
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${workflow.active ? 'bg-green-600' : 'bg-gray-600'}`}>
+                                                    <span
+                                                        className={`text-xs px-2 py-0.5 rounded-full border ${
+                                                            workflow.active
+                                                                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                                                : 'bg-surface-elevated text-muted border-subtle'
+                                                        }`}
+                                                    >
                                                         {workflow.active ? 'Active' : 'Inactive'}
                                                     </span>
-                                                    <span className="text-xs text-gray-500">
+                                                    <span className="text-xs text-muted">
                                                         {new Date(workflow.updated_at).toLocaleDateString()}
                                                     </span>
                                                 </div>
@@ -459,7 +469,7 @@ const FoldersTab = () => {
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="pl-12 py-2 text-sm text-gray-500 italic">No workflows in this folder</p>
+                                    <p className="pl-12 py-2 text-sm text-muted italic">No workflows in this folder</p>
                                 )}
                             </div>
                         )}
@@ -467,14 +477,14 @@ const FoldersTab = () => {
                 ))}
 
                 {folders.length === 0 && !loading && (
-                    <p className="text-center text-gray-400 py-8">No folders found. Create one to get started!</p>
+                    <p className="text-center text-muted py-8">No folders found. Create one to get started!</p>
                 )}
             </div>
 
             {/* Standalone Workflows (No Folder) */}
             {workflows.filter(w => !w.folder_id).length > 0 && (
                 <div className="mt-6">
-                    <h3 className="text-md font-semibold text-gray-900 mb-3 flex items-center">
+                    <h3 className="text-md font-semibold text-secondary mb-3 flex items-center">
                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
@@ -490,19 +500,25 @@ const FoldersTab = () => {
                                     onDragStart={(e) => handleDragStart(e, workflow, null)}
                                     onDragEnd={handleDragEnd}
                                     onDoubleClick={() => navigate(`/workflows/${workflow.id}`)}
-                                    className="bg-gray-800 rounded-lg p-3 hover:bg-gray-750 cursor-move flex items-center justify-between"
+                                    className="rounded-2xl border border-subtle bg-surface-elevated p-3 hover:bg-surface-muted cursor-move flex items-center justify-between transition-colors shadow-sm"
                                 >
                                     <div className="flex items-center space-x-3">
-                                        <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                        <svg className="w-5 h-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
                                         </svg>
-                                        <span className="text-white">{workflow.name}</span>
+                                        <span className="text-secondary font-medium">{workflow.name}</span>
                                     </div>
                                     <div className="flex items-center space-x-3">
-                                        <span className={`text-xs px-2 py-1 rounded ${workflow.active ? 'bg-green-600' : 'bg-gray-600'}`}>
+                                        <span
+                                            className={`text-xs px-2 py-0.5 rounded-full border ${
+                                                workflow.active
+                                                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                                    : 'bg-surface-elevated text-muted border-subtle'
+                                            }`}
+                                        >
                                             {workflow.active ? 'Active' : 'Inactive'}
                                         </span>
-                                        <span className="text-xs text-gray-400">
+                                        <span className="text-xs text-muted">
                                             {new Date(workflow.updated_at).toLocaleDateString()}
                                         </span>
                                     </div>
@@ -520,11 +536,11 @@ const FoldersTab = () => {
                 onDrop={(e) => handleDrop(e, null)}
                 className={`mt-4 p-6 border-2 border-dashed rounded-lg text-center ${
                     dragOverFolder === null && draggedWorkflow
-                        ? 'border-blue-500 bg-blue-900/20'
-                        : 'border-gray-600 bg-gray-800/50'
+                        ? 'border-blue-400 bg-primary-soft/70'
+                        : 'border-subtle bg-surface-muted/70'
                 }`}
             >
-                <p className="text-gray-400 text-sm">
+                <p className="text-muted text-sm">
                     {draggedWorkflow ? '📂 Drop here to remove from folder' : '💡 Drag workflows here to organize'}
                 </p>
             </div>
@@ -721,7 +737,7 @@ const WorkflowModal = ({ folder, workflows, onClose, onSave }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-black/40 overflow-y-auto h-full w-full z-50">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Manage Workflows - {folder.name}
@@ -791,7 +807,7 @@ const ProjectModal = ({ folder, projects, onClose, onSave }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-black/40 overflow-y-auto h-full w-full z-50">
             <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Assign to Projects - {folder.name}

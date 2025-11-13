@@ -18,7 +18,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
-          path="/admin"
+          path="/admin/*"
           element={
             <ProtectedRoute requireAdmin={true}>
               <AdminDashboard />
@@ -26,7 +26,7 @@ function App() {
           }
         />
         <Route
-          path="/administrator"
+          path="/administrator/*"
           element={
             <ProtectedRoute requireAdministrator={true}>
               <AdministratorDashboard />
