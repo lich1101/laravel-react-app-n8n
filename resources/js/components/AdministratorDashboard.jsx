@@ -193,9 +193,9 @@ const AdministratorDashboard = () => {
                 workflowDetailPathBuilder={(workflowId) => `/administrator/workflows/${workflowId}`}
             />
 
-            <div className="flex-1 bg-surface-muted overflow-y-auto">
-                <div className="">
-                    <div className="bg-surface-elevated shadow-card">
+            <div className="flex-1 flex flex-col bg-surface-muted">
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="bg-surface-elevated shadow-card min-h-full">
                         <Routes>
                             <Route index element={<Navigate to="/administrator/projects" replace />} />
                             <Route path="projects" element={<ProjectsTab />} />

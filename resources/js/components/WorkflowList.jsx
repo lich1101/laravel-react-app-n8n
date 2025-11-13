@@ -307,12 +307,6 @@ const WorkflowList = ({ basePath = '/workflows', onStructureChange }) => {
                             </button>
                                 </>
                         )}
-                        <button
-                            onClick={handleLogout}
-                                className="btn btn-danger text-sm"
-                        >
-                            Logout
-                        </button>
                     </div>
                 </div>
             </nav>

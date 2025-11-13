@@ -2151,7 +2151,7 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                                                 : 'opacity-0 -translate-y-2 pointer-events-none'
                                         }`}
                                     >
-                                        <div className="border border-subtle bg-surface-elevated shadow-card p-3 space-y-2">
+                                        <div className="border border-subtle bg-surface-elevated shadow-card p-3 space-y-2 rounded-2xl">
                                             <button
                                                 onClick={() => {
                                                     setShowConfigActions(false);
@@ -2159,16 +2159,16 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                                                 }}
                                                 className="w-full btn btn-muted justify-start text-sm"
                                             >
-                                                Cấu hình webhook &amp; callback
+                                                Webhook &amp; callback
                                             </button>
                                             <button
                                                 onClick={() => {
                                                     setShowConfigActions(false);
                                                     setShowExportConfigModal(true);
                                                 }}
-                                                className="w-full btn btn-muted justify-start text-sm"
+                                                className="w-full btn btn-muted justify-start text-sm" 
                                             >
-                                                Cấu hình xuất Excel
+                                               Cấu hình xuất Excel
                                             </button>
                                             <button
                                                 onClick={() => {
@@ -2176,9 +2176,9 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                                                     setEditingField(null);
                                                     setShowFieldModal(true);
                                                 }}
-                                                className="w-full btn text-sm bg-purple-600 hover:bg-purple-700 text-white shadow-card justify-start"
+                                                className="w-full btn btn-muted justify-start text-sm"
                                             >
-                                                Quản lý field
+                                                Cấu hình cột giá trị
                                             </button>
                                             <button
                                                 onClick={() => {
@@ -2186,16 +2186,16 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                                                     setEditingStatus(null);
                                                     setShowStatusModal(true);
                                                 }}
-                                                className="w-full btn text-sm bg-amber-500 hover:bg-amber-600 text-white shadow-card justify-start"
+                                                className="w-full btn btn-muted justify-start text-sm"
                                             >
-                                                Quản lý trạng thái
+                                                Cấu hình status
                                             </button>
                                             <button
                                                 onClick={() => {
                                                     setShowConfigActions(false);
                                                     setShowDefaultSetsModal(true);
                                                 }}
-                                                className="w-full btn text-sm bg-sky-500 hover:bg-sky-600 text-white shadow-card justify-start"
+                                                className="w-full btn btn-muted justify-start text-sm"
                                             >
                                                 Quản lý giá trị mặc định
                                             </button>
@@ -2649,7 +2649,7 @@ const RowsFilterBar = ({ searchValue, onSearchChange, onClearSearch, exporting, 
                     <span className="flex items-center gap-1">
                         Phím tắt:
                         <span className="inline-flex items-center justify-center px-2 py-0.5 bg-surface-muted border border-subtle rounded text-[11px] font-semibold">
-                            Ctrl+S
+                            Ctrl+S/Cmd+S
                         </span>
                     </span>
                     <span>Lưu toàn bộ thay đổi nhanh chóng</span>

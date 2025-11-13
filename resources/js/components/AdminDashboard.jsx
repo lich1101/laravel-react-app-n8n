@@ -190,9 +190,9 @@ const AdminDashboard = () => {
                 workflowDetailPathBuilder={(workflowId) => `/admin/workflows/${workflowId}`}
             />
 
-            <div className="flex-1 bg-surface-muted overflow-y-auto">
-                <div className="">
-                    <div className="bg-surface-elevated shadow-card">
+            <div className="flex-1 flex flex-col bg-surface-muted">
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="bg-surface-elevated shadow-card min-h-full">
                         <Routes>
                             <Route index element={<Navigate to="/admin/automations" replace />} />
                             <Route
@@ -211,18 +211,18 @@ const AdminDashboard = () => {
                                 path="automations/table/:tableId"
                                 element={<AutomationTableDetailRoute onStructureChange={handleAutomationStructureChange} />}
                             />
-                        <Route path="folders" element={<FoldersTab />} />
-                        <Route path="users" element={<UsersTab />} />
-                        <Route
-                            path="workflows"
-                            element={
-                                <WorkflowList
-                                    basePath="/admin/workflows"
-                                    onStructureChange={fetchWorkflowFolders}
-                                />
-                            }
-                        />
-                        <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
+                            <Route path="folders" element={<FoldersTab />} />
+                            <Route path="users" element={<UsersTab />} />
+                            <Route
+                                path="workflows"
+                                element={
+                                    <WorkflowList
+                                        basePath="/admin/workflows"
+                                        onStructureChange={fetchWorkflowFolders}
+                                    />
+                                }
+                            />
+                            <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
                             <Route path="*" element={<Navigate to="/admin/automations" replace />} />
                         </Routes>
                     </div>

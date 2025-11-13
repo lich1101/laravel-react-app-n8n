@@ -154,28 +154,32 @@ const UserDashboard = () => {
                 }}
             />
 
-            <div className="flex-1 bg-surface-muted">
-                <Routes>
-                    <Route path="/" element={<Navigate to="automations/manage" replace />} />
-                    <Route
-                        path="automations/manage"
-                        element={
-                            <AutomationTablesTab
-                                canManage
-                                selectedTopicId={selectedAutomationTopicId}
-                                selectedTableId={selectedAutomationTableId}
-                                onSelectTable={setSelectedAutomationTableId}
-                                onStructureChange={handleAutomationStructureChange}
+            <div className="flex-1 flex flex-col bg-surface-muted">
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="bg-surface-elevated shadow-card min-h-full">
+                        <Routes>
+                            <Route path="/" element={<Navigate to="automations/manage" replace />} />
+                            <Route
+                                path="automations/manage"
+                                element={
+                                    <AutomationTablesTab
+                                        canManage
+                                        selectedTopicId={selectedAutomationTopicId}
+                                        selectedTableId={selectedAutomationTableId}
+                                        onSelectTable={setSelectedAutomationTableId}
+                                        onStructureChange={handleAutomationStructureChange}
+                                    />
+                                }
                             />
-                        }
-                    />
-                    <Route
-                        path="automations/table/:tableId"
-                        element={<AutomationTableDetailRoute onStructureChange={handleAutomationStructureChange} />}
-                    />
-                    <Route path="workflows/manage" element={<WorkflowList basePath="/dashboard/workflows" />} />
-                    <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
-                </Routes>
+                            <Route
+                                path="automations/table/:tableId"
+                                element={<AutomationTableDetailRoute onStructureChange={handleAutomationStructureChange} />}
+                            />
+                            <Route path="workflows/manage" element={<WorkflowList basePath="/dashboard/workflows" />} />
+                            <Route path="workflows/:workflowId" element={<WorkflowEditorRoute />} />
+                        </Routes>
+                    </div>
+                </div>
             </div>
         </div>
     );

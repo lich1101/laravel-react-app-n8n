@@ -2220,7 +2220,7 @@ function WorkflowEditor() {
                             </p>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+                        <div className="flex-1 overflow-y-auto px-3 py-4 pr-2 space-y-1">
                             {ADD_NODE_OPTIONS.map((option) => (
                                 <button
                                     key={option.type}
