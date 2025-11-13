@@ -242,7 +242,7 @@ const UserSidebarNav = ({
                                             }}
                                             className="w-full flex items-center justify-between pl-4 pr-3 py-2 text-sm text-secondary hover:bg-surface-muted rounded-xl"
                                         >
-                                            <span>{topic.name}</span>
+                                            <span className="align-left">{topic.name}</span>
                                             <svg
                                                 className={`w-4 h-4 transition-transform ${isExpanded ? 'transform rotate-180' : ''}`}
                                                 fill="none"
@@ -314,7 +314,7 @@ const UserSidebarNav = ({
                                             }}
                                             className="w-full flex items-center justify-between pl-4 pr-3 py-2 text-sm text-secondary hover:bg-surface-muted rounded-xl"
                                         >
-                                            <span>{folder.name}</span>
+                                            <span className="align-left">{folder.name}</span>
                                             <svg
                                                 className={`w-4 h-4 transition-transform ${isExpanded ? 'transform rotate-180' : ''}`}
                                                 fill="none"
@@ -368,7 +368,7 @@ const UserSidebarNav = ({
                                     }}
                                     className="w-full flex items-center justify-between pl-4 pr-3 py-2 text-sm text-secondary hover:bg-surface-muted rounded-xl"
                                 >
-                                    <span>Không thuộc folder</span>
+                                    <span className="align-left">Không thuộc folder</span>
                                     <svg
                                         className={`w-4 h-4 transition-transform ${expandedFolders.has('unassigned') ? 'transform rotate-180' : ''}`}
                                         fill="none"
