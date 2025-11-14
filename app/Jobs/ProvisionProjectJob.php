@@ -18,52 +18,76 @@ class ProvisionProjectJob implements ShouldQueue
 
     public function __construct(
         public readonly int $projectId,
-        public readonly string $environmentName
+        public readonly array $folderIds
     ) {
     }
 
     public function handle(): void
     {
+        $project = Project::findOrFail($this->projectId);
+        $environmentName = $project->subdomain;
         $script = config('projects.provision_script');
 
         if (!$script || !is_file($script)) {
             $message = sprintf('Provision script not found at path: %s', $script ?? '(empty)');
             Log::error($message, [
                 'project_id' => $this->projectId,
-                'environment' => $this->environmentName,
+                'environment' => $environmentName,
             ]);
+            $project->update(['provisioning_status' => 'failed']);
             throw new \RuntimeException($message);
         }
 
-        $process = new Process(['bash', $script, $this->environmentName]);
+        $process = new Process(['bash', $script, $environmentName]);
         $process->setTimeout(null);
 
-        Log::info('Starting project provisioning script', [
-            'project_id' => $this->projectId,
-            'environment' => $this->environmentName,
-            'script' => $script,
-        ]);
-
-        $process->run(function ($type, $buffer) {
-            Log::info(sprintf('[provision-%s] %s', $this->environmentName, trim($buffer)));
-        });
-
-        if (!$process->isSuccessful()) {
-            Log::error('Provision script failed', [
+        try {
+            Log::info('Starting project provisioning script', [
                 'project_id' => $this->projectId,
-                'environment' => $this->environmentName,
-                'output' => $process->getErrorOutput() ?: $process->getOutput(),
+                'environment' => $environmentName,
+                'script' => $script,
             ]);
 
-            throw new ProcessFailedException($process);
+            $process->run(function ($type, $buffer) use ($environmentName) {
+                Log::info(sprintf('[provision-%s] %s', $environmentName, trim($buffer)));
+            });
+
+            if (!$process->isSuccessful()) {
+                throw new ProcessFailedException($process);
+            }
+        } catch (\Throwable $e) {
+            $errorOutput = $process->getErrorOutput() ?: $process->getOutput();
+            $message = trim($errorOutput) ?: $e->getMessage();
+
+            Log::error('Provision script failed', [
+                'project_id' => $this->projectId,
+                'environment' => $environmentName,
+                'output' => $message,
+            ]);
+
+            $project->update([
+                'provisioning_status' => 'failed',
+                'provisioning_error' => mb_substr($message, 0, 2000),
+            ]);
+
+            throw $e;
+        }
+
+        // Update project after successful provisioning
+        $project->update([
+            'provisioning_status' => 'completed',
+            'provisioning_error' => null,
+        ]);
+
+        // Attach folders if provided
+        if (!empty($this->folderIds)) {
+            $project->folders()->sync($this->folderIds);
         }
 
         Log::info('Provision script completed successfully', [
             'project_id' => $this->projectId,
-            'environment' => $this->environmentName,
+            'environment' => $environmentName,
         ]);
-
-        Project::where('id', $this->projectId)->update(['status' => 'active']);
     }
 }
 

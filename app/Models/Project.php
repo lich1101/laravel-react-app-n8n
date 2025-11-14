@@ -14,6 +14,8 @@ class Project extends Model
         'domain',
         'status',
         'max_concurrent_workflows',
+        'provisioning_status',
+        'provisioning_error',
     ];
 
     protected $casts = [

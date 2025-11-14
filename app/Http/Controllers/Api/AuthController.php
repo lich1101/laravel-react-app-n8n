@@ -4,19 +4,52 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
+    public function registrationStatus(): JsonResponse
     {
-        // Registration is disabled - system has fixed users only
+        $hasUser = User::where('role', 'user')->exists();
+
         return response()->json([
-            'error' => 'Registration is disabled. System has fixed users only.'
-        ], 403);
+            'requires_registration' => !$hasUser,
+        ]);
+    }
+
+    public function register(Request $request): JsonResponse
+    {
+        if (User::where('role', 'user')->exists()) {
+            return response()->json([
+                'message' => 'Tài khoản đã được đăng ký. Vui lòng đăng nhập.'
+            ], 403);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email',
+            'password' => 'required|min:8|confirmed',
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => 'user',
+            'project_id' => null,
+        ]);
+
+        event(new Registered($user));
+
+        return response()->json([
+            'message' => 'Đăng ký thành công! Vui lòng kiểm tra email để xác thực.'
+        ], 201);
     }
 
     public function login(Request $request)
@@ -33,6 +66,13 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $request->email)->firstOrFail();
+
+        if ($user->role === 'user' && !$user->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => 'Email chưa được xác thực. Vui lòng kiểm tra hộp thư của bạn.'
+            ], 403);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -54,5 +94,22 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         return response()->json($request->user());
+    }
+
+    public function verifyEmail(Request $request, $id, $hash)
+    {
+        $user = User::findOrFail($id);
+
+        if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+            abort(403, 'Liên kết xác thực không hợp lệ.');
+        }
+
+        if (!$user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+            event(new Verified($user));
+        }
+
+        $redirectUrl = rtrim(config('app.url'), '/') . '/login?verified=1';
+        return redirect($redirectUrl);
     }
 }

@@ -41,7 +41,6 @@ class ProjectController extends Controller
         $this->checkAdministrator();
         $request->validate([
             'name' => 'required|string|max:255',
-            'status' => 'nullable|in:active,inactive',
             'max_concurrent_workflows' => 'nullable|integer|min:1|max:100',
             'folder_ids' => 'nullable|array',
             'folder_ids.*' => 'exists:folders,id',
@@ -51,21 +50,19 @@ class ProjectController extends Controller
             $this->normalizeEnvironmentName($request->name)
         );
 
+        // Create project with provisioning status
         $project = Project::create([
             'name' => $request->name,
             'subdomain' => $subdomain,
             'domain' => $this->buildDomainFromSubdomain($subdomain),
-            'status' => 'inactive',
+            'status' => 'active',
             'max_concurrent_workflows' => $request->max_concurrent_workflows ?? 5,
+            'provisioning_status' => 'provisioning',
+            'provisioning_error' => null,
         ]);
 
-        // Attach folders if provided
-        if ($request->has('folder_ids')) {
-            $project->folders()->sync($request->folder_ids);
-        }
-
-        // Trigger provisioning asynchronously
-        ProvisionProjectJob::dispatch($project->id, $project->subdomain);
+        // Trigger provisioning asynchronously - job will update project after completion
+        ProvisionProjectJob::dispatch($project->id, $request->folder_ids ?? []);
 
         $project->load(['users', 'folders']);
         return response()->json($project, 201);

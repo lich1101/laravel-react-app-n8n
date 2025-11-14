@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './Login';
+import ResetPassword from './ResetPassword';
 import AdminDashboard from './AdminDashboard';
 import AdministratorDashboard from './AdministratorDashboard';
 import WorkflowList from './WorkflowList';
@@ -17,6 +18,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route
           path="/admin/*"
           element={

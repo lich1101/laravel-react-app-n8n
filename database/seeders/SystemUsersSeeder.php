@@ -35,15 +35,7 @@ class SystemUsersSeeder extends Seeder
             ]
         );
 
-        // 3. Create regular User
-        User::updateOrCreate(
-            ['email' => 'user@chatplus.vn'],
-            [
-                'name' => 'User',
-                'password' => Hash::make('User@2024'),
-                'role' => 'user',
-            ]
-        );
+        
 
         $this->command->info('System users created successfully!');
         $this->command->info('');
@@ -55,11 +47,6 @@ class SystemUsersSeeder extends Seeder
         $this->command->info('2. Admin:');
         $this->command->info('   Email: admin@chatplus.vn');
         $this->command->info('   Password: Dangbinh1101@gmail.com');
-        $this->command->info('');
-        $this->command->info('3. User:');
-        $this->command->info('   Email: user@chatplus.vn');
-        $this->command->info('   Password: User@2024');
-        $this->command->info('========================');
     }
 }
 

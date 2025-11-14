@@ -52,6 +52,18 @@ const EnvironmentPreview = ({ name, editingProject }) => {
     );
 };
 
+const provisioningLabel = {
+    provisioning: 'Đang khởi tạo',
+    completed: 'Hoàn thành',
+    failed: 'Thất bại',
+};
+
+const provisioningStyle = {
+    provisioning: 'bg-blue-100 text-blue-600',
+    completed: 'bg-emerald-100 text-emerald-700',
+    failed: 'bg-rose-100 text-rose-700',
+};
+
 const ProjectsTab = () => {
     const [projects, setProjects] = useState([]);
     const [folders, setFolders] = useState([]);
@@ -59,18 +71,38 @@ const ProjectsTab = () => {
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
-        status: 'active',
         max_concurrent_workflows: 5,
         folder_ids: []
     });
     const [editingProject, setEditingProject] = useState(null);
     const [expandedRows, setExpandedRows] = useState([]);
     const [syncing, setSyncing] = useState({});
+    const [provisioningProjects, setProvisioningProjects] = useState(new Set());
 
     useEffect(() => {
         fetchProjects();
         fetchFolders();
     }, []);
+
+    // Polling for provisioning status
+    useEffect(() => {
+        const provisioningIds = projects
+            .filter(p => p.provisioning_status === 'provisioning')
+            .map(p => p.id);
+        
+        if (provisioningIds.length === 0) {
+            setProvisioningProjects(new Set());
+            return;
+        }
+
+        setProvisioningProjects(new Set(provisioningIds));
+
+        const interval = setInterval(() => {
+            fetchProjects();
+        }, 2000); // Poll every 2 seconds
+
+        return () => clearInterval(interval);
+    }, [projects]);
 
     const fetchProjects = async () => {
         try {
@@ -96,7 +128,6 @@ const ProjectsTab = () => {
         e.preventDefault();
         const payload = {
             name: formData.name,
-            status: formData.status,
             max_concurrent_workflows: formData.max_concurrent_workflows,
             folder_ids: formData.folder_ids,
         };
@@ -105,9 +136,13 @@ const ProjectsTab = () => {
             if (editingProject) {
                 await axios.put(`/projects/${editingProject.id}`, payload);
             } else {
-                await axios.post('/projects', payload);
+                const response = await axios.post('/projects', payload);
+                // Add to provisioning set if status is provisioning
+                if (response.data.provisioning_status === 'provisioning') {
+                    setProvisioningProjects(prev => new Set([...prev, response.data.id]));
+                }
             }
-            setFormData({ name: '', status: 'active', max_concurrent_workflows: 5, folder_ids: [] });
+            setFormData({ name: '', max_concurrent_workflows: 5, folder_ids: [] });
             setShowForm(false);
             setEditingProject(null);
             fetchProjects();
@@ -120,7 +155,6 @@ const ProjectsTab = () => {
         setEditingProject(project);
         setFormData({
             name: project.name,
-            status: project.status,
             max_concurrent_workflows: project.max_concurrent_workflows || 5,
             folder_ids: project.folders?.map(f => f.id) || []
         });
@@ -164,15 +198,30 @@ const ProjectsTab = () => {
         return <div className="text-center py-4">Loading...</div>;
     }
 
+    const hasProvisioning = provisioningProjects.size > 0;
+
     return (
-        <div className="bg-surface-elevated shadow-card p-4">
+        <div className="bg-surface-elevated shadow-card p-4 relative">
+            {hasProvisioning && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                        <h3 className="text-lg font-semibold mb-4 text-gray-900">Đang tạo project...</h3>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                            <div className="bg-blue-600 h-2.5 rounded-full animate-pulse" style={{ width: '100%' }}></div>
+                        </div>
+                        <p className="text-sm text-gray-600 text-center">
+                            Vui lòng đợi trong giây lát. Hệ thống đang chạy script provisioning...
+                        </p>
+                    </div>
+                </div>
+            )}
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Projects</h2>
                 <button
                     onClick={() => {
                         setShowForm(true);
                         setEditingProject(null);
-                        setFormData({ name: '', status: 'active', max_concurrent_workflows: 5, folder_ids: [] });
+                        setFormData({ name: '', max_concurrent_workflows: 5, folder_ids: [] });
                     }}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
                 >
@@ -202,19 +251,6 @@ const ProjectsTab = () => {
                             name={formData.name}
                             editingProject={editingProject}
                         />
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Status
-                            </label>
-                            <select
-                                value={formData.status}
-                                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
-                            >
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
-                        </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Max Concurrent Workflows
@@ -298,13 +334,16 @@ const ProjectsTab = () => {
                                 Name
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Link
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Subdomain
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Max Workflows
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Status
+                                Provisioning
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
@@ -327,6 +366,11 @@ const ProjectsTab = () => {
                                     {project.name}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
+                                    <a href={`https://${project.domain}`} target="_blank" rel="noopener noreferrer">
+                                        {project.domain}
+                                    </a>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
                                     {project.subdomain}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
@@ -334,15 +378,11 @@ const ProjectsTab = () => {
                                             {project.max_concurrent_workflows || 5}
                                         </span>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
                                     <span
-                                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                            project.status === 'active'
-                                                ? 'bg-emerald-50 text-emerald-600'
-                                                : 'bg-surface-muted text-secondary'
-                                        }`}
+                                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${provisioningStyle[project.provisioning_status] || 'bg-gray-100 text-gray-600'}`}
                                     >
-                                        {project.status}
+                                        {provisioningLabel[project.provisioning_status] || 'Không rõ'}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
@@ -369,7 +409,7 @@ const ProjectsTab = () => {
                             </tr>
                                 {expandedRows.includes(project.id) && (
                                     <tr className="bg-surface-muted/60">
-                                        <td colSpan="6" className="px-6 py-4">
+                                        <td colSpan="5" className="px-6 py-4">
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
                                                     <h4 className="text-sm font-semibold text-primary mb-2">
@@ -392,6 +432,17 @@ const ProjectsTab = () => {
                                                         ⚙️ Configuration
                                                     </h4>
                                                     <div className="space-y-2 text-sm">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-700">Provisioning:</span>
+                                                            <span className={`font-semibold ${provisioningStyle[project.provisioning_status] || ''}`}>
+                                                                {provisioningLabel[project.provisioning_status] || 'Không rõ'}
+                                                            </span>
+                                                        </div>
+                                                        {project.provisioning_status === 'failed' && project.provisioning_error && (
+                                                            <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-md p-2">
+                                                                ⚠️ {project.provisioning_error}
+                                                            </div>
+                                                        )}
                                                         <div className="flex justify-between">
                                                             <span className="text-gray-700">Max Concurrent Workflows:</span>
                                                             <span className="font-semibold text-blue-600">

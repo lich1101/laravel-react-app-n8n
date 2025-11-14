@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\WorkflowController;
+use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\FolderController;
 use App\Http\Controllers\Api\ProjectController;
@@ -19,8 +20,14 @@ use App\Http\Controllers\Api\AutomationTableController;
 use App\Http\Controllers\Api\AutomationTopicController;
 
 // Public routes
+Route::get('/registration-status', [AuthController::class, 'registrationStatus']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+    ->middleware('signed')
+    ->name('verification.verify');
+Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail']);
+Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']);
 
 // OAuth2 callback (public - no auth required as Google redirects here)
 Route::get('/oauth2/callback', [CredentialController::class, 'handleOAuth2Callback']);
