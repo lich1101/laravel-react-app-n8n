@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\DestroyProjectJob;
+use App\Jobs\ProvisionProjectJob;
 use App\Models\Project;
 use App\Models\Folder;
 use App\Models\FolderProjectMapping;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class ProjectController extends Controller
 {
@@ -38,19 +41,21 @@ class ProjectController extends Controller
         $this->checkAdministrator();
         $request->validate([
             'name' => 'required|string|max:255',
-            'subdomain' => 'required|string|max:255|unique:projects',
-            'domain' => 'nullable|string|max:255',
             'status' => 'nullable|in:active,inactive',
             'max_concurrent_workflows' => 'nullable|integer|min:1|max:100',
             'folder_ids' => 'nullable|array',
             'folder_ids.*' => 'exists:folders,id',
         ]);
 
+        $subdomain = $this->ensureUniqueSubdomain(
+            $this->normalizeEnvironmentName($request->name)
+        );
+
         $project = Project::create([
             'name' => $request->name,
-            'subdomain' => $request->subdomain,
-            'domain' => $request->domain,
-            'status' => $request->status ?? 'active',
+            'subdomain' => $subdomain,
+            'domain' => $this->buildDomainFromSubdomain($subdomain),
+            'status' => 'inactive',
             'max_concurrent_workflows' => $request->max_concurrent_workflows ?? 5,
         ]);
 
@@ -59,7 +64,8 @@ class ProjectController extends Controller
             $project->folders()->sync($request->folder_ids);
         }
 
-        // Don't auto-sync - user will manually click Sync button when needed
+        // Trigger provisioning asynchronously
+        ProvisionProjectJob::dispatch($project->id, $project->subdomain);
 
         $project->load(['users', 'folders']);
         return response()->json($project, 201);
@@ -85,7 +91,7 @@ class ProjectController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
-            'subdomain' => 'required|string|max:255|unique:projects,subdomain,' . $id,
+            'subdomain' => 'nullable|string|max:255|unique:projects,subdomain,' . $id,
             'domain' => 'nullable|string|max:255',
             'status' => 'nullable|in:active,inactive',
             'max_concurrent_workflows' => 'nullable|integer|min:1|max:100',
@@ -93,11 +99,26 @@ class ProjectController extends Controller
             'folder_ids.*' => 'exists:folders,id',
         ]);
 
+        $subdomain = $project->subdomain;
+        if ($request->filled('subdomain')) {
+            $subdomain = $this->ensureUniqueSubdomain(
+                $this->normalizeEnvironmentName($request->subdomain),
+                (int) $project->id
+            );
+        }
+
+        $domain = $project->domain;
+        if ($request->filled('domain')) {
+            $domain = $request->domain;
+        } elseif ($project->domain === null) {
+            $domain = $this->buildDomainFromSubdomain($subdomain);
+        }
+
         $project->update([
             'name' => $request->name,
-            'subdomain' => $request->subdomain,
-            'domain' => $request->domain,
-            'status' => $request->status,
+            'subdomain' => $subdomain,
+            'domain' => $domain,
+            'status' => $request->status ?? $project->status,
             'max_concurrent_workflows' => $request->max_concurrent_workflows ?? $project->max_concurrent_workflows,
         ]);
 
@@ -119,9 +140,15 @@ class ProjectController extends Controller
     {
         $this->checkAdministrator();
         $project = Project::findOrFail($id);
+        $environment = $project->subdomain;
+        $projectId = $project->id;
         $project->delete();
 
-        return response()->json(['message' => 'Project deleted successfully']);
+        if ($environment) {
+            DestroyProjectJob::dispatch($projectId, $environment);
+        }
+
+        return response()->json(['message' => 'Project deleted successfully and destruction queued']);
     }
 
     /**
@@ -349,5 +376,38 @@ class ProjectController extends Controller
             \Log::error($errorMsg);
             throw new \Exception($errorMsg);
         }
+    }
+
+    private function normalizeEnvironmentName(string $value): string
+    {
+        $normalized = Str::slug($value);
+        if (empty($normalized)) {
+            $normalized = 'project-' . strtolower(Str::random(6));
+        }
+
+        return substr($normalized, 0, 63);
+    }
+
+    private function ensureUniqueSubdomain(string $base, ?int $ignoreId = null): string
+    {
+        $candidate = $base;
+        $counter = 1;
+
+        while (
+            Project::where('subdomain', $candidate)
+                ->when($ignoreId, fn ($query, $id) => $query->where('id', '<>', $id))
+                ->exists()
+        ) {
+            $candidate = $base . '-' . $counter;
+            $counter++;
+        }
+
+        return $candidate;
+    }
+
+    private function buildDomainFromSubdomain(string $subdomain): string
+    {
+        $baseDomain = config('projects.base_domain', 'chatplus.vn');
+        return "{$subdomain}.{$baseDomain}";
     }
 }

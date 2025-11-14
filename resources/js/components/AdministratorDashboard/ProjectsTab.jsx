@@ -1,6 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../config/axios';
 
+const PROJECT_BASE_DOMAIN = import.meta.env.VITE_PROJECT_BASE_DOMAIN || 'chatplus.vn';
+
+const sanitizeEnvironmentName = (value = '') => {
+    return value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 63);
+};
+
+const EnvironmentPreview = ({ name, editingProject }) => {
+    const derivedSubdomain = sanitizeEnvironmentName(name);
+    const derivedDomain = derivedSubdomain ? `${derivedSubdomain}.${PROJECT_BASE_DOMAIN}` : '';
+
+    if (editingProject) {
+        return (
+            <div className="p-3 bg-white border border-gray-200 rounded-md">
+                <p className="text-sm text-gray-700">
+                    Subdomain hiện tại:&nbsp;
+                    <span className="font-mono text-primary">{editingProject.subdomain}</span>
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                    Để thay đổi subdomain/domain vui lòng liên hệ devops hoặc sửa trực tiếp trong database.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-3 bg-white border border-dashed border-gray-300 rounded-md">
+            <p className="text-sm text-gray-700">
+                Subdomain dự kiến:&nbsp;
+                <span className="font-mono text-primary">
+                    {derivedSubdomain || '...'}
+                </span>
+            </p>
+            <p className="text-sm text-gray-700 mt-1">
+                Domain dự kiến:&nbsp;
+                <span className="font-mono text-primary">
+                    {derivedDomain || `*.${PROJECT_BASE_DOMAIN}`}
+                </span>
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+                Hệ thống sẽ tự động chạy script provisioning với tên môi trường phía trên.
+            </p>
+        </div>
+    );
+};
+
 const ProjectsTab = () => {
     const [projects, setProjects] = useState([]);
     const [folders, setFolders] = useState([]);
@@ -8,8 +59,6 @@ const ProjectsTab = () => {
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
-        subdomain: '',
-        domain: '',
         status: 'active',
         max_concurrent_workflows: 5,
         folder_ids: []
@@ -45,13 +94,20 @@ const ProjectsTab = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const payload = {
+            name: formData.name,
+            status: formData.status,
+            max_concurrent_workflows: formData.max_concurrent_workflows,
+            folder_ids: formData.folder_ids,
+        };
+
         try {
             if (editingProject) {
-                await axios.put(`/projects/${editingProject.id}`, formData);
+                await axios.put(`/projects/${editingProject.id}`, payload);
             } else {
-                await axios.post('/projects', formData);
+                await axios.post('/projects', payload);
             }
-            setFormData({ name: '', subdomain: '', domain: '', status: 'active', max_concurrent_workflows: 5, folder_ids: [] });
+            setFormData({ name: '', status: 'active', max_concurrent_workflows: 5, folder_ids: [] });
             setShowForm(false);
             setEditingProject(null);
             fetchProjects();
@@ -64,8 +120,6 @@ const ProjectsTab = () => {
         setEditingProject(project);
         setFormData({
             name: project.name,
-            subdomain: project.subdomain,
-            domain: project.domain || '',
             status: project.status,
             max_concurrent_workflows: project.max_concurrent_workflows || 5,
             folder_ids: project.folders?.map(f => f.id) || []
@@ -118,7 +172,7 @@ const ProjectsTab = () => {
                     onClick={() => {
                         setShowForm(true);
                         setEditingProject(null);
-                        setFormData({ name: '', subdomain: '', domain: '', status: 'active', max_concurrent_workflows: 5, folder_ids: [] });
+                        setFormData({ name: '', status: 'active', max_concurrent_workflows: 5, folder_ids: [] });
                     }}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
                 >
@@ -144,29 +198,10 @@ const ProjectsTab = () => {
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
                             />
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Subdomain
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={formData.subdomain}
-                                onChange={(e) => setFormData({ ...formData, subdomain: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Domain (optional)
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.domain}
-                                onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
-                            />
-                        </div>
+                        <EnvironmentPreview
+                            name={formData.name}
+                            editingProject={editingProject}
+                        />
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Status
