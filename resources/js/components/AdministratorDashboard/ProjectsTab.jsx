@@ -64,7 +64,14 @@ const provisioningStyle = {
     failed: 'bg-rose-100 text-rose-700',
 };
 
-const ActionButton = ({ label, onClick, disabled, Icon, className = '' }) => {
+const ICONS = {
+    sync: new URL('../../../../public/icons/manager_project/sync.svg', import.meta.url).href,
+    git: new URL('../../../../public/icons/manager_project/git.svg', import.meta.url).href,
+    edit: new URL('../../../../public/icons/manager_project/edit.svg', import.meta.url).href,
+    delete: new URL('../../../../public/icons/manager_project/delete.svg', import.meta.url).href,
+};
+
+const ActionButton = ({ label, onClick, disabled, Icon, iconSrc, className = '' }) => {
     return (
         <button
             onClick={onClick}
@@ -72,7 +79,11 @@ const ActionButton = ({ label, onClick, disabled, Icon, className = '' }) => {
             className={`relative group inline-flex items-center justify-center text-sm font-medium transition-colors ${className}`}
         >
             <span className="sr-only">{label}</span>
-            <Icon className="h-4 w-4" aria-hidden="true" />
+            {iconSrc ? (
+                <img src={iconSrc} alt="" className="h-5 w-5 object-contain" />
+            ) : (
+                <Icon className="h-4 w-4" aria-hidden="true" />
+            )}
             <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
                 {disabled ? 'Đang xử lý...' : label}
             </span>
@@ -266,17 +277,13 @@ const ProjectsTab = () => {
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Projects</h2>
                 <div className="flex items-center space-x-2">
-                    <ActionButton
-                        label={updatingAllGit ? 'Đang cập nhật...' : 'Update Git (All)'}
+                    <button
                         onClick={handleUpdateGitAll}
                         disabled={updatingAllGit}
-                        Icon={({ className }) => (
-                            <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0119 5" />
-                            </svg>
-                        )}
-                        className="text-purple-600 hover:text-purple-500 disabled:opacity-50"
-                    />
+                        className="bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 disabled:opacity-60 px-4 py-2 rounded-md text-sm font-medium"
+                    >
+                        {updatingAllGit ? 'Updating...' : 'Update Git'}
+                    </button>
                     <button
                         onClick={() => {
                             setShowForm(true);
@@ -308,8 +315,14 @@ const ProjectsTab = () => {
                                 required
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
+                                disabled={Boolean(editingProject)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
                             />
+                            {editingProject && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Không thể sửa tên dự án sau khi đã tạo.
+                                </p>
+                            )}
                         </div>
                         <EnvironmentPreview
                             name={formData.name}
@@ -455,44 +468,28 @@ const ProjectsTab = () => {
                                             label={syncing[project.id] ? 'Đang sync...' : 'Sync config/folders'}
                                             onClick={() => handleSync(project.id)}
                                             disabled={syncing[project.id]}
-                                            Icon={({ className }) => (
-                                                <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0119 5" />
-                                                </svg>
-                                            )}
+                                            iconSrc={ICONS.sync}
                                             className="text-purple-600 hover:text-purple-500 disabled:opacity-50"
                                         />
                                         <ActionButton
                                             label={updatingGit[project.id] ? 'Đang update git...' : 'Update git cho dự án'}
                                             onClick={() => handleUpdateGit(project)}
                                             disabled={Boolean(updatingGit[project.id])}
-                                            Icon={({ className }) => (
-                                                <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7l-5 5 5 5M8 7h4" />
-                                                </svg>
-                                            )}
+                                            iconSrc={ICONS.git}
                                             className="text-indigo-600 hover:text-indigo-500 disabled:opacity-50"
                                         />
                                         <ActionButton
                                             label="Chỉnh sửa dự án"
                                             onClick={() => handleEdit(project)}
                                             disabled={false}
-                                            Icon={({ className }) => (
-                                                <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                                </svg>
-                                            )}
+                                            iconSrc={ICONS.edit}
                                             className="text-primary hover:text-primary/80"
                                         />
                                         <ActionButton
                                             label="Xóa dự án"
                                             onClick={() => handleDelete(project.id)}
                                             disabled={false}
-                                            Icon={({ className }) => (
-                                                <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m2 0h2m-6 0V5a2 2 0 00-2-2h0a2 2 0 00-2 2v2m-4 0h10" />
-                                                </svg>
-                                            )}
+                                            iconSrc={ICONS.delete}
                                             className="text-rose-600 hover:text-rose-500"
                                         />
                                     </div>
