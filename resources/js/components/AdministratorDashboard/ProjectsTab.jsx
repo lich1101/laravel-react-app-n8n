@@ -205,11 +205,9 @@ const ProjectsTab = () => {
         try {
             setSyncing(prev => ({ ...prev, [projectId]: true }));
             await axios.post(`/projects/${projectId}/sync`);
-            alert('Đã sync config và folders thành công!');
             fetchProjects();
         } catch (error) {
             console.error('Error syncing project:', error);
-            alert('Không thể sync project. Vui lòng thử lại.');
         } finally {
             setSyncing(prev => ({ ...prev, [projectId]: false }));
         }
@@ -218,11 +216,10 @@ const ProjectsTab = () => {
     const handleUpdateGit = async (project) => {
         try {
             setUpdatingGit(prev => ({ ...prev, [project.id]: true }));
-            const response = await axios.post(`/projects/${project.id}/update-git`);
-            alert(response.data?.message || `Đã cập nhật git cho ${project.name}`);
+            await axios.post(`/projects/${project.id}/update-git`);
+            fetchProjects();
         } catch (error) {
             console.error('Error updating git for project:', error);
-            alert('Không thể update git cho project này. Vui lòng thử lại.');
         } finally {
             setUpdatingGit(prev => {
                 const next = { ...prev };
@@ -235,11 +232,10 @@ const ProjectsTab = () => {
     const handleUpdateGitAll = async () => {
         try {
             setUpdatingAllGit(true);
-            const response = await axios.post('/projects/update-git-all');
-            alert(response.data?.message || 'Đã chạy update git cho tất cả project.');
+            await axios.post('/projects/update-git-all');
+            fetchProjects();
         } catch (error) {
             console.error('Error updating git for all projects:', error);
-            alert('Không thể update git toàn bộ projects. Vui lòng thử lại.');
         } finally {
             setUpdatingAllGit(false);
         }
@@ -258,18 +254,29 @@ const ProjectsTab = () => {
     }
 
     const hasProvisioning = provisioningProjects.size > 0;
+    const hasSyncing = Object.keys(syncing).some(key => syncing[key]);
+    const hasUpdatingGit = Object.keys(updatingGit).some(key => updatingGit[key]);
+    const hasAnyOperation = hasProvisioning || hasSyncing || hasUpdatingGit || updatingAllGit;
+
+    const getLoadingMessage = () => {
+        if (hasProvisioning) return 'Đang tạo project...';
+        if (updatingAllGit) return 'Đang cập nhật git cho tất cả project...';
+        if (hasUpdatingGit) return 'Đang cập nhật git...';
+        if (hasSyncing) return 'Đang sync config và folders...';
+        return 'Đang xử lý...';
+    };
 
     return (
         <div className="bg-surface-elevated shadow-card p-4 relative">
-            {hasProvisioning && (
+            {hasAnyOperation && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                        <h3 className="text-lg font-semibold mb-4 text-gray-900">Đang tạo project...</h3>
+                        <h3 className="text-lg font-semibold mb-4 text-gray-900">{getLoadingMessage()}</h3>
                         <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
                             <div className="bg-blue-600 h-2.5 rounded-full animate-pulse" style={{ width: '100%' }}></div>
                         </div>
                         <p className="text-sm text-gray-600 text-center">
-                            Vui lòng đợi trong giây lát. Hệ thống đang chạy script provisioning...
+                            Vui lòng đợi trong giây lát. Hệ thống đang xử lý...
                         </p>
                     </div>
                 </div>
