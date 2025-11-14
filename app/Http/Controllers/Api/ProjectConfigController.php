@@ -19,15 +19,7 @@ class ProjectConfigController extends Controller
         // Get project from subdomain
         $subdomain = $request->header('X-Project-Domain') ?? $request->getHost();
         
-        $project = Project::where('subdomain', $subdomain)
-            ->orWhere('domain', $subdomain)
-            ->first();
-
-        if (!$project) {
-            return response()->json([
-                'error' => 'Project not found'
-            ], 404);
-        }
+        $project = $this->resolveProject($subdomain);
 
         return response()->json([
             'max_concurrent_workflows' => $project->max_concurrent_workflows ?? 5,
@@ -49,15 +41,7 @@ class ProjectConfigController extends Controller
         // Get project from subdomain
         $subdomain = $request->header('X-Project-Domain') ?? $request->getHost();
         
-        $project = Project::where('subdomain', $subdomain)
-            ->orWhere('domain', $subdomain)
-            ->first();
-
-        if (!$project) {
-            return response()->json([
-                'error' => 'Project not found'
-            ], 404);
-        }
+        $project = $this->resolveProject($subdomain);
 
         // Update project config
         $project->update([
@@ -112,5 +96,27 @@ class ProjectConfigController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Find project record by domain/subdomain. If missing, create a minimal one so sync never fails.
+     */
+    protected function resolveProject(string $domain): Project
+    {
+        $project = Project::where('subdomain', $domain)
+            ->orWhere('domain', $domain)
+            ->first();
+
+        if ($project) {
+            return $project;
+        }
+
+        return Project::create([
+            'name' => config('app.name', 'Automation Project'),
+            'subdomain' => $domain,
+            'domain' => $domain,
+            'status' => 'active',
+            'max_concurrent_workflows' => SystemSetting::get('max_concurrent_workflows', 5),
+        ]);
     }
 }
