@@ -11,6 +11,8 @@ use App\Models\FolderProjectMapping;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Symfony\Component\Process\Process;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 use Illuminate\Support\Str;
 
 class ProjectController extends Controller
@@ -157,6 +159,11 @@ class ProjectController extends Controller
         $project = Project::with('folders')->findOrFail($id);
         
         $result = $this->syncProject($project);
+
+        if ($result['config_synced'] ?? false) {
+            $queueResult = $this->restartProjectQueue($project);
+            $result['queue_restart'] = $queueResult;
+        }
         
         return response()->json($result);
     }
@@ -255,6 +262,63 @@ class ProjectController extends Controller
         }
 
         return $results;
+    }
+
+    /**
+     * Restart queue worker for project to apply concurrency changes
+     */
+    private function restartProjectQueue(Project $project): array
+    {
+        $scriptPath = config('projects.restart_queue_script');
+        $environment = $project->subdomain;
+
+        if (!$environment) {
+            $message = 'Project missing subdomain; skip queue restart.';
+            \Log::warning($message, ['project_id' => $project->id]);
+            return ['success' => false, 'message' => $message];
+        }
+
+        if (!$scriptPath || !is_file($scriptPath)) {
+            $message = sprintf(
+                'restart-queue script not found (config projects.restart_queue_script = %s)',
+                $scriptPath ?: '(empty)'
+            );
+            \Log::error($message);
+            return ['success' => false, 'message' => $message];
+        }
+
+        $process = new Process(['bash', $scriptPath, $environment]);
+        $process->setTimeout(120);
+
+        try {
+            $process->run();
+
+            if (!$process->isSuccessful()) {
+                $errorOutput = $process->getErrorOutput() ?: $process->getOutput();
+                $message = 'Queue restart failed: ' . trim($errorOutput);
+                \Log::error($message, [
+                    'project_id' => $project->id,
+                    'environment' => $environment,
+                ]);
+                throw new ProcessFailedException($process);
+            }
+
+            $message = 'Queue restarted successfully.';
+            \Log::info($message, [
+                'project_id' => $project->id,
+                'environment' => $environment,
+            ]);
+
+            return ['success' => true, 'message' => $message];
+        } catch (\Throwable $e) {
+            $message = 'Queue restart exception: ' . $e->getMessage();
+            \Log::error($message, [
+                'project_id' => $project->id,
+                'environment' => $environment,
+            ]);
+
+            return ['success' => false, 'message' => $message];
+        }
     }
 
     /**
