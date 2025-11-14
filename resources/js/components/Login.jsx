@@ -190,12 +190,6 @@ const Login = ({ onLoginSuccess }) => {
                     {loading ? 'Signing in...' : 'Sign in'}
                 </button>
             </div>
-
-            <div className="text-center">
-                <p className="text-sm text-gray-600 font-medium">
-                    Demo admin: admin@admin.com / password
-                </p>
-            </div>
         </form>
     );
 

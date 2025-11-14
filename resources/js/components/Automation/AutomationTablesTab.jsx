@@ -801,6 +801,27 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
         if (!selectedTable) return;
         
         try {
+            // Sanitize config để tránh lộ thông tin nhạy cảm
+            const rawConfig = JSON.parse(JSON.stringify(selectedTable.config || DEFAULT_CONFIG));
+            const sanitizedWebhook = {
+                ...DEFAULT_CONFIG.webhook,
+                ...(rawConfig.webhook || {}),
+                url: '',
+                authorization: {
+                    ...DEFAULT_CONFIG.webhook.authorization,
+                    ...(rawConfig.webhook?.authorization || {}),
+                    token: '',
+                    username: '',
+                    password: '',
+                },
+            };
+
+            const sanitizedCallback = {
+                ...DEFAULT_CONFIG.callback,
+                ...(rawConfig.callback || {}),
+                token: '',
+            };
+
             // Chuẩn bị data để export
             const exportData = {
                 version: '1.0',
@@ -828,10 +849,10 @@ const AutomationTablesTab = ({ canManage = true, onStructureChange, hideTopicPan
                     sort_order: status.sort_order,
                 })),
                 config: {
-                    webhook: selectedTable.config?.webhook || DEFAULT_CONFIG.webhook,
-                    callback: selectedTable.config?.callback || DEFAULT_CONFIG.callback,
-                    defaults: selectedTable.config?.defaults || DEFAULT_CONFIG.defaults,
-                    exports: selectedTable.config?.exports || DEFAULT_CONFIG.exports,
+                    webhook: sanitizedWebhook,
+                    callback: sanitizedCallback,
+                    defaults: rawConfig.defaults || DEFAULT_CONFIG.defaults,
+                    exports: rawConfig.exports || DEFAULT_CONFIG.exports,
                 },
             };
 
