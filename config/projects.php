@@ -24,5 +24,6 @@ return [
     'provision_script' => env('PROJECT_PROVISION_SCRIPT', '/var/www/provision-n8n.sh'),
     'destroy_script' => env('PROJECT_DESTROY_SCRIPT', '/var/www/destroy-n8n.sh'),
     'restart_queue_script' => env('PROJECT_RESTART_QUEUE_SCRIPT', '/var/www/restart-queue.sh'),
+    'update_script' => env('PROJECT_UPDATE_SCRIPT', '/var/www/update-n8n.sh'),
 ];
 

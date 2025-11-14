@@ -64,6 +64,22 @@ const provisioningStyle = {
     failed: 'bg-rose-100 text-rose-700',
 };
 
+const ActionButton = ({ label, onClick, disabled, Icon, className = '' }) => {
+    return (
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            className={`relative group inline-flex items-center justify-center text-sm font-medium transition-colors ${className}`}
+        >
+            <span className="sr-only">{label}</span>
+            <Icon className="h-4 w-4" aria-hidden="true" />
+            <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                {disabled ? 'Đang xử lý...' : label}
+            </span>
+        </button>
+    );
+};
+
 const ProjectsTab = () => {
     const [projects, setProjects] = useState([]);
     const [folders, setFolders] = useState([]);
@@ -78,6 +94,8 @@ const ProjectsTab = () => {
     const [expandedRows, setExpandedRows] = useState([]);
     const [syncing, setSyncing] = useState({});
     const [provisioningProjects, setProvisioningProjects] = useState(new Set());
+    const [updatingGit, setUpdatingGit] = useState({});
+    const [updatingAllGit, setUpdatingAllGit] = useState(false);
 
     useEffect(() => {
         fetchProjects();
@@ -186,6 +204,36 @@ const ProjectsTab = () => {
         }
     };
 
+    const handleUpdateGit = async (project) => {
+        try {
+            setUpdatingGit(prev => ({ ...prev, [project.id]: true }));
+            const response = await axios.post(`/projects/${project.id}/update-git`);
+            alert(response.data?.message || `Đã cập nhật git cho ${project.name}`);
+        } catch (error) {
+            console.error('Error updating git for project:', error);
+            alert('Không thể update git cho project này. Vui lòng thử lại.');
+        } finally {
+            setUpdatingGit(prev => {
+                const next = { ...prev };
+                delete next[project.id];
+                return next;
+            });
+        }
+    };
+
+    const handleUpdateGitAll = async () => {
+        try {
+            setUpdatingAllGit(true);
+            const response = await axios.post('/projects/update-git-all');
+            alert(response.data?.message || 'Đã chạy update git cho tất cả project.');
+        } catch (error) {
+            console.error('Error updating git for all projects:', error);
+            alert('Không thể update git toàn bộ projects. Vui lòng thử lại.');
+        } finally {
+            setUpdatingAllGit(false);
+        }
+    };
+
     const toggleExpand = (projectId) => {
         setExpandedRows(prev =>
             prev.includes(projectId)
@@ -217,16 +265,32 @@ const ProjectsTab = () => {
             )}
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Projects</h2>
-                <button
-                    onClick={() => {
-                        setShowForm(true);
-                        setEditingProject(null);
-                        setFormData({ name: '', max_concurrent_workflows: 5, folder_ids: [] });
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                >
-                    Add Project
-                </button>
+                <div className="flex items-center space-x-2">
+                    <ActionButton
+                        label={updatingAllGit ? 'Đang cập nhật...' : 'Update Git (All)'}
+                        onClick={handleUpdateGitAll}
+                        disabled={updatingAllGit}
+                        Icon={({ className }) => (
+                            <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0119 5" />
+                            </svg>
+                        )}
+                        className="text-purple-600 hover:text-purple-500 disabled:opacity-50"
+                    />
+                    <button
+                        onClick={() => {
+                            setShowForm(true);
+                            setEditingProject(null);
+                            setFormData({ name: '', max_concurrent_workflows: 5, folder_ids: [] });
+                        }}
+                        className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium space-x-2"
+                    >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Add Project</span>
+                    </button>
+                </div>
             </div>
 
             {showForm && (
@@ -385,26 +449,53 @@ const ProjectsTab = () => {
                                         {provisioningLabel[project.provisioning_status] || 'Không rõ'}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                        <button
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <div className="flex items-center space-x-3">
+                                        <ActionButton
+                                            label={syncing[project.id] ? 'Đang sync...' : 'Sync config/folders'}
                                             onClick={() => handleSync(project.id)}
                                             disabled={syncing[project.id]}
+                                            Icon={({ className }) => (
+                                                <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0119 5" />
+                                                </svg>
+                                            )}
                                             className="text-purple-600 hover:text-purple-500 disabled:opacity-50"
-                                        >
-                                            {syncing[project.id] ? 'Syncing...' : 'Sync'}
-                                        </button>
-                                    <button
-                                        onClick={() => handleEdit(project)}
-                                        className="text-primary hover:text-primary/80"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(project.id)}
-                                        className="text-rose-600 hover:text-rose-500"
-                                    >
-                                        Delete
-                                    </button>
+                                        />
+                                        <ActionButton
+                                            label={updatingGit[project.id] ? 'Đang update git...' : 'Update git cho dự án'}
+                                            onClick={() => handleUpdateGit(project)}
+                                            disabled={Boolean(updatingGit[project.id])}
+                                            Icon={({ className }) => (
+                                                <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7l-5 5 5 5M8 7h4" />
+                                                </svg>
+                                            )}
+                                            className="text-indigo-600 hover:text-indigo-500 disabled:opacity-50"
+                                        />
+                                        <ActionButton
+                                            label="Chỉnh sửa dự án"
+                                            onClick={() => handleEdit(project)}
+                                            disabled={false}
+                                            Icon={({ className }) => (
+                                                <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                                </svg>
+                                            )}
+                                            className="text-primary hover:text-primary/80"
+                                        />
+                                        <ActionButton
+                                            label="Xóa dự án"
+                                            onClick={() => handleDelete(project.id)}
+                                            disabled={false}
+                                            Icon={({ className }) => (
+                                                <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m2 0h2m-6 0V5a2 2 0 00-2-2h0a2 2 0 00-2 2v2m-4 0h10" />
+                                                </svg>
+                                            )}
+                                            className="text-rose-600 hover:text-rose-500"
+                                        />
+                                    </div>
                                 </td>
                             </tr>
                                 {expandedRows.includes(project.id) && (

@@ -74,6 +74,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Project routes (administrator only)
     Route::post('/projects/{project}/sync', [ProjectController::class, 'sync']);
+    Route::post('/projects/{project}/update-git', [ProjectController::class, 'updateGit']);
+    Route::post('/projects/update-git-all', [ProjectController::class, 'updateGitAll']);
     Route::apiResource('projects', ProjectController::class);
 
     // Project folder routes (for regular authenticated users)

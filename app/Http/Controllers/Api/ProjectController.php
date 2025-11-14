@@ -169,6 +169,31 @@ class ProjectController extends Controller
     }
 
     /**
+     * Run update git script for a single project
+     */
+    public function updateGit(string $id): JsonResponse
+    {
+        $this->checkAdministrator();
+        $project = Project::findOrFail($id);
+
+        $result = $this->runUpdateScript($project->subdomain);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Run update git script globally (all projects)
+     */
+    public function updateGitAll(): JsonResponse
+    {
+        $this->checkAdministrator();
+
+        $result = $this->runUpdateScript();
+
+        return response()->json($result);
+    }
+
+    /**
      * Internal method to sync project config and folders
      */
     private function syncProject(Project $project): array
@@ -314,6 +339,64 @@ class ProjectController extends Controller
             $message = 'Queue restart exception: ' . $e->getMessage();
             \Log::error($message, [
                 'project_id' => $project->id,
+                'environment' => $environment,
+            ]);
+
+            return ['success' => false, 'message' => $message];
+        }
+    }
+
+    /**
+     * Execute update script optionally scoped to a project environment
+     */
+    private function runUpdateScript(?string $environment = null): array
+    {
+        $scriptPath = config('projects.update_script');
+
+        if (!$scriptPath || !is_file($scriptPath)) {
+            $message = sprintf(
+                'update script not found (config projects.update_script = %s)',
+                $scriptPath ?: '(empty)'
+            );
+            \Log::error($message, ['environment' => $environment]);
+            return ['success' => false, 'message' => $message];
+        }
+
+        $command = ['bash', $scriptPath];
+        if ($environment) {
+            $command[] = $environment;
+        }
+
+        $process = new Process($command);
+        $process->setTimeout(null);
+
+        try {
+            $process->run();
+
+            if (!$process->isSuccessful()) {
+                $errorOutput = $process->getErrorOutput() ?: $process->getOutput();
+                $message = 'Update script failed: ' . trim($errorOutput);
+                \Log::error($message, [
+                    'environment' => $environment,
+                ]);
+                throw new ProcessFailedException($process);
+            }
+
+            $output = Str::limit($process->getOutput(), 1900);
+
+            \Log::info('Update script completed successfully', [
+                'environment' => $environment,
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'Update script executed successfully.',
+                'output' => $output,
+                'environment' => $environment,
+            ];
+        } catch (\Throwable $e) {
+            $message = 'Update script exception: ' . $e->getMessage();
+            \Log::error($message, [
                 'environment' => $environment,
             ]);
 
