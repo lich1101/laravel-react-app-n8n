@@ -575,7 +575,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                     <div>
                                         <p className="text-sm font-medium text-gray-800">Thinking Mode</p>
                                         <p className="text-xs text-gray-500">
-                                            Bật để gửi <code>thinking_mode = "extended"</code> cùng <code>thinking_budget</code> tới Claude.
+                                            Bật để gửi <code>thinking.type = "enabled"</code> cùng <code>thinking.budget_tokens</code> tới Claude.
                                         </p>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
@@ -591,7 +591,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 {config.thinkingEnabled && (
                                     <div className="mt-3 space-y-2">
                                         <label className="text-xs font-semibold text-gray-600">
-                                            Thinking Budget (tokens)
+                                            Budget Tokens
                                         </label>
                                         <input
                                             type="number"
@@ -606,10 +606,10 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                 });
                                             }}
                                             className="w-full px-3 py-2 border border-orange-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
-                                            placeholder="Nhập số token dành cho thinking"
+                                            placeholder="Nhập số token dành cho thinking (mặc định: 10000)"
                                         />
                                         <p className="text-xs text-gray-500">
-                                            Ví dụ: 5000. Giá trị càng cao thì Claude càng có nhiều ngân sách để reasoning.
+                                            Ví dụ: 10000. Giá trị càng cao thì Claude càng có nhiều ngân sách để reasoning.
                                         </p>
                                     </div>
                                 )}

@@ -2254,7 +2254,6 @@ JS;
             ];
 
             if (!empty($config['thinkingEnabled'])) {
-                $requestBody['thinking_mode'] = 'extended';
                 $rawBudget = $config['thinkingBudget'] ?? null;
                 $normalizedBudget = null;
 
@@ -2265,10 +2264,13 @@ JS;
                 }
 
                 if ($normalizedBudget === null || $normalizedBudget <= 0) {
-                    $normalizedBudget = 5000;
+                    $normalizedBudget = 10000;
                 }
 
-                $requestBody['thinking_budget'] = $normalizedBudget;
+                $requestBody['thinking'] = [
+                    'type' => 'enabled',
+                    'budget_tokens' => $normalizedBudget,
+                ];
             }
 
             $allowedClaudeOptions = ['max_tokens', 'temperature', 'top_k', 'top_p'];
@@ -2580,13 +2582,6 @@ JS;
                 $this->extractAllowedOptions($config, $allowedGeminiOptions)
             );
 
-            // Add thinking config when requested
-            if (!empty($config['thinkingEnabled'])) {
-                $requestBody['thinking_config'] = [
-                    'include_thoughts' => true,
-                ];
-            }
-
             // Add functions if provided
             if (!empty($config['functions']) && is_array($config['functions'])) {
                 $functions = [];
@@ -2636,6 +2631,18 @@ JS;
                 }
             }
 
+            // Get timeout - prioritize advancedOptions over config
+            $timeout = 60;
+            $configTimeout = isset($config['timeout']) ? (int)$config['timeout'] : null;
+            $advancedTimeout = !empty($config['advancedOptions']['timeout']) ? (int)$config['advancedOptions']['timeout'] : null;
+            
+            // Use the larger timeout value (advancedOptions takes priority if both exist)
+            if ($advancedTimeout !== null) {
+                $timeout = $advancedTimeout;
+            } elseif ($configTimeout !== null) {
+                $timeout = $configTimeout;
+            }
+
             Log::info('Gemini API Request', [
                 'model' => $requestBody['model'],
                 'messages_count' => count($messages),
@@ -2648,18 +2655,6 @@ JS;
                 'Content-Type' => 'application/json',
                 'Authorization' => 'Bearer ' . $apiKey,
             ];
-
-            // Get timeout - prioritize advancedOptions over config
-            $timeout = 60;
-            $configTimeout = isset($config['timeout']) ? (int)$config['timeout'] : null;
-            $advancedTimeout = !empty($config['advancedOptions']['timeout']) ? (int)$config['advancedOptions']['timeout'] : null;
-            
-            // Use the larger timeout value (advancedOptions takes priority if both exist)
-            if ($advancedTimeout !== null) {
-                $timeout = $advancedTimeout;
-            } elseif ($configTimeout !== null) {
-                $timeout = $configTimeout;
-            }
 
             Log::info('Gemini timeout setting', [
                 'config_timeout' => $configTimeout,
@@ -2777,6 +2772,7 @@ JS;
 
         return $value;
     }
+
 
     private function resolveVariables($template, $inputData, $workflow = null)
     {
