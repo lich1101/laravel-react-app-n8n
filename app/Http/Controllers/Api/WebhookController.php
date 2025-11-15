@@ -2253,6 +2253,24 @@ JS;
                 'messages' => $messages,
             ];
 
+            if (!empty($config['thinkingEnabled'])) {
+                $requestBody['thinking_mode'] = 'extended';
+                $rawBudget = $config['thinkingBudget'] ?? null;
+                $normalizedBudget = null;
+
+                if (is_numeric($rawBudget)) {
+                    $normalizedBudget = (int) $rawBudget;
+                } elseif (is_string($rawBudget) && trim($rawBudget) !== '') {
+                    $normalizedBudget = (int) trim($rawBudget);
+                }
+
+                if ($normalizedBudget === null || $normalizedBudget <= 0) {
+                    $normalizedBudget = 5000;
+                }
+
+                $requestBody['thinking_budget'] = $normalizedBudget;
+            }
+
             $allowedClaudeOptions = ['max_tokens', 'temperature', 'top_k', 'top_p'];
             $requestBody = array_merge(
                 $requestBody,
@@ -2561,6 +2579,13 @@ JS;
                 $requestBody,
                 $this->extractAllowedOptions($config, $allowedGeminiOptions)
             );
+
+            // Add thinking config when requested
+            if (!empty($config['thinkingEnabled'])) {
+                $requestBody['thinking_config'] = [
+                    'include_thoughts' => true,
+                ];
+            }
 
             // Add functions if provided
             if (!empty($config['functions']) && is_array($config['functions'])) {

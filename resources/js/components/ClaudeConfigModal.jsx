@@ -15,6 +15,8 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         ],
         credentialId: null,
         advancedOptions: {},
+        thinkingEnabled: false,
+        thinkingBudget: 5000,
     });
 
     const availableOptions = [
@@ -58,7 +60,14 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
     useEffect(() => {
         if (node?.data?.config) {
-            setConfig({ ...config, ...node.data.config });
+            setConfig(prev => ({
+                ...prev,
+                ...node.data.config,
+                thinkingEnabled: node.data.config.thinkingEnabled ?? prev.thinkingEnabled ?? false,
+                thinkingBudget: Number.isFinite(Number(node.data.config.thinkingBudget))
+                    ? Number(node.data.config.thinkingBudget)
+                    : (prev.thinkingBudget ?? 5000),
+            }));
         }
         fetchCredentials();
     }, [node]);
@@ -557,6 +566,52 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                         hint="💡 Kéo thả biến từ INPUT panel hoặc dùng cú pháp {{variable}}"
                                         inputData={inputData}
                                     />
+                                )}
+                            </div>
+
+                            {/* Thinking Toggle */}
+                            <div className="border border-gray-200 rounded-2xl p-4 bg-orange-50/70">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-800">Thinking Mode</p>
+                                        <p className="text-xs text-gray-500">
+                                            Bật để gửi <code>thinking_mode = "extended"</code> cùng <code>thinking_budget</code> tới Claude.
+                                        </p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={!!config.thinkingEnabled}
+                                            onChange={(e) => setConfig({ ...config, thinkingEnabled: e.target.checked })}
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                                    </label>
+                                </div>
+                                {config.thinkingEnabled && (
+                                    <div className="mt-3 space-y-2">
+                                        <label className="text-xs font-semibold text-gray-600">
+                                            Thinking Budget (tokens)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            step={100}
+                                            value={config.thinkingBudget ?? ''}
+                                            onChange={(e) => {
+                                                const value = Number(e.target.value);
+                                                setConfig({
+                                                    ...config,
+                                                    thinkingBudget: Number.isNaN(value) ? '' : value,
+                                                });
+                                            }}
+                                            className="w-full px-3 py-2 border border-orange-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                                            placeholder="Nhập số token dành cho thinking"
+                                        />
+                                        <p className="text-xs text-gray-500">
+                                            Ví dụ: 5000. Giá trị càng cao thì Claude càng có nhiều ngân sách để reasoning.
+                                        </p>
+                                    </div>
                                 )}
                             </div>
 

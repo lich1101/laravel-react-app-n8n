@@ -18,9 +18,7 @@ class CredentialController extends Controller
      */
     public function index(Request $request)
     {
-        $user = Auth::user();
-        
-        $query = Credential::forUser($user->id);
+        $query = Credential::query();
         
         // Filter by type if provided
         if ($request->has('type')) {
@@ -84,9 +82,7 @@ class CredentialController extends Controller
      */
     public function show(string $id)
     {
-        $credential = Credential::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $credential = Credential::findOrFail($id);
 
         return response()->json([
             'id' => $credential->id,
@@ -104,9 +100,7 @@ class CredentialController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $credential = Credential::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $credential = Credential::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
@@ -139,9 +133,7 @@ class CredentialController extends Controller
      */
     public function destroy(string $id)
     {
-        $credential = Credential::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $credential = Credential::findOrFail($id);
 
         $credential->delete();
 
@@ -155,9 +147,7 @@ class CredentialController extends Controller
      */
     public function test(string $id)
     {
-        $credential = Credential::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $credential = Credential::findOrFail($id);
 
         // Here you could add logic to test the credential
         // For now, just return the decrypted data
@@ -372,9 +362,7 @@ class CredentialController extends Controller
             
             // If credentialId provided, use existing credential
             if ($credentialId) {
-                $credential = Credential::where('id', $credentialId)
-                    ->where('user_id', $user->id)
-                    ->firstOrFail();
+                $credential = Credential::findOrFail($credentialId);
 
                 if ($credential->type !== 'oauth2') {
                     return response()->json(['error' => 'Not an OAuth2 credential'], 400);
@@ -502,9 +490,7 @@ class CredentialController extends Controller
                     return redirect('/workflows?oauth_error=invalid_state');
                 }
 
-                $credential = Credential::where('id', $credentialId)
-                    ->where('user_id', $userId)
-                    ->first();
+                $credential = Credential::find($credentialId);
 
                 if (!$credential) {
                     Log::error('Credential not found', ['credential_id' => $credentialId]);
