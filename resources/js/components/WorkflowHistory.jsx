@@ -8,6 +8,7 @@ import ScheduleTriggerConfigModal from './ScheduleTriggerConfigModal';
 import HttpRequestConfigModal from './HttpRequestConfigModal';
 import PerplexityConfigModal from './PerplexityConfigModal';
 import ClaudeConfigModal from './ClaudeConfigModal';
+import OpenAIConfigModal from './OpenAIConfigModal';
 import GeminiConfigModal from './GeminiConfigModal';
 import GoogleDocsConfigModal from './GoogleDocsConfigModal';
 import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
@@ -21,6 +22,22 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
     const isCompleted = data?.isCompleted || false;
     const hasError = data?.hasError || false;
     const connectedHandles = data?.connectedHandles || [];
+    const [iconError, setIconError] = React.useState(false);
+
+    // Reset error state when iconPath or nodeType changes
+    React.useEffect(() => {
+        setIconError(false);
+    }, [iconPath, nodeType]);
+
+    // Get fallback text from nodeType (first 2-3 characters)
+    const getFallbackText = () => {
+        if (!nodeType) return '?';
+        const words = nodeType.split(/\s+/);
+        if (words.length >= 2) {
+            return words.map(w => w[0]?.toUpperCase() || '').slice(0, 2).join('');
+        }
+        return nodeType.substring(0, 2).toUpperCase();
+    };
 
     return (
         <div 
@@ -41,11 +58,19 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
             
             {/* Icon SVG */}
             <div className="w-10 h-10 flex items-center justify-center pointer-events-none relative">
-                <img 
-                    src={iconPath} 
-                    alt={nodeType}
-                    className="w-full h-full object-contain"
-                />
+                {!iconError ? (
+                    <img 
+                        src={iconPath} 
+                        alt={nodeType}
+                        className="w-full h-full object-contain"
+                        onError={() => setIconError(true)}
+                        loading="lazy"
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200 rounded text-gray-600 text-xs font-bold">
+                        {getFallbackText()}
+                    </div>
+                )}
             </div>
             
             {/* Node name label */}
@@ -174,6 +199,15 @@ const nodeTypes = {
             nodeType="claude"
             iconPath="/icons/nodes/claude.svg"
             color="orange"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    openai: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="openai"
+            iconPath="/icons/nodes/open_ai.svg"
+            color="green"
             handles={{ input: true, outputs: [{ id: null }] }}
         />
     ),
@@ -981,6 +1015,22 @@ const WorkflowHistory = () => {
 
                                     {showConfigModal && selectedNode && selectedNode.type === 'claude' && (
                                         <ClaudeConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
+
+                                    {showConfigModal && selectedNode && selectedNode.type === 'openai' && (
+                                        <OpenAIConfigModal
                                             node={selectedNode}
                                             onSave={() => {}} // No-op
                                             onClose={() => setShowConfigModal(false)}
