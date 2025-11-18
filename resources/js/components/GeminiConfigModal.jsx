@@ -240,12 +240,8 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
     const fetchCredentials = async () => {
         try {
-            const response = await axios.get('/credentials');
-            // Filter for custom or bearer types (Gemini uses Bearer token)
-            const filtered = Array.isArray(response.data) 
-                ? response.data.filter(c => c.type === 'custom' || c.type === 'bearer')
-                : [];
-            setCredentials(filtered);
+            const response = await axios.get('/credentials', { params: { type: 'gemini' } });
+            setCredentials(Array.isArray(response.data) ? response.data : []);
         } catch (error) {
             console.error('Error fetching credentials:', error);
             setCredentials([]);
@@ -830,7 +826,8 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                 isOpen={showCredentialModal}
                 onClose={() => setShowCredentialModal(false)}
                 onSave={handleCredentialSaved}
-                credentialType="custom"
+                credentialType="gemini"
+                lockedType={true}
             />
         </div>
     );

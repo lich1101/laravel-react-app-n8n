@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
 
-const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', existingCredential = null }) => {
+const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', existingCredential = null, lockedType = false }) => {
     const [formData, setFormData] = useState({
         name: '',
         type: credentialType,
@@ -52,6 +52,14 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                 };
             case 'custom':
                 return { headerName: 'Authorization', headerValue: '' };
+            case 'claude':
+                return { key: '' };
+            case 'gemini':
+                return { key: '' };
+            case 'perplexity':
+                return { key: '' };
+            case 'openai':
+                return { key: '' };
             default:
                 return {};
         }
@@ -439,6 +447,98 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                     </>
                 );
             
+            case 'claude':
+                return (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Claude API Key *
+                        </label>
+                        <input
+                            type="password"
+                            value={formData.data.key || ''}
+                            onChange={(e) => setFormData({
+                                ...formData,
+                                data: { ...formData.data, key: e.target.value }
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                            placeholder="sk-ant-..."
+                            required
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            API key sẽ được gửi trong header: x-api-key
+                        </p>
+                    </div>
+                );
+            
+            case 'gemini':
+                return (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Gemini API Key *
+                        </label>
+                        <input
+                            type="password"
+                            value={formData.data.key || ''}
+                            onChange={(e) => setFormData({
+                                ...formData,
+                                data: { ...formData.data, key: e.target.value }
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                            placeholder="AIza..."
+                            required
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            API key sẽ được gửi trong header: x-goog-api-key
+                        </p>
+                    </div>
+                );
+            
+            case 'perplexity':
+                return (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Perplexity API Key *
+                        </label>
+                        <input
+                            type="password"
+                            value={formData.data.key || ''}
+                            onChange={(e) => setFormData({
+                                ...formData,
+                                data: { ...formData.data, key: e.target.value }
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                            placeholder="pplx-..."
+                            required
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            API key sẽ được gửi trong header: Authorization: Bearer
+                        </p>
+                    </div>
+                );
+            
+            case 'openai':
+                return (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            OpenAI API Key *
+                        </label>
+                        <input
+                            type="password"
+                            value={formData.data.key || ''}
+                            onChange={(e) => setFormData({
+                                ...formData,
+                                data: { ...formData.data, key: e.target.value }
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                            placeholder="sk-..."
+                            required
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            API key sẽ được gửi trong header: Authorization: Bearer
+                        </p>
+                    </div>
+                );
+            
             default:
                 return null;
         }
@@ -565,45 +665,53 @@ const CredentialModal = ({ isOpen, onClose, onSave, credentialType = 'bearer', e
                         />
                     </div>
 
-                    {/* Type */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Authentication Type
-                        </label>
-                        <select
-                            value={formData.type}
-                            onChange={(e) => setFormData({
-                                ...formData,
-                                type: e.target.value,
-                                data: getDefaultDataForType(e.target.value)
-                            })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
-                            disabled={!!existingCredential}
-                        >
-                            <option value="bearer">Bearer Token</option>
-                            <option value="api_key">API Key</option>
-                            <option value="basic">Basic Auth</option>
-                            <option value="oauth2">OAuth2</option>
-                            <option value="custom">Custom Header</option>
-                        </select>
-                    </div>
+                    {/* Type - Only show if not locked or not AI type */}
+                    {!lockedType || !['claude', 'gemini', 'perplexity', 'openai'].includes(formData.type) ? (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Authentication Type
+                            </label>
+                            <select
+                                value={formData.type}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    type: e.target.value,
+                                    data: getDefaultDataForType(e.target.value)
+                                })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                disabled={!!existingCredential || lockedType}
+                            >
+                                <option value="bearer">Bearer Token</option>
+                                <option value="api_key">API Key</option>
+                                <option value="basic">Basic Auth</option>
+                                <option value="oauth2">OAuth2</option>
+                                <option value="custom">Custom Header</option>
+                                <option value="claude">Claude API</option>
+                                <option value="gemini">Gemini API</option>
+                                <option value="perplexity">Perplexity API</option>
+                                <option value="openai">OpenAI API</option>
+                            </select>
+                        </div>
+                    ) : null}
 
                     {/* Type-specific fields */}
                     {renderDataFields()}
 
-                    {/* Description */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Description (Optional)
-                        </label>
-                        <textarea
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
-                            placeholder="Add notes about this credential"
-                            rows={3}
-                        />
-                    </div>
+                    {/* Description - Only show if not AI type with lockedType */}
+                    {!(lockedType && ['claude', 'gemini', 'perplexity', 'openai'].includes(formData.type)) && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Description (Optional)
+                            </label>
+                            <textarea
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                placeholder="Add notes about this credential"
+                                rows={3}
+                            />
+                        </div>
+                    )}
 
                     {/* Info message */}
                     <div className="bg-blue-50 border border-blue-200 rounded p-3">

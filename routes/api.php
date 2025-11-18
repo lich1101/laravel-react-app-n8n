@@ -54,6 +54,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Gemini routes
     Route::post('/gemini/get-models', [WebhookController::class, 'getGeminiModels']);
     
+    // OpenAI routes
+    Route::post('/openai/get-models', [WebhookController::class, 'getOpenAIModels']);
+    
     // Google Sheets routes
     Route::post('/google-sheets/get-columns', [WebhookController::class, 'getGoogleSheetsColumns']);
 

@@ -18,6 +18,7 @@ import ScheduleTriggerConfigModal from './ScheduleTriggerConfigModal';
 import HttpRequestConfigModal from './HttpRequestConfigModal';
 import PerplexityConfigModal from './PerplexityConfigModal';
 import ClaudeConfigModal from './ClaudeConfigModal';
+import OpenAIConfigModal from './OpenAIConfigModal';
 import CodeConfigModal from './CodeConfigModal';
 import EscapeConfigModal from './EscapeConfigModal';
 import IfConfigModal from './IfConfigModal';
@@ -265,6 +266,18 @@ const nodeTypes = {
             selected={props.selected}
         />
     ),
+    openai: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="openai"
+            iconPath="/icons/nodes/open_ai.svg"
+            color="green"
+            handles={{ input: true, outputs: [{ id: null }] }}
+            onQuickAdd={props.data.onQuickAdd}
+            connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
+        />
+    ),
     code: (props) => (
         <CompactNode 
             {...props} 
@@ -382,6 +395,7 @@ const ADD_NODE_OPTIONS = [
     { type: 'http', label: 'HTTP Request', icon: '🔗' },
     { type: 'perplexity', label: 'Perplexity AI', icon: '🤖' },
     { type: 'claude', label: 'Claude AI', icon: '🤖' },
+    { type: 'openai', label: 'OpenAI', icon: '🤖' },
     { type: 'gemini', label: 'Gemini AI', icon: '🤖' },
     { type: 'code', label: 'Code', icon: '💻' },
     { type: 'escape', label: 'Escape & Set', icon: '✂️' },
@@ -1309,7 +1323,7 @@ function WorkflowEditor() {
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
-        if (node.type === 'webhook' || node.type === 'schedule' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'gemini' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
+        if (node.type === 'webhook' || node.type === 'schedule' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'openai' || node.type === 'gemini' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
             setShowConfigModal(true);
         }
     };
@@ -1649,6 +1663,12 @@ function WorkflowEditor() {
     const handleTestClaudeNode = async (config) => {
         console.log('Testing Claude with config:', config);
         return await callTestNodeAPI('claude', config);
+    };
+
+    // Test OpenAI node (via backend API)
+    const handleTestOpenAINode = async (config) => {
+        console.log('Testing OpenAI with config:', config);
+        return await callTestNodeAPI('openai', config);
     };
 
     // Test Gemini node (via backend API)
@@ -2538,6 +2558,21 @@ function WorkflowEditor() {
                         onSave={handleSaveConfig}
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestClaudeNode}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
+                        outputData={nodeOutputData[selectedNode.id]}
+                        onTestResult={handleTestResult}
+                        allEdges={edges}
+                        allNodes={nodes}
+                    />
+                )}
+
+                {showConfigModal && selectedNode && selectedNode.type === 'openai' && (
+                    <OpenAIConfigModal
+                        node={selectedNode}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onTest={handleTestOpenAINode}
                         onRename={() => openRenameModal(selectedNode.id)}
                         inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}

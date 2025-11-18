@@ -74,7 +74,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
     const fetchCredentials = async () => {
         try {
-            const response = await axios.get('/credentials', { params: { type: 'custom' } });
+            const response = await axios.get('/credentials', { params: { type: 'claude' } });
             setCredentials(Array.isArray(response.data) ? response.data : []);
         } catch (error) {
             console.error('Error fetching credentials:', error);
@@ -517,7 +517,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 </div>
                                 {!config.credentialId && (
                                     <p className="mt-1 text-xs text-orange-600">
-                                        ⚠️ Tạo credential kiểu "Custom Header" với Header Name = "x-api-key" và Header Value = "YOUR_CLAUDE_API_KEY"
+                                        ⚠️ Nhấn "+ New" để tạo credential Claude API
                                     </p>
                                 )}
                             </div>
@@ -868,7 +868,8 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                 isOpen={showCredentialModal}
                 onClose={() => setShowCredentialModal(false)}
                 onSave={handleCredentialSaved}
-                credentialType="custom"
+                credentialType="claude"
+                lockedType={true}
             />
         </div>
     );

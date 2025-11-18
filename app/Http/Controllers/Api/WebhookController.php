@@ -889,6 +889,9 @@ class WebhookController extends Controller
             case 'claude':
                 return $this->executeClaudeNode($config, $inputData);
 
+            case 'openai':
+                return $this->executeOpenAINode($config, $inputData);
+
             case 'code':
                 return $this->executeCodeNode($config, $inputData);
 
@@ -2243,7 +2246,20 @@ JS;
             }
 
             $credential = \App\Models\Credential::find($credentialId);
-            if (!$credential || !isset($credential->data['headerValue'])) {
+            if (!$credential) {
+                throw new \Exception('Claude credential not found');
+            }
+
+            // Get API key from credential based on type
+            $apiKey = null;
+            if ($credential->type === 'claude') {
+                $apiKey = $credential->data['key'] ?? null;
+            } elseif ($credential->type === 'custom' && isset($credential->data['headerValue'])) {
+                // Backward compatibility with old custom header credentials
+                $apiKey = $credential->data['headerValue'];
+            }
+
+            if (!$apiKey) {
                 throw new \Exception('Invalid Claude credential configuration');
             }
 
@@ -2299,7 +2315,7 @@ JS;
             $headers = [
                 'Content-Type' => 'application/json',
                 'anthropic-version' => '2023-06-01',
-                'x-api-key' => $credential->data['headerValue'],
+                'x-api-key' => $apiKey,
             ];
 
             // Get timeout - prioritize advancedOptions over config
@@ -2415,7 +2431,23 @@ JS;
             }
 
             $credential = \App\Models\Credential::find($credentialId);
-            if (!$credential || !isset($credential->data['headerValue'])) {
+            if (!$credential) {
+                throw new \Exception('Perplexity credential not found');
+            }
+
+            // Get API key from credential based on type
+            $apiKey = null;
+            if ($credential->type === 'perplexity') {
+                $apiKey = $credential->data['key'] ?? null;
+            } elseif ($credential->type === 'custom' && isset($credential->data['headerValue'])) {
+                // Backward compatibility with old custom header credentials
+                $apiKey = $credential->data['headerValue'];
+            } elseif ($credential->type === 'bearer' && isset($credential->data['token'])) {
+                // Backward compatibility with bearer token credentials
+                $apiKey = $credential->data['token'];
+            }
+
+            if (!$apiKey) {
                 throw new \Exception('Invalid Perplexity credential configuration');
             }
 
@@ -2440,7 +2472,7 @@ JS;
             // Build headers
             $headers = [
                 'Content-Type' => 'application/json',
-                $credential->data['headerName'] ?? 'Authorization' => $credential->data['headerValue'],
+                'Authorization' => 'Bearer ' . $apiKey,
             ];
 
             // Get timeout - prioritize advancedOptions over config
@@ -2522,6 +2554,204 @@ JS;
         }
     }
 
+    private function executeOpenAINode($config, $inputData)
+    {
+        try {
+            // Build messages array
+            $messages = [];
+            
+            // Add system message if enabled
+            if (!empty($config['systemMessageEnabled']) && !empty($config['systemMessage'])) {
+                $systemMessage = $this->resolveVariables($config['systemMessage'], $inputData);
+                if ($systemMessage) {
+                    $messages[] = [
+                        'role' => 'system',
+                        'content' => $systemMessage
+                    ];
+                }
+            }
+
+            // Add all user/assistant messages
+            if (!empty($config['messages']) && is_array($config['messages'])) {
+                foreach ($config['messages'] as $msg) {
+                    $content = $this->resolveVariables($msg['content'] ?? '', $inputData);
+                    if (!empty($content)) {
+                        $messages[] = [
+                            'role' => $msg['role'] ?? 'user',
+                            'content' => $content
+                        ];
+                    }
+                }
+            }
+
+            // Get credential
+            $credentialId = $config['credentialId'] ?? null;
+            if (!$credentialId) {
+                throw new \Exception('OpenAI API credential is required');
+            }
+
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential) {
+                throw new \Exception('OpenAI credential not found');
+            }
+
+            // Get API key from credential based on type
+            $apiKey = null;
+            if ($credential->type === 'openai') {
+                $apiKey = $credential->data['key'] ?? null;
+            } elseif ($credential->type === 'custom' && isset($credential->data['headerValue'])) {
+                // Backward compatibility with old custom header credentials
+                $headerValue = $credential->data['headerValue'];
+                $apiKey = $headerValue;
+                if (strpos($headerValue, 'Bearer ') === 0) {
+                    $apiKey = substr($headerValue, 7);
+                }
+            } elseif ($credential->type === 'bearer' && isset($credential->data['token'])) {
+                // Backward compatibility with bearer token credentials
+                $apiKey = $credential->data['token'];
+            }
+
+            if (!$apiKey) {
+                throw new \Exception('Invalid OpenAI credential configuration');
+            }
+
+            // Build request body
+            $requestBody = [
+                'model' => $config['model'] ?? 'gpt-4o',
+                'messages' => $messages,
+            ];
+
+            // Add optional parameters
+            if (isset($config['temperature'])) {
+                $requestBody['temperature'] = (float) $config['temperature'];
+            }
+            if (isset($config['top_p'])) {
+                $requestBody['top_p'] = (float) $config['top_p'];
+            }
+            if (isset($config['max_tokens'])) {
+                $requestBody['max_tokens'] = (int) $config['max_tokens'];
+            }
+            if (isset($config['presence_penalty'])) {
+                $requestBody['presence_penalty'] = (float) $config['presence_penalty'];
+            }
+            if (isset($config['frequency_penalty'])) {
+                $requestBody['frequency_penalty'] = (float) $config['frequency_penalty'];
+            }
+            if (!empty($config['stop']) && is_array($config['stop'])) {
+                $stopSequences = array_filter($config['stop'], function($s) { return !empty(trim($s)); });
+                if (!empty($stopSequences)) {
+                    $requestBody['stop'] = array_values($stopSequences);
+                }
+            }
+            if (isset($config['logprobs']) && $config['logprobs']) {
+                $requestBody['logprobs'] = true;
+                if (isset($config['top_logprobs']) && $config['top_logprobs'] !== null) {
+                    $requestBody['top_logprobs'] = (int) $config['top_logprobs'];
+                }
+            }
+            if (!empty($config['response_format'])) {
+                $requestBody['response_format'] = $config['response_format'];
+            }
+            if (!empty($config['tools']) && is_array($config['tools'])) {
+                $requestBody['tools'] = $config['tools'];
+            }
+            if (isset($config['tool_choice'])) {
+                $requestBody['tool_choice'] = $config['tool_choice'];
+            }
+            if (isset($config['stream'])) {
+                $requestBody['stream'] = (bool) $config['stream'];
+            }
+            if (!empty($config['metadata']) && is_array($config['metadata'])) {
+                $requestBody['metadata'] = $config['metadata'];
+            }
+
+            Log::info('OpenAI API Request', [
+                'model' => $requestBody['model'],
+                'messages_count' => count($messages),
+                'has_tools' => isset($requestBody['tools']),
+            ]);
+
+            // Build headers
+            $headers = [
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer ' . $apiKey,
+            ];
+
+            // Get timeout
+            $timeout = 60;
+            $configTimeout = isset($config['timeout']) ? (int)$config['timeout'] : null;
+            $advancedTimeout = !empty($config['advancedOptions']['timeout']) ? (int)$config['advancedOptions']['timeout'] : null;
+            
+            if ($advancedTimeout !== null) {
+                $timeout = $advancedTimeout;
+            } elseif ($configTimeout !== null) {
+                $timeout = $configTimeout;
+            }
+
+            Log::info('OpenAI timeout setting', [
+                'config_timeout' => $configTimeout,
+                'advanced_timeout' => $advancedTimeout,
+                'final_timeout' => $timeout,
+            ]);
+
+            // Increase PHP execution time limit for long requests
+            $originalMaxExecutionTime = ini_get('max_execution_time');
+            if ($timeout > 60) {
+                set_time_limit($timeout + 30);
+            }
+
+            // Make HTTP request to OpenAI API
+            $originalTimeout = ini_get('default_socket_timeout');
+            if ($timeout > 60) {
+                ini_set('default_socket_timeout', $timeout);
+            }
+
+            try {
+                $response = Http::withHeaders($headers)
+                    ->timeout($timeout)
+                    ->withOptions([
+                        'connect_timeout' => 30,
+                        'timeout' => $timeout,
+                        'read_timeout' => $timeout,
+                    ])
+                    ->post('https://api.openai.com/v1/chat/completions', $requestBody);
+            } finally {
+                if ($timeout > 60) {
+                    ini_set('default_socket_timeout', $originalTimeout);
+                    set_time_limit($originalMaxExecutionTime);
+                }
+            }
+
+            if (!$response->successful()) {
+                Log::error('OpenAI API Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                
+                throw new \Exception('OpenAI API error: ' . $response->body());
+            }
+
+            $result = $response->json();
+
+            Log::info('OpenAI API Response', [
+                'model' => $result['model'] ?? 'unknown',
+                'has_choices' => isset($result['choices']),
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error('OpenAI node execution failed', [
+                'error' => $e->getMessage(),
+                'config' => $config,
+            ]);
+
+            return [
+                'error' => 'OpenAI request failed',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
     private function executeGeminiNode($config, $inputData)
     {
         try {
@@ -2559,15 +2789,28 @@ JS;
             }
 
             $credential = \App\Models\Credential::find($credentialId);
-            if (!$credential || !isset($credential->data['headerValue'])) {
-                throw new \Exception('Invalid Gemini credential configuration');
+            if (!$credential) {
+                throw new \Exception('Gemini credential not found');
             }
 
-            // Extract API key from header value (Bearer YOUR_API_KEY)
-            $headerValue = $credential->data['headerValue'];
-            $apiKey = $headerValue;
-            if (strpos($headerValue, 'Bearer ') === 0) {
-                $apiKey = substr($headerValue, 7);
+            // Get API key from credential based on type
+            $apiKey = null;
+            if ($credential->type === 'gemini') {
+                $apiKey = $credential->data['key'] ?? null;
+            } elseif ($credential->type === 'custom' && isset($credential->data['headerValue'])) {
+                // Backward compatibility with old custom header credentials
+                $headerValue = $credential->data['headerValue'];
+                $apiKey = $headerValue;
+                if (strpos($headerValue, 'Bearer ') === 0) {
+                    $apiKey = substr($headerValue, 7);
+                }
+            } elseif ($credential->type === 'bearer' && isset($credential->data['token'])) {
+                // Backward compatibility with bearer token credentials
+                $apiKey = $credential->data['token'];
+            }
+
+            if (!$apiKey) {
+                throw new \Exception('Invalid Gemini credential configuration');
             }
 
             // Build request body
@@ -2653,7 +2896,7 @@ JS;
             // Build headers
             $headers = [
                 'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $apiKey,
+                'x-goog-api-key' => $apiKey,
             ];
 
             Log::info('Gemini timeout setting', [
@@ -3989,6 +4232,78 @@ JS;
 
             return response()->json([
                 'error' => 'Failed to fetch Gemini models',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getOpenAIModels(Request $request)
+    {
+        try {
+            $credentialId = $request->input('credentialId');
+            
+            if (!$credentialId) {
+                return response()->json([
+                    'error' => 'Credential ID is required'
+                ], 400);
+            }
+
+            // Get credential
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential) {
+                return response()->json([
+                    'error' => 'Credential not found'
+                ], 404);
+            }
+
+            // Get API key from credential based on type
+            $apiKey = null;
+            if ($credential->type === 'openai') {
+                $apiKey = $credential->data['key'] ?? null;
+            } elseif ($credential->type === 'custom' && isset($credential->data['headerValue'])) {
+                // Backward compatibility
+                $headerValue = $credential->data['headerValue'];
+                $apiKey = $headerValue;
+                if (strpos($headerValue, 'Bearer ') === 0) {
+                    $apiKey = substr($headerValue, 7);
+                }
+            } elseif ($credential->type === 'bearer' && isset($credential->data['token'])) {
+                $apiKey = $credential->data['token'];
+            }
+
+            if (!$apiKey) {
+                return response()->json([
+                    'error' => 'Invalid credential configuration'
+                ], 400);
+            }
+
+            // Fetch models from OpenAI API
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $apiKey
+            ])->get('https://api.openai.com/v1/models');
+
+            if (!$response->successful()) {
+                Log::error('OpenAI Models API Error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                
+                return response()->json([
+                    'error' => 'Failed to fetch models from OpenAI API',
+                    'details' => $response->body()
+                ], $response->status());
+            }
+
+            $data = $response->json();
+            return response()->json($data);
+        } catch (\Exception $e) {
+            Log::error('OpenAI Models Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => 'Failed to fetch OpenAI models',
                 'message' => $e->getMessage()
             ], 500);
         }
