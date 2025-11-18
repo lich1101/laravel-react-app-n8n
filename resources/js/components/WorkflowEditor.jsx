@@ -34,6 +34,14 @@ import { splitVariablePath, traverseVariableSegments, resolveVariableValue } fro
 const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [], selected }) => {
     const isRunning = data?.isRunning || false;
     const isCompleted = data?.isCompleted || false;
+    const [iconError, setIconError] = useState(false);
+    const nodeLabel = data?.customName || data?.label || nodeType;
+    const fallbackInitial = nodeLabel?.trim()?.[0]?.toUpperCase() || nodeType?.[0]?.toUpperCase() || '?';
+
+    useEffect(() => {
+        // Reset error state if icon source/type changes
+        setIconError(false);
+    }, [iconPath, nodeType]);
 
     // Determine border color: completed > selected > default
     const getBorderClass = () => {
@@ -58,11 +66,19 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
             
             {/* Icon SVG */}
             <div className="w-10 h-10 flex items-center justify-center pointer-events-none relative">
-                <img 
-                    src={iconPath} 
-                    alt={nodeType}
-                    className={`w-full h-full object-contain ${isRunning ? 'opacity-30' : ''}`}
-                />
+                {!iconError ? (
+                    <img 
+                        src={iconPath} 
+                        alt={nodeType}
+                        className={`w-full h-full object-contain ${isRunning ? 'opacity-30' : ''}`}
+                        onError={() => setIconError(true)}
+                        loading="lazy"
+                    />
+                ) : (
+                    <div className="w-full h-full rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-base font-semibold text-slate-500">
+                        {fallbackInitial}
+                    </div>
+                )}
                 {/* Loading icon overlay when running */}
                 {isRunning && (
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -77,7 +93,7 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
             
             {/* Node name label - Always visible */}
             <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-surface-elevated text-secondary text-xs px-3 py-1.5 rounded-lg border border-subtle shadow-card whitespace-nowrap pointer-events-none ">
-                {data.customName || data.label}
+                {nodeLabel}
             </div>
             
             {/* Output handles - Dynamic based on connection status */}
