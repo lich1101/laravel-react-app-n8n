@@ -2621,47 +2621,105 @@ JS;
                 'messages' => $messages,
             ];
 
-            // Add optional parameters
-            if (isset($config['temperature'])) {
+            // Handle advanced options (new format) or fallback to old format
+            $advancedOptions = $config['advancedOptions'] ?? [];
+            
+            // Basic parameters (from advancedOptions or old format)
+            if (isset($advancedOptions['temperature'])) {
+                $requestBody['temperature'] = (float) $advancedOptions['temperature'];
+            } elseif (isset($config['temperature'])) {
                 $requestBody['temperature'] = (float) $config['temperature'];
             }
-            if (isset($config['top_p'])) {
+            
+            if (isset($advancedOptions['top_p'])) {
+                $requestBody['top_p'] = (float) $advancedOptions['top_p'];
+            } elseif (isset($config['top_p'])) {
                 $requestBody['top_p'] = (float) $config['top_p'];
             }
-            if (isset($config['max_tokens'])) {
+            
+            if (isset($advancedOptions['max_tokens'])) {
+                $requestBody['max_tokens'] = (int) $advancedOptions['max_tokens'];
+            } elseif (isset($config['max_tokens'])) {
                 $requestBody['max_tokens'] = (int) $config['max_tokens'];
             }
-            if (isset($config['presence_penalty'])) {
+            
+            if (isset($advancedOptions['presence_penalty'])) {
+                $requestBody['presence_penalty'] = (float) $advancedOptions['presence_penalty'];
+            } elseif (isset($config['presence_penalty'])) {
                 $requestBody['presence_penalty'] = (float) $config['presence_penalty'];
             }
-            if (isset($config['frequency_penalty'])) {
+            
+            if (isset($advancedOptions['frequency_penalty'])) {
+                $requestBody['frequency_penalty'] = (float) $advancedOptions['frequency_penalty'];
+            } elseif (isset($config['frequency_penalty'])) {
                 $requestBody['frequency_penalty'] = (float) $config['frequency_penalty'];
             }
-            if (!empty($config['stop']) && is_array($config['stop'])) {
+            
+            // Stop sequences
+            if (!empty($advancedOptions['stop']) && is_array($advancedOptions['stop'])) {
+                $stopSequences = array_filter($advancedOptions['stop'], function($s) { return !empty(trim($s)); });
+                if (!empty($stopSequences)) {
+                    $requestBody['stop'] = array_values($stopSequences);
+                }
+            } elseif (!empty($config['stop']) && is_array($config['stop'])) {
                 $stopSequences = array_filter($config['stop'], function($s) { return !empty(trim($s)); });
                 if (!empty($stopSequences)) {
                     $requestBody['stop'] = array_values($stopSequences);
                 }
             }
-            if (isset($config['logprobs']) && $config['logprobs']) {
+            
+            // Logprobs
+            if (!empty($advancedOptions['logprobs'])) {
+                $logprobsConfig = $advancedOptions['logprobs'];
+                if (!empty($logprobsConfig['enabled']) || !empty($logprobsConfig['logprobs'])) {
+                    $requestBody['logprobs'] = true;
+                    if (isset($logprobsConfig['top_logprobs']) && $logprobsConfig['top_logprobs'] !== null) {
+                        $requestBody['top_logprobs'] = (int) $logprobsConfig['top_logprobs'];
+                    }
+                }
+            } elseif (isset($config['logprobs']) && $config['logprobs']) {
                 $requestBody['logprobs'] = true;
                 if (isset($config['top_logprobs']) && $config['top_logprobs'] !== null) {
                     $requestBody['top_logprobs'] = (int) $config['top_logprobs'];
                 }
             }
-            if (!empty($config['response_format'])) {
+            
+            // Response format
+            if (!empty($advancedOptions['response_format'])) {
+                $requestBody['response_format'] = $advancedOptions['response_format'];
+            } elseif (!empty($config['response_format'])) {
                 $requestBody['response_format'] = $config['response_format'];
             }
-            if (!empty($config['tools']) && is_array($config['tools'])) {
-                $requestBody['tools'] = $config['tools'];
+            
+            // Tools
+            if (!empty($advancedOptions['tools'])) {
+                $toolsConfig = $advancedOptions['tools'];
+                if (!empty($toolsConfig['tools']) && is_array($toolsConfig['tools'])) {
+                    $requestBody['tools'] = $toolsConfig['tools'];
+                }
+                if (isset($toolsConfig['tool_choice'])) {
+                    $requestBody['tool_choice'] = $toolsConfig['tool_choice'];
+                }
+            } else {
+                if (!empty($config['tools']) && is_array($config['tools'])) {
+                    $requestBody['tools'] = $config['tools'];
+                }
+                if (isset($config['tool_choice'])) {
+                    $requestBody['tool_choice'] = $config['tool_choice'];
+                }
             }
-            if (isset($config['tool_choice'])) {
-                $requestBody['tool_choice'] = $config['tool_choice'];
-            }
-            if (isset($config['stream'])) {
+            
+            // Stream
+            if (isset($advancedOptions['stream'])) {
+                $requestBody['stream'] = (bool) $advancedOptions['stream'];
+            } elseif (isset($config['stream'])) {
                 $requestBody['stream'] = (bool) $config['stream'];
             }
-            if (!empty($config['metadata']) && is_array($config['metadata'])) {
+            
+            // Metadata
+            if (!empty($advancedOptions['metadata']) && is_array($advancedOptions['metadata'])) {
+                $requestBody['metadata'] = $advancedOptions['metadata'];
+            } elseif (!empty($config['metadata']) && is_array($config['metadata'])) {
                 $requestBody['metadata'] = $config['metadata'];
             }
 
