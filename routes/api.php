@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::apiResource('users', UserController::class);
+    Route::post('/users/{user}/verify', [UserController::class, 'verify']);
     Route::apiResource('workflows', WorkflowController::class);
     Route::post('/workflows/{workflow}/nodes', [WorkflowController::class, 'saveNode']);
     Route::get('/workflows/{workflow}/executions', [WorkflowController::class, 'executions']);

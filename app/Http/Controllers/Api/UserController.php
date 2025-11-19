@@ -119,4 +119,31 @@ class UserController extends Controller
 
         return response()->json(['message' => 'User deleted successfully']);
     }
+
+    /**
+     * Verify or unverify a user's email
+     */
+    public function verify(Request $request, string $id): JsonResponse
+    {
+        $this->checkAdmin();
+        $user = User::findOrFail($id);
+
+        $request->validate([
+            'verified' => 'required|boolean',
+        ]);
+
+        if ($request->verified) {
+            if (!$user->hasVerifiedEmail()) {
+                $user->markEmailAsVerified();
+            }
+        } else {
+            $user->email_verified_at = null;
+            $user->save();
+        }
+
+        return response()->json([
+            'message' => $request->verified ? 'User verified successfully' : 'User unverified successfully',
+            'user' => $user->fresh()
+        ]);
+    }
 }

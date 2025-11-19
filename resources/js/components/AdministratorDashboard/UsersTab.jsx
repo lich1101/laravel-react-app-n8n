@@ -114,6 +114,27 @@ const UsersTab = () => {
         setShowProjectModal(true);
     };
 
+    const handleVerify = async (user) => {
+        const isVerified = user.email_verified_at !== null;
+        const action = isVerified ? 'unverify' : 'verify';
+        
+        if (window.confirm(`Bạn có chắc chắn muốn ${action === 'verify' ? 'xác thực' : 'hủy xác thực'} người dùng ${user.name}?`)) {
+            try {
+                await axios.post(`/users/${user.id}/verify`, {
+                    verified: !isVerified
+                });
+                fetchData();
+            } catch (error) {
+                console.error('Error verifying user:', error);
+                if (error.response?.data?.error) {
+                    alert(error.response.data.error);
+                } else {
+                    alert(`Failed to ${action} user`);
+                }
+            }
+        }
+    };
+
     const getProjectName = (projectId) => {
         const project = projects.find(p => p.id === projectId);
         return project ? project.name : 'No Project';
@@ -254,6 +275,9 @@ const UsersTab = () => {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Role
                             </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Verified
+                            </th>
                             {isAdministrator && (
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Project
@@ -286,6 +310,17 @@ const UsersTab = () => {
                                         {user.role}
                                     </span>
                                 </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span
+                                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                            user.email_verified_at
+                                                ? 'bg-green-100 text-green-800'
+                                                : 'bg-yellow-100 text-yellow-800'
+                                        }`}
+                                    >
+                                        {user.email_verified_at ? '✓ Verified' : '✗ Not Verified'}
+                                    </span>
+                                </td>
                                 {isAdministrator && (
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
                                         {getProjectName(user.project_id)}
@@ -297,6 +332,16 @@ const UsersTab = () => {
                                         className="text-primary hover:text-primary/80"
                                     >
                                         Edit
+                                    </button>
+                                    <button
+                                        onClick={() => handleVerify(user)}
+                                        className={user.email_verified_at 
+                                            ? "text-orange-600 hover:text-orange-500" 
+                                            : "text-green-600 hover:text-green-500"
+                                        }
+                                        title={user.email_verified_at ? "Hủy xác thực" : "Xác thực"}
+                                    >
+                                        {user.email_verified_at ? 'Unverify' : 'Verify'}
                                     </button>
                                     {isAdministrator && (
                                         <button
