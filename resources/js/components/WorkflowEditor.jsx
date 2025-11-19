@@ -1058,19 +1058,59 @@ function WorkflowEditor() {
         // Get all selected nodes (ReactFlow supports multi-select)
         const selectedNodes = nodes.filter(n => n.selected);
         
+        let nodesToCopy = [];
         if (selectedNodes.length === 0 && selectedNode) {
             // If no multi-selection, copy the currently selected node
-            setCopiedNodes([selectedNode]);
+            nodesToCopy = [selectedNode];
             console.log('✂️ Copied 1 node:', selectedNode.data.customName || selectedNode.data.label);
         } else if (selectedNodes.length > 0) {
-            setCopiedNodes(selectedNodes);
+            nodesToCopy = selectedNodes;
             console.log('✂️ Copied', selectedNodes.length, 'nodes:', selectedNodes.map(n => n.data.customName || n.data.label));
+        }
+        
+        if (nodesToCopy.length > 0) {
+            // Save to state
+            setCopiedNodes(nodesToCopy);
+            
+            // Also copy edges that connect between copied nodes
+            const copiedNodeIds = nodesToCopy.map(n => n.id);
+            const copiedEdges = edges.filter(edge => 
+                copiedNodeIds.includes(edge.source) && copiedNodeIds.includes(edge.target)
+            );
+            
+            // Also save to localStorage for cross-workflow paste
+            try {
+                localStorage.setItem('copiedWorkflowNodes', JSON.stringify(nodesToCopy));
+                localStorage.setItem('copiedWorkflowEdges', JSON.stringify(copiedEdges));
+                console.log('💾 Saved to localStorage for cross-workflow paste:', nodesToCopy.length, 'nodes,', copiedEdges.length, 'edges');
+            } catch (error) {
+                console.warn('Failed to save to localStorage:', error);
+            }
         }
     };
 
     // Paste copied nodes
     const handlePasteNodes = () => {
-        if (copiedNodes.length === 0) return;
+        // Try to get from state first, then from localStorage
+        let nodesToPaste = copiedNodes;
+        
+        if (nodesToPaste.length === 0) {
+            try {
+                const stored = localStorage.getItem('copiedWorkflowNodes');
+                if (stored) {
+                    nodesToPaste = JSON.parse(stored);
+                    setCopiedNodes(nodesToPaste); // Update state
+                    console.log('📋 Loaded from localStorage:', nodesToPaste.length, 'nodes');
+                }
+            } catch (error) {
+                console.warn('Failed to load from localStorage:', error);
+            }
+        }
+        
+        if (nodesToPaste.length === 0) {
+            console.log('⚠️ No nodes to paste');
+            return;
+        }
 
         const timestamp = Date.now();
         const offset = { x: 50, y: 50 }; // Paste offset
@@ -1082,7 +1122,7 @@ function WorkflowEditor() {
         const existingNames = nodes.map(n => n.data.customName || n.data.label).filter(Boolean);
 
         // Step 1: Create new nodes with unique names
-        copiedNodes.forEach((copiedNode, index) => {
+        nodesToPaste.forEach((copiedNode, index) => {
             const oldId = copiedNode.id;
             const newId = `${copiedNode.type}-${timestamp}-${index}`;
             idMap[oldId] = newId;
@@ -1117,9 +1157,30 @@ function WorkflowEditor() {
         });
 
         // Step 2: Copy edges that connect ONLY between copied nodes
-        const copiedNodeIds = copiedNodes.map(n => n.id);
-        edges.forEach(edge => {
-            if (copiedNodeIds.includes(edge.source) && copiedNodeIds.includes(edge.target)) {
+        const copiedNodeIds = nodesToPaste.map(n => n.id);
+        
+        // Try to get edges from localStorage first (for cross-workflow paste)
+        let edgesToCopy = [];
+        try {
+            const storedEdges = localStorage.getItem('copiedWorkflowEdges');
+            if (storedEdges) {
+                edgesToCopy = JSON.parse(storedEdges);
+            }
+        } catch (error) {
+            console.warn('Failed to load edges from localStorage:', error);
+        }
+        
+        // If no stored edges, get from current workflow edges
+        if (edgesToCopy.length === 0) {
+            edgesToCopy = edges.filter(edge => 
+                copiedNodeIds.includes(edge.source) && copiedNodeIds.includes(edge.target)
+            );
+        }
+        
+        // Map edges to new node IDs
+        edgesToCopy.forEach(edge => {
+            // Only copy if both source and target are in the copied nodes
+            if (idMap[edge.source] && idMap[edge.target]) {
                 const newEdge = {
                     ...edge,
                     id: `edge-${timestamp}-${newEdges.length}`,
