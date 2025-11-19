@@ -486,9 +486,28 @@ function WorkflowEditor() {
             if (ctrlOrCmd && reactFlowInstance) {
                 e.preventDefault();
                 const zoomSpeed = 0.002;
-                const newZoom = reactFlowInstance.getZoom() - e.deltaY * zoomSpeed;
+                
+                // Try different API methods for compatibility
+                let currentZoom = 1;
+                if (typeof reactFlowInstance.getZoom === 'function') {
+                    currentZoom = reactFlowInstance.getZoom();
+                } else if (typeof reactFlowInstance.getViewport === 'function') {
+                    const viewport = reactFlowInstance.getViewport();
+                    currentZoom = viewport.zoom || 1;
+                }
+                
+                const newZoom = currentZoom - e.deltaY * zoomSpeed;
                 const clampedZoom = Math.max(0.1, Math.min(newZoom, 4));
-                reactFlowInstance.setZoom(clampedZoom);
+                
+                // Try different API methods for setting zoom
+                if (typeof reactFlowInstance.zoomTo === 'function') {
+                    reactFlowInstance.zoomTo(clampedZoom);
+                } else if (typeof reactFlowInstance.setViewport === 'function') {
+                    const viewport = reactFlowInstance.getViewport ? reactFlowInstance.getViewport() : { x: 0, y: 0, zoom: currentZoom };
+                    reactFlowInstance.setViewport({ ...viewport, zoom: clampedZoom });
+                } else if (typeof reactFlowInstance.setZoom === 'function') {
+                    reactFlowInstance.setZoom(clampedZoom);
+                }
             }
         };
 
