@@ -9,6 +9,7 @@ import ReactFlow, {
     Handle,
     Position,
     SelectionMode,
+    useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import axios from '../config/axios';
@@ -483,31 +484,40 @@ function WorkflowEditor() {
             const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
             const ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
             
-            if (ctrlOrCmd && reactFlowInstance) {
-                e.preventDefault();
-                const zoomSpeed = 0.002;
-                
-                // Try different API methods for compatibility
+            if (!ctrlOrCmd || !reactFlowInstance) {
+                return;
+            }
+            
+            e.preventDefault();
+            const zoomSpeed = 0.002;
+            
+            try {
+                // ReactFlow v11 API - use zoomTo or setViewport
                 let currentZoom = 1;
-                if (typeof reactFlowInstance.getZoom === 'function') {
-                    currentZoom = reactFlowInstance.getZoom();
-                } else if (typeof reactFlowInstance.getViewport === 'function') {
+                
+                // Get current zoom
+                if (reactFlowInstance.getViewport) {
                     const viewport = reactFlowInstance.getViewport();
-                    currentZoom = viewport.zoom || 1;
+                    currentZoom = viewport?.zoom || 1;
+                } else if (reactFlowInstance.getZoom) {
+                    currentZoom = reactFlowInstance.getZoom();
                 }
                 
                 const newZoom = currentZoom - e.deltaY * zoomSpeed;
                 const clampedZoom = Math.max(0.1, Math.min(newZoom, 4));
                 
-                // Try different API methods for setting zoom
-                if (typeof reactFlowInstance.zoomTo === 'function') {
+                // Set new zoom - ReactFlow v11 uses zoomTo or setViewport
+                if (reactFlowInstance.zoomTo) {
                     reactFlowInstance.zoomTo(clampedZoom);
-                } else if (typeof reactFlowInstance.setViewport === 'function') {
+                } else if (reactFlowInstance.setViewport) {
                     const viewport = reactFlowInstance.getViewport ? reactFlowInstance.getViewport() : { x: 0, y: 0, zoom: currentZoom };
-                    reactFlowInstance.setViewport({ ...viewport, zoom: clampedZoom });
-                } else if (typeof reactFlowInstance.setZoom === 'function') {
+                    reactFlowInstance.setViewport({ ...viewport, zoom: clampedZoom }, { duration: 0 });
+                } else if (reactFlowInstance.setZoom) {
+                    // Fallback for older versions
                     reactFlowInstance.setZoom(clampedZoom);
                 }
+            } catch (error) {
+                console.error('Error handling zoom:', error);
             }
         };
 
