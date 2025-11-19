@@ -825,7 +825,7 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     <h2 className="text-xl font-semibold text-gray-900">OpenAI Configuration</h2>
                     <button
