@@ -31,6 +31,23 @@ import WorkflowHistory from './WorkflowHistory';
 import RenameNodeModal from './RenameNodeModal';
 import { splitVariablePath, traverseVariableSegments, resolveVariableValue } from '../utils/variablePath';
 
+// Helper function to resolve icon path correctly
+const getIconPath = (relativePath) => {
+    // If already a full URL, return as-is
+    if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+        return relativePath;
+    }
+    
+    // Ensure path starts with /
+    const cleanPath = relativePath.startsWith('/') ? relativePath : '/' + relativePath;
+    
+    // Use window.location.origin to create full URL
+    // This ensures icons load correctly even if app is in subdirectory
+    // and handles cases where web server doesn't serve static files directly
+    const baseUrl = window.location.origin;
+    return baseUrl + cleanPath;
+};
+
 // Compact node component with quick-add button
 const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [], selected }) => {
     const isRunning = data?.isRunning || false;
@@ -38,6 +55,9 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
     const [iconError, setIconError] = useState(false);
     const nodeLabel = data?.customName || data?.label || nodeType;
     const fallbackInitial = nodeLabel?.trim()?.[0]?.toUpperCase() || nodeType?.[0]?.toUpperCase() || '?';
+    
+    // Resolve icon path
+    const resolvedIconPath = getIconPath(iconPath);
 
     useEffect(() => {
         // Reset error state if icon source/type changes
@@ -69,10 +89,13 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
             <div className="w-10 h-10 flex items-center justify-center pointer-events-none relative">
                 {!iconError ? (
                     <img 
-                        src={iconPath} 
+                        src={resolvedIconPath} 
                         alt={nodeType}
                         className={`w-full h-full object-contain ${isRunning ? 'opacity-30' : ''}`}
-                        onError={() => setIconError(true)}
+                        onError={(e) => {
+                            console.error('Failed to load icon:', resolvedIconPath, 'Error:', e);
+                            setIconError(true);
+                        }}
                         loading="lazy"
                     />
                 ) : (
@@ -84,9 +107,10 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                 {isRunning && (
                     <div className="absolute inset-0 flex items-center justify-center">
                         <img 
-                            src="/icons/nodes/node_active.svg" 
+                            src={getIconPath('/icons/nodes/node_active.svg')} 
                             alt="running"
                             className="w-8 h-8 animate-spin"
+                            onError={(e) => console.error('Failed to load node_active icon:', e)}
                         />
                     </div>
                 )}
@@ -176,13 +200,65 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                     }}
                                 />
                                 
-                                {/* Handle TAIL - Square [+] (for quick-add) */}
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onQuickAdd?.(data.nodeId, output.id);
+                                {/* Handle TAIL - Square [+] (for quick-add and drag) */}
+                                {/* Invisible Handle for ReactFlow connection - larger to catch drag events */}
+                                <Handle 
+                                    type="source" 
+                                    position={Position.Right} 
+                                    id={output.id}
+                                    className="!w-5 !h-5 !bg-transparent !border-0 !opacity-0 !pointer-events-auto !cursor-crosshair !z-20"
+                                    style={{ 
+                                        left: 'calc(100% + 45px)',
+                                        top: `${topPercent}%`,
                                     }}
-                                    className={`absolute w-5 h-5 border-2 rounded-lg flex items-center justify-center text-xs font-bold shadow-card z-10 transition-colors ${
+                                />
+                                {/* Visible [+] button - positioned on top, clickable but allows drag through */}
+                                <div
+                                    onClick={(e) => {
+                                        // Only trigger quick-add if it's a click (not a drag)
+                                        // Check if mouse moved during mousedown/mouseup
+                                        const wasClick = e.currentTarget.dataset.wasClick === 'true';
+                                        if (wasClick) {
+                                            e.stopPropagation();
+                                            onQuickAdd?.(data.nodeId, output.id);
+                                        }
+                                        delete e.currentTarget.dataset.wasClick;
+                                    }}
+                                    onMouseDown={(e) => {
+                                        // Mark as potential click
+                                        e.currentTarget.dataset.wasClick = 'true';
+                                        const startX = e.clientX;
+                                        const startY = e.clientY;
+                                        
+                                        const handleMouseMove = (moveEvent) => {
+                                            const distance = Math.sqrt(
+                                                Math.pow(moveEvent.clientX - startX, 2) + 
+                                                Math.pow(moveEvent.clientY - startY, 2)
+                                            );
+                                            // If mouse moved more than 5px, it's a drag, not a click
+                                            if (distance > 5) {
+                                                e.currentTarget.dataset.wasClick = 'false';
+                                                // Disable pointer events to allow Handle to receive drag
+                                                e.currentTarget.style.pointerEvents = 'none';
+                                            }
+                                            document.removeEventListener('mousemove', handleMouseMove);
+                                        };
+                                        
+                                        const handleMouseUp = () => {
+                                            document.removeEventListener('mousemove', handleMouseMove);
+                                            document.removeEventListener('mouseup', handleMouseUp);
+                                            // Re-enable pointer events after mouse up
+                                            setTimeout(() => {
+                                                if (e.currentTarget) {
+                                                    e.currentTarget.style.pointerEvents = 'auto';
+                                                }
+                                            }, 100);
+                                        };
+                                        
+                                        document.addEventListener('mousemove', handleMouseMove);
+                                        document.addEventListener('mouseup', handleMouseUp);
+                                    }}
+                                    className={`absolute w-5 h-5 border-2 rounded-lg flex items-center justify-center text-xs font-bold shadow-card transition-colors cursor-crosshair ${
                                         output.color === 'green' ? 'bg-emerald-500 hover:bg-emerald-600 border-emerald-600 text-white' :
                                         output.color === 'red' ? 'bg-rose-500 hover:bg-rose-600 border-rose-600 text-white' :
                                         'bg-surface-strong hover:bg-surface-muted border-strong text-primary'
@@ -191,11 +267,13 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                         left: 'calc(100% + 45px)',
                                         top: `${topPercent}%`,
                                         transform: 'translateY(-50%)',
+                                        pointerEvents: 'auto',
+                                        zIndex: 10,
                                     }}
-                                    title="Click to add next node"
+                                    title="Click to add next node or drag to connect"
                                 >
                                     +
-                                </button>
+                                </div>
                                 
                                 {output.label && (
                                     <span 
