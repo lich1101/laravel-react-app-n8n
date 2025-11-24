@@ -566,15 +566,43 @@ class WebhookController extends Controller
         // Chọn trigger node: schedule có ưu tiên cao hơn
         $triggerNode = $scheduleNode ?? $webhookNode;
         
+        // If no trigger node, find starting node (node with no incoming edges)
         if (!$triggerNode) {
-            Log::warning('No trigger node (webhook or schedule) found in workflow');
-            return [];
+            Log::info('No trigger node (webhook or schedule) found, looking for starting node');
+            
+            // Find all nodes that have incoming edges
+            $nodesWithIncomingEdges = [];
+            foreach ($edges as $edge) {
+                $targetId = $edge['target'];
+                if (!in_array($targetId, $nodesWithIncomingEdges)) {
+                    $nodesWithIncomingEdges[] = $targetId;
+                }
+            }
+            
+            // Find nodes that don't have incoming edges (starting nodes)
+            $startingNodes = collect($nodes)->filter(function($node) use ($nodesWithIncomingEdges) {
+                return !in_array($node['id'], $nodesWithIncomingEdges);
+            })->values()->all();
+            
+            if (empty($startingNodes)) {
+                Log::warning('No starting node found in workflow (all nodes have incoming edges or workflow is empty)');
+                return [];
+            }
+            
+            // Use the first starting node (or could use all if multiple)
+            $triggerNode = $startingNodes[0];
+            Log::info('Starting node found (no incoming edges)', [
+                'node_id' => $triggerNode['id'],
+                'node_type' => $triggerNode['type'] ?? 'unknown',
+                'total_starting_nodes' => count($startingNodes),
+            ]);
         }
         
-        $triggerType = $triggerNode['type'] === 'schedule' ? 'schedule' : 'webhook';
-        Log::info('Trigger node found', [
+        $triggerType = $triggerNode['type'] === 'schedule' ? 'schedule' : ($triggerNode['type'] === 'webhook' ? 'webhook' : 'manual');
+        Log::info('Starting node found', [
             'trigger_type' => $triggerType,
             'node_id' => $triggerNode['id'],
+            'node_type' => $triggerNode['type'] ?? 'unknown',
         ]);
 
         // Build adjacency graph: node_id => [connected_node_ids]
@@ -614,9 +642,10 @@ class WebhookController extends Controller
             }
         }
 
-        Log::info('Reachable nodes from trigger', [
+        Log::info('Reachable nodes from starting node', [
             'trigger_type' => $triggerType,
-            'trigger_node' => $triggerNode['id'],
+            'starting_node' => $triggerNode['id'],
+            'node_type' => $triggerNode['type'] ?? 'unknown',
             'reachable_count' => count($reachableNodes),
             'reachable_nodes' => $reachableNodes,
         ]);
@@ -3909,11 +3938,17 @@ JS;
     {
         $testRunId = uniqid('test_', true);
 
+        // Normalize path (remove leading/trailing slashes for consistent matching)
+        $path = trim($request->input('path'), '/');
+        
+        // Cleanup old test listeners for this path and workflow before starting new one
+        $this->cleanupOldTestListeners($workflowId, $path);
+        
         // Store test listening state in cache for 5 minutes
         \Illuminate\Support\Facades\Cache::put("webhook_test_listening_{$testRunId}", [
             'workflow_id' => $workflowId,
             'node_id' => $request->input('node_id'),
-            'path' => $request->input('path'),
+            'path' => $path,
             'method' => $request->input('method'),
             'auth' => $request->input('auth'),
             'auth_type' => $request->input('auth_type'),
@@ -3921,6 +3956,13 @@ JS;
             'auth_config' => $request->input('auth_config'),
             'started_at' => now(),
         ], now()->addMinutes(5));
+        
+        Log::info('Test webhook listener started', [
+            'test_run_id' => $testRunId,
+            'path' => $path,
+            'method' => $request->input('method'),
+            'workflow_id' => $workflowId,
+        ]);
 
         // Track this test run ID
         $cacheKeys = \Illuminate\Support\Facades\Cache::get('webhook_test_keys', []);
@@ -3941,6 +3983,7 @@ JS;
         // Check if stopped
         $stopped = \Illuminate\Support\Facades\Cache::get("webhook_test_stopped_{$testRunId}");
         if ($stopped) {
+            Log::info('Test status check - stopped', ['test_run_id' => $testRunId]);
             return response()->json([
                 'status' => 'stopped',
                 'message' => 'Test stopped by user'
@@ -3951,6 +3994,7 @@ JS;
         $listeningData = \Illuminate\Support\Facades\Cache::get($cacheKey);
 
         if (!$listeningData) {
+            Log::warning('Test status check - session not found', ['test_run_id' => $testRunId]);
             return response()->json([
                 'status' => 'not_found',
                 'message' => 'Test session not found'
@@ -3962,6 +4006,10 @@ JS;
         $receivedData = \Illuminate\Support\Facades\Cache::get($receivedDataKey);
 
         if ($receivedData) {
+            Log::info('✅ Test status check - webhook received', [
+                'test_run_id' => $testRunId,
+                'received_at' => $receivedData['received_at'] ?? null,
+            ]);
             return response()->json([
                 'status' => 'received',
                 'data' => $receivedData
@@ -3972,10 +4020,20 @@ JS;
         $startedAt = \Carbon\Carbon::parse($listeningData['started_at']);
         if ($startedAt->addMinutes(2)->isPast()) {
             \Illuminate\Support\Facades\Cache::forget($cacheKey);
-
+            Log::info('Test status check - timeout', ['test_run_id' => $testRunId]);
+            
             return response()->json([
                 'status' => 'timeout',
                 'message' => 'Test timeout'
+            ]);
+        }
+
+        // Log occasionally to avoid spam (only 10% of requests)
+        if (rand(1, 10) === 1) {
+            Log::info('Test status check - still listening', [
+                'test_run_id' => $testRunId,
+                'path' => $listeningData['path'] ?? null,
+                'method' => $listeningData['method'] ?? null,
             ]);
         }
 
@@ -4007,6 +4065,75 @@ JS;
         return response()->json([
             'message' => 'Stopped listening'
         ]);
+    }
+
+    /**
+     * Cleanup old test listeners for a specific path and workflow
+     */
+    private function cleanupOldTestListeners($workflowId, $path)
+    {
+        $cacheKeys = \Illuminate\Support\Facades\Cache::get('webhook_test_keys', []);
+        $cleanedKeys = [];
+        $cleanedCount = 0;
+        
+        foreach ($cacheKeys as $testRunId) {
+            $listeningData = \Illuminate\Support\Facades\Cache::get("webhook_test_listening_{$testRunId}");
+            
+            if (!$listeningData) {
+                // Already expired or removed, skip
+                continue;
+            }
+            
+            // Check if this is an old listener for the same path and workflow
+            $listeningPath = trim($listeningData['path'] ?? '', '/');
+            $listeningWorkflowId = $listeningData['workflow_id'] ?? null;
+            
+            if ($listeningWorkflowId == $workflowId && $listeningPath === $path) {
+                // This is an old listener for the same path - clean it up
+                Log::info('Cleaning up old test listener', [
+                    'old_test_run_id' => $testRunId,
+                    'path' => $path,
+                    'workflow_id' => $workflowId,
+                ]);
+                
+                // Mark as stopped
+                \Illuminate\Support\Facades\Cache::put("webhook_test_stopped_{$testRunId}", true, now()->addMinutes(1));
+                
+                // Remove cache entries
+                \Illuminate\Support\Facades\Cache::forget("webhook_test_listening_{$testRunId}");
+                \Illuminate\Support\Facades\Cache::forget("webhook_test_received_{$testRunId}");
+                
+                $cleanedCount++;
+            } else {
+                // Keep this listener (different path or workflow)
+                $cleanedKeys[] = $testRunId;
+            }
+        }
+        
+        // Also cleanup expired listeners (older than 5 minutes)
+        foreach ($cleanedKeys as $testRunId) {
+            $listeningData = \Illuminate\Support\Facades\Cache::get("webhook_test_listening_{$testRunId}");
+            if ($listeningData) {
+                $startedAt = \Carbon\Carbon::parse($listeningData['started_at'] ?? now());
+                if ($startedAt->addMinutes(5)->isPast()) {
+                    // Expired - remove it
+                    \Illuminate\Support\Facades\Cache::forget("webhook_test_listening_{$testRunId}");
+                    \Illuminate\Support\Facades\Cache::forget("webhook_test_received_{$testRunId}");
+                    $cleanedKeys = array_filter($cleanedKeys, fn($key) => $key !== $testRunId);
+                    $cleanedCount++;
+                }
+            }
+        }
+        
+        // Update cache keys
+        \Illuminate\Support\Facades\Cache::put('webhook_test_keys', array_values($cleanedKeys), now()->addMinutes(10));
+        
+        if ($cleanedCount > 0) {
+            Log::info('Cleaned up old test listeners', [
+                'cleaned_count' => $cleanedCount,
+                'remaining_count' => count($cleanedKeys),
+            ]);
+        }
     }
 
     /**
@@ -4185,21 +4312,76 @@ JS;
      */
     public function handleTest(Request $request, $path)
     {
+        Log::info('handleTest webhook called', [
+            'path' => $path,
+            'method' => $request->method(),
+            'full_url' => $request->fullUrl(),
+        ]);
+        
+        // Normalize path
+        $normalizedPath = trim($path, '/');
+        
         // Check if this is a test webhook request (check all test runs)
         $cacheKeys = \Illuminate\Support\Facades\Cache::get('webhook_test_keys', []);
+        
+        // Cleanup expired listeners first
+        $validKeys = [];
+        foreach ($cacheKeys as $testRunId) {
+            $listeningData = \Illuminate\Support\Facades\Cache::get("webhook_test_listening_{$testRunId}");
+            if ($listeningData) {
+                $startedAt = \Carbon\Carbon::parse($listeningData['started_at'] ?? now());
+                if ($startedAt->addMinutes(5)->isPast()) {
+                    // Expired - remove it
+                    \Illuminate\Support\Facades\Cache::forget("webhook_test_listening_{$testRunId}");
+                    \Illuminate\Support\Facades\Cache::forget("webhook_test_received_{$testRunId}");
+                } else {
+                    $validKeys[] = $testRunId;
+                }
+            }
+        }
+        
+        // Update cache keys if any were removed
+        if (count($validKeys) !== count($cacheKeys)) {
+            \Illuminate\Support\Facades\Cache::put('webhook_test_keys', $validKeys, now()->addMinutes(10));
+            $cacheKeys = $validKeys;
+        }
+        
+        Log::info('Active test listeners (after cleanup)', [
+            'count' => count($cacheKeys),
+            'test_run_ids' => $cacheKeys,
+        ]);
 
         foreach ($cacheKeys as $testRunId) {
             $listeningData = \Illuminate\Support\Facades\Cache::get("webhook_test_listening_{$testRunId}");
+            
+            Log::info('Checking test listener', [
+                'test_run_id' => $testRunId,
+                'has_listening_data' => !empty($listeningData),
+                'listening_path' => $listeningData['path'] ?? null,
+                'request_path' => $path,
+                'path_match' => ($listeningData && $listeningData['path'] === $path),
+            ]);
 
-            if ($listeningData && $listeningData['path'] === $path) {
+            // Normalize paths for comparison (remove leading/trailing slashes)
+            $normalizedPath = trim($path, '/');
+            $normalizedListeningPath = trim($listeningData['path'] ?? '', '/');
+            
+            if ($listeningData && $normalizedListeningPath === $normalizedPath) {
                 // Validate method and auth
                 if ($listeningData['method'] !== $request->method()) {
+                    Log::info('Method mismatch', [
+                        'expected' => $listeningData['method'],
+                        'received' => $request->method(),
+                    ]);
                     continue;
                 }
 
                 // Check auth
                 if (!empty($listeningData['auth']) && $listeningData['auth'] !== 'none') {
                     if (!$this->validateTestWebhookAuth($request, $listeningData)) {
+                        Log::info('Auth validation failed', [
+                            'test_run_id' => $testRunId,
+                        ]);
                         continue;
                     }
                 }
@@ -4208,13 +4390,25 @@ JS;
                 $receivedDataKey = "webhook_test_received_{$testRunId}";
                 if (!\Illuminate\Support\Facades\Cache::has($receivedDataKey)) {
                     // Store received data for test
-                    \Illuminate\Support\Facades\Cache::put($receivedDataKey, [
+                    $webhookData = [
                         'method' => $request->method(),
                         'headers' => $request->headers->all(),
                         'body' => $request->all(),
                         'query' => $request->query(),
                         'received_at' => now(),
-                    ], now()->addMinutes(1));
+                    ];
+                    
+                    \Illuminate\Support\Facades\Cache::put($receivedDataKey, $webhookData, now()->addMinutes(1));
+                    
+                    Log::info('✅ Webhook test data stored', [
+                        'test_run_id' => $testRunId,
+                        'received_data_keys' => array_keys($webhookData),
+                        'body_keys' => array_keys($webhookData['body'] ?? []),
+                    ]);
+                } else {
+                    Log::info('Webhook already received for this test run', [
+                        'test_run_id' => $testRunId,
+                    ]);
                 }
 
                 return response()->json([
@@ -4224,9 +4418,92 @@ JS;
             }
         }
 
+        Log::warning('❌ No active test listener found for path', [
+            'path' => $path,
+            'method' => $request->method(),
+        ]);
+        
         return response()->json([
             'message' => 'No active test listener for this path'
         ], 404);
+    }
+
+    /**
+     * Execute workflow in test mode (for testing from UI)
+     */
+    public function testExecuteWorkflow(Request $request, $workflowId)
+    {
+        try {
+            $workflow = \App\Models\Workflow::find($workflowId);
+            
+            if (!$workflow) {
+                return response()->json([
+                    'error' => 'Workflow not found'
+                ], 404);
+            }
+
+            // Get webhook data from request
+            $webhookData = $request->input('webhook_data', []);
+            
+            Log::info('testExecuteWorkflow called', [
+                'workflow_id' => $workflowId,
+                'webhook_data_keys' => array_keys($webhookData),
+                'webhook_data' => $webhookData,
+            ]);
+
+            // Format webhook data similar to how handleTest receives it
+            // Allow empty webhook data for workflows without webhook trigger
+            $formattedWebhookData = [
+                'method' => $webhookData['method'] ?? 'POST',
+                'headers' => $webhookData['headers'] ?? [],
+                'body' => $webhookData['body'] ?? [],
+                'query' => $webhookData['query'] ?? [],
+                'all' => array_merge(
+                    $webhookData['query'] ?? [],
+                    $webhookData['body'] ?? []
+                ),
+                'url' => '/',
+            ];
+            
+            Log::info('Formatted webhook data for test execution', [
+                'formatted_data' => $formattedWebhookData,
+            ]);
+
+            // Execute workflow synchronously in test mode
+            // Use executeWorkflowPublic which will create a temporary execution record
+            $result = $this->executeWorkflowPublic(
+                $workflow,
+                $formattedWebhookData,
+                'test', // trigger_type = 'test'
+                null, // no existing execution
+                null  // no resume context
+            );
+            
+            // Optionally delete the test execution record to keep database clean
+            // For now, we'll keep it with trigger_type='test' so it can be filtered out if needed
+
+            // Return result with node_results, execution_order, error_node, has_error
+            return response()->json([
+                'success' => true,
+                'node_results' => $result['node_results'] ?? [],
+                'execution_order' => $result['execution_order'] ?? [],
+                'error_node' => $result['error_node'] ?? null,
+                'has_error' => $result['has_error'] ?? false,
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error executing test workflow', [
+                'workflow_id' => $workflowId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'has_error' => true,
+            ], 500);
+        }
     }
 
     /**

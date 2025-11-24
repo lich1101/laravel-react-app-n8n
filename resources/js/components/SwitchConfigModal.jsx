@@ -36,6 +36,8 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     const [inputViewMode, setInputViewMode] = useState('schema');
     const [outputViewMode, setOutputViewMode] = useState('json');
     const [collapsedPaths, setCollapsedPaths] = useState(new Set());
+    const [draggedIndex, setDraggedIndex] = useState(null);
+    const [dragOverIndex, setDragOverIndex] = useState(null);
 
     useEffect(() => {
         if (node?.data?.config) {
@@ -71,6 +73,50 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         }
         const newRules = config.rules.filter((_, i) => i !== index);
         setConfig({ ...config, rules: newRules });
+    };
+
+    const handleDragStart = (index) => {
+        setDraggedIndex(index);
+    };
+
+    const handleDragOver = (e, index) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        if (draggedIndex !== null && draggedIndex !== index) {
+            setDragOverIndex(index);
+        }
+    };
+
+    const handleDragLeave = () => {
+        setDragOverIndex(null);
+    };
+
+    const handleDrop = (e, dropIndex) => {
+        e.preventDefault();
+        setDragOverIndex(null);
+        
+        if (draggedIndex === null || draggedIndex === dropIndex) {
+            setDraggedIndex(null);
+            return;
+        }
+
+        const newRules = [...config.rules];
+        const draggedRule = newRules[draggedIndex];
+        
+        // Remove dragged item
+        newRules.splice(draggedIndex, 1);
+        
+        // Insert at new position
+        newRules.splice(dropIndex, 0, draggedRule);
+        
+        setConfig({ ...config, rules: newRules });
+        setDraggedIndex(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
     };
 
     const handleSave = () => {
@@ -364,13 +410,43 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
 
                                 <div className="space-y-4">
                                     {config.rules.map((rule, index) => (
-                                        <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                                        <div 
+                                            key={index} 
+                                            draggable
+                                            onDragStart={() => handleDragStart(index)}
+                                            onDragOver={(e) => handleDragOver(e, index)}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={(e) => handleDrop(e, index)}
+                                            onDragEnd={handleDragEnd}
+                                            className={`border rounded-lg p-4 cursor-move transition-all ${
+                                                draggedIndex === index 
+                                                    ? 'opacity-50 border-blue-500 border-2 bg-blue-50' 
+                                                    : dragOverIndex === index
+                                                    ? 'border-green-500 border-2 bg-green-50 shadow-lg'
+                                                    : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:shadow-md'
+                                            }`}
+                                        >
                                             <div className="flex items-center justify-between mb-3">
-                                                <span className="text-sm font-semibold text-gray-900">
-                                                    Rule {index + 1}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <svg 
+                                                        className="w-5 h-5 text-gray-400 cursor-move" 
+                                                        fill="none" 
+                                                        stroke="currentColor" 
+                                                        viewBox="0 0 24 24"
+                                                    >
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                                                    </svg>
+                                                    <span className="text-sm font-semibold text-gray-900">
+                                                        Rule {index + 1}
+                                                    </span>
+                                                </div>
                                                 {config.rules.length > 1 && (
-                                                    <button type="button" onClick={() => deleteRule(index)} className="text-red-600 hover:text-red-700 text-xs">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => deleteRule(index)} 
+                                                        className="text-red-600 hover:text-red-700 text-xs"
+                                                        title="Xóa rule"
+                                                    >
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                                         </svg>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
+import ExpandableTextarea from './ExpandableTextarea';
 import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
 function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {

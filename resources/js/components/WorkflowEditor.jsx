@@ -49,9 +49,10 @@ const getIconPath = (relativePath) => {
 };
 
 // Compact node component with quick-add button
-const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [], selected }) => {
+const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [], selected, nodeOutputData = null, isTestingWorkflow = false }) => {
     const isRunning = data?.isRunning || false;
     const isCompleted = data?.isCompleted || false;
+    const isError = data?.isError || false;
     const [iconError, setIconError] = useState(false);
     const nodeLabel = data?.customName || data?.label || nodeType;
     const fallbackInitial = nodeLabel?.trim()?.[0]?.toUpperCase() || nodeType?.[0]?.toUpperCase() || '?';
@@ -63,9 +64,35 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
         // Reset error state if icon source/type changes
         setIconError(false);
     }, [iconPath, nodeType]);
+    
+    // Check if an output handle was actually executed during test
+    const isOutputExecuted = (outputId) => {
+        if (!isTestingWorkflow || !nodeOutputData) {
+            return false;
+        }
+        
+        // For If nodes, check if result matches the output handle
+        if (nodeType === 'if') {
+            if (nodeOutputData.result !== undefined) {
+                const expectedHandle = nodeOutputData.result ? 'true' : 'false';
+                return outputId === expectedHandle;
+            }
+        }
+        
+        // For single output nodes (no outputId or null), check if there's output data
+        if (!outputId || outputId === 'null' || outputId === 'default') {
+            if (nodeOutputData && typeof nodeOutputData === 'object' && !nodeOutputData.error) {
+                // Single output node - consider it executed if there's output data
+                return true;
+            }
+        }
+        
+        return false;
+    };
 
-    // Determine border color: completed > selected > default
+    // Determine border color: error > completed > selected > default
     const getBorderClass = () => {
+        if (isError) return 'border-rose-500 ring-2 ring-rose-200';
         if (isCompleted) return 'border-emerald-500 ring-2 ring-emerald-200';
         if (selected) return 'border-blue-500 ring-2 ring-blue-200';
         return 'border-subtle';
@@ -127,6 +154,24 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                 const handleKey = output.id || 'default';
                 const isConnected = connectedHandles.includes(handleKey);
                 
+                // Check if this output was executed during test
+                const wasExecuted = isOutputExecuted(output.id);
+                
+                // Determine handle color: green if executed during test, otherwise use default colors
+                const getHandleColor = () => {
+                    // If executed during test, use green (override default color)
+                    if (wasExecuted) {
+                        return 'green';
+                    }
+                    // Use default color from output config, or gray if not specified
+                    return output.color || 'gray';
+                };
+                
+                const handleColor = getHandleColor();
+                const isGreen = handleColor === 'green' || (wasExecuted && output.color !== 'red');
+                const isRed = handleColor === 'red' || (!wasExecuted && output.color === 'red');
+                const isGray = handleColor === 'gray' || (!wasExecuted && !output.color);
+                
                 return (
                     <React.Fragment key={handleKey}>
                         {isConnected ? (
@@ -136,10 +181,10 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                     type="source" 
                                     position={Position.Right} 
                                     id={output.id}
-                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-slate-300 ${
-                                        output.color === 'green' ? '!bg-emerald-400' :
-                                        output.color === 'red' ? '!bg-rose-400' :
-                                        '!bg-slate-300'
+                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 ${
+                                        isGreen ? '!bg-emerald-400 !border-emerald-500' :
+                                        isRed ? '!bg-rose-400 !border-rose-500' :
+                                        '!bg-slate-300 !border-slate-400'
                                     }`}
                                     style={{ 
                                         left: 'calc(100%)',
@@ -149,8 +194,8 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                 {output.label && (
                                     <span 
                                         className={`absolute text-xs font-medium whitespace-nowrap pointer-events-none ${
-                                            output.color === 'green' ? 'text-emerald-500' :
-                                            output.color === 'red' ? 'text-rose-500' :
+                                            isGreen ? 'text-emerald-500' :
+                                            isRed ? 'text-rose-500' :
                                             'text-muted'
                                         }`}
                                         style={{ 
@@ -168,7 +213,9 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                             <>
                                 {/* Line from node edge */}
                                 <div 
-                                    className="absolute w-4 h-0.5 bg-slate-300 pointer-events-none"
+                                    className={`absolute w-4 h-0.5 pointer-events-none ${
+                                        isGreen ? 'bg-emerald-400' : 'bg-slate-300'
+                                    }`}
                                     style={{ 
                                         left: '100%',
                                         top: `${topPercent}%`,
@@ -180,10 +227,10 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                     type="source" 
                                     position={Position.Right} 
                                     id={output.id}
-                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-slate-300 ${
-                                        output.color === 'green' ? '!bg-emerald-400' :
-                                        output.color === 'red' ? '!bg-rose-400' :
-                                        '!bg-slate-300'
+                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 ${
+                                        isGreen ? '!bg-emerald-400 !border-emerald-500' :
+                                        isRed ? '!bg-rose-400 !border-rose-500' :
+                                        '!bg-slate-300 !border-slate-400'
                                     }`}
                                     style={{ 
                                         left: 'calc(100% )',
@@ -193,7 +240,9 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                 
                                 {/* Line from head to tail */}
                                 <div 
-                                    className="absolute w-4 h-0.5 bg-slate-300 pointer-events-none"
+                                    className={`absolute w-4 h-0.5 pointer-events-none ${
+                                        isGreen ? 'bg-emerald-400' : 'bg-slate-300'
+                                    }`}
                                     style={{ 
                                         left: 'calc(100% + 30px)',
                                         top: `${topPercent}%`,
@@ -259,9 +308,9 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                         document.addEventListener('mouseup', handleMouseUp);
                                     }}
                                     className={`absolute w-5 h-5 border-2 rounded-lg flex items-center justify-center text-xs font-bold shadow-card transition-colors cursor-crosshair ${
-                                        output.color === 'green' ? 'bg-emerald-500 hover:bg-emerald-600 border-emerald-600 text-white' :
-                                        output.color === 'red' ? 'bg-rose-500 hover:bg-rose-600 border-rose-600 text-white' :
-                                        'bg-surface-strong hover:bg-surface-muted border-strong text-primary'
+                                        isGreen ? 'bg-emerald-500 hover:bg-emerald-600 border-emerald-600 text-white' :
+                                        isRed ? 'bg-rose-500 hover:bg-rose-600 border-rose-600 text-white' :
+                                        'bg-slate-400 hover:bg-slate-500 border-slate-500 text-white'
                                     }`}
                                     style={{ 
                                         left: 'calc(100% + 45px)',
@@ -278,8 +327,301 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, con
                                 {output.label && (
                                     <span 
                                         className={`absolute text-xs font-medium whitespace-nowrap pointer-events-none ${
-                                            output.color === 'green' ? 'text-emerald-500' :
-                                            output.color === 'red' ? 'text-rose-500' :
+                                            isGreen ? 'text-emerald-500' :
+                                            isRed ? 'text-rose-500' :
+                                            'text-muted'
+                                        }`}
+                                        style={{ 
+                                            left: 'calc(100% + 20px)',
+                                            top: `${topPercent}%`,
+                                            transform: 'translateY(-50%)',
+                                        }}
+                                    >
+                                        {output.label}
+                                    </span>
+                                )}
+                            </>
+                        )}
+                    </React.Fragment>
+                );
+            })}
+        </div>
+    );
+};
+
+// Switch Node Component - Vertical rectangle that grows with number of outputs
+const SwitchNode = ({ data, nodeType, iconPath, color, handles, onQuickAdd, connectedHandles = [], selected, nodeHeight = 80, nodeOutputData = null, isTestingWorkflow = false }) => {
+    const isRunning = data?.isRunning || false;
+    const isCompleted = data?.isCompleted || false;
+    const isError = data?.isError || false;
+    const [iconError, setIconError] = useState(false);
+    const nodeLabel = data?.customName || data?.label || nodeType;
+    const fallbackInitial = nodeLabel?.trim()?.[0]?.toUpperCase() || nodeType?.[0]?.toUpperCase() || '?';
+    
+    // Resolve icon path
+    const resolvedIconPath = getIconPath(iconPath);
+
+    useEffect(() => {
+        setIconError(false);
+    }, [iconPath, nodeType]);
+    
+    // Check if an output handle was actually executed during test
+    const isOutputExecuted = (outputId, outputIndex) => {
+        if (!isTestingWorkflow || !nodeOutputData || !data?.nodeId) {
+            return false;
+        }
+        
+        const output = nodeOutputData;
+        if (!output || output.matchedOutput === undefined) {
+            return false;
+        }
+        
+        // Check if this output was the one that matched
+        if (outputId === 'fallback') {
+            return output.matchedOutput === -1;
+        } else {
+            // Extract index from outputId (e.g., "output0" -> 0)
+            const index = parseInt(outputId.replace('output', ''));
+            return output.matchedOutput === index;
+        }
+    };
+
+    const getBorderClass = () => {
+        if (isError) return 'border-rose-500 ring-2 ring-rose-200';
+        if (isCompleted) return 'border-emerald-500 ring-2 ring-emerald-200';
+        if (selected) return 'border-blue-500 ring-2 ring-blue-200';
+        return 'border-subtle';
+    };
+
+    // Calculate output positions evenly distributed vertically
+    const outputCount = handles.outputs?.length || 0;
+    const getOutputTopPercent = (index) => {
+        if (outputCount === 0) return 50;
+        if (outputCount === 1) return 50;
+        // Distribute evenly from top to bottom (leaving some padding)
+        const padding = 15; // Top and bottom padding percentage
+        const availableSpace = 100 - (padding * 2);
+        return padding + (index * (availableSpace / (outputCount - 1)));
+    };
+
+    return (
+        <div 
+            className={`bg-surface-elevated border-2 rounded-2xl p-3 w-20 shadow-card relative flex flex-col items-center justify-center group transition-all ${getBorderClass()}`}
+            style={{ height: `${nodeHeight}px`, minHeight: '80px' }}
+            title={data.customName || data.label || nodeType}
+        >
+            {/* Input handle */}
+            {handles.input && (
+                <Handle 
+                    type="target" 
+                    position={Position.Left} 
+                    className="!bg-slate-300 !w-2.5 !h-2.5 !border-2 !border-slate-300"
+                    style={{ top: '50%' }}
+                />
+            )}
+            
+            {/* Icon SVG */}
+            <div className="w-10 h-10 flex items-center justify-center pointer-events-none relative mt-2">
+                {!iconError ? (
+                    <img 
+                        src={resolvedIconPath} 
+                        alt={nodeType}
+                        className={`w-full h-full object-contain ${isRunning ? 'opacity-30' : ''}`}
+                        onError={(e) => {
+                            console.error('Failed to load icon:', resolvedIconPath, 'Error:', e);
+                            setIconError(true);
+                        }}
+                        loading="lazy"
+                    />
+                ) : (
+                    <div className="w-full h-full rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-base font-semibold text-slate-500">
+                        {fallbackInitial}
+                    </div>
+                )}
+                {/* Loading icon overlay when running */}
+                {isRunning && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <img 
+                            src={getIconPath('/icons/nodes/node_active.svg')} 
+                            alt="running"
+                            className="w-8 h-8 animate-spin"
+                            onError={(e) => console.error('Failed to load node_active icon:', e)}
+                        />
+                    </div>
+                )}
+            </div>
+            
+            {/* Node name label - Always visible */}
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-surface-elevated text-secondary text-xs px-3 py-1.5 rounded-lg border border-subtle shadow-card whitespace-nowrap pointer-events-none">
+                {nodeLabel}
+            </div>
+            
+            {/* Output handles - Evenly distributed vertically */}
+            {handles.outputs && handles.outputs.map((output, index) => {
+                const topPercent = getOutputTopPercent(index);
+                const handleKey = output.id || 'default';
+                const isConnected = connectedHandles.includes(handleKey);
+                
+                // Check if this output was executed during test
+                const wasExecuted = isOutputExecuted(output.id, index);
+                
+                // Determine handle color: green if executed during test, otherwise gray/default
+                const getHandleColor = () => {
+                    // If executed during test, use green
+                    if (wasExecuted) {
+                        return 'green';
+                    }
+                    // Default: gray for inactive handles
+                    return 'gray';
+                };
+                
+                const handleColor = getHandleColor();
+                const isGreen = handleColor === 'green';
+                const isRed = output.color === 'red';
+                
+                return (
+                    <React.Fragment key={handleKey}>
+                        {isConnected ? (
+                            <>
+                                <Handle 
+                                    type="source" 
+                                    position={Position.Right} 
+                                    id={output.id}
+                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 ${
+                                        isGreen ? '!bg-emerald-400 !border-emerald-500' :
+                                        isRed ? '!bg-rose-400 !border-rose-500' :
+                                        '!bg-slate-300 !border-slate-400'
+                                    }`}
+                                    style={{ 
+                                        left: 'calc(100%)',
+                                        top: `${topPercent}%`,
+                                    }}
+                                />
+                                {output.label && (
+                                    <span 
+                                        className={`absolute text-xs font-medium whitespace-nowrap pointer-events-none ${
+                                            isGreen ? 'text-emerald-500' :
+                                            isRed ? 'text-rose-500' :
+                                            'text-muted'
+                                        }`}
+                                        style={{ 
+                                            left: 'calc(100% + 8px)',
+                                            top: `${topPercent}%`,
+                                            transform: 'translateY(-50%)',
+                                        }}
+                                    >
+                                        {output.label}
+                                    </span>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div 
+                                    className={`absolute w-4 h-0.5 pointer-events-none ${
+                                        isGreen ? 'bg-emerald-400' : 'bg-slate-300'
+                                    }`}
+                                    style={{ 
+                                        left: '100%',
+                                        top: `${topPercent}%`,
+                                    }}
+                                />
+                                
+                                <Handle 
+                                    type="source" 
+                                    position={Position.Right} 
+                                    id={output.id}
+                                    className={`!w-2.5 !h-2.5 !rounded-full !border-2 ${
+                                        isGreen ? '!bg-emerald-400 !border-emerald-500' :
+                                        isRed ? '!bg-rose-400 !border-rose-500' :
+                                        '!bg-slate-300 !border-slate-400'
+                                    }`}
+                                    style={{ 
+                                        left: 'calc(100% )',
+                                        top: `${topPercent}%`,
+                                    }}
+                                />
+                                
+                                <div 
+                                    className={`absolute w-4 h-0.5 pointer-events-none ${
+                                        isGreen ? 'bg-emerald-400' : 'bg-slate-300'
+                                    }`}
+                                    style={{ 
+                                        left: 'calc(100% + 30px)',
+                                        top: `${topPercent}%`,
+                                    }}
+                                />
+                                
+                                <Handle 
+                                    type="source" 
+                                    position={Position.Right} 
+                                    id={output.id}
+                                    className="!w-5 !h-5 !bg-transparent !border-0 !opacity-0 !pointer-events-auto !cursor-crosshair !z-20"
+                                    style={{ 
+                                        left: 'calc(100% + 45px)',
+                                        top: `${topPercent}%`,
+                                    }}
+                                />
+                                <div
+                                    onClick={(e) => {
+                                        const wasClick = e.currentTarget.dataset.wasClick === 'true';
+                                        if (wasClick) {
+                                            e.stopPropagation();
+                                            onQuickAdd?.(data.nodeId, output.id);
+                                        }
+                                        delete e.currentTarget.dataset.wasClick;
+                                    }}
+                                    onMouseDown={(e) => {
+                                        e.currentTarget.dataset.wasClick = 'true';
+                                        const startX = e.clientX;
+                                        const startY = e.clientY;
+                                        
+                                        const handleMouseMove = (moveEvent) => {
+                                            const distance = Math.sqrt(
+                                                Math.pow(moveEvent.clientX - startX, 2) + 
+                                                Math.pow(moveEvent.clientY - startY, 2)
+                                            );
+                                            if (distance > 5) {
+                                                e.currentTarget.dataset.wasClick = 'false';
+                                                e.currentTarget.style.pointerEvents = 'none';
+                                            }
+                                            document.removeEventListener('mousemove', handleMouseMove);
+                                        };
+                                        
+                                        const handleMouseUp = () => {
+                                            document.removeEventListener('mousemove', handleMouseMove);
+                                            document.removeEventListener('mouseup', handleMouseUp);
+                                            setTimeout(() => {
+                                                if (e.currentTarget) {
+                                                    e.currentTarget.style.pointerEvents = 'auto';
+                                                }
+                                            }, 100);
+                                        };
+                                        
+                                        document.addEventListener('mousemove', handleMouseMove);
+                                        document.addEventListener('mouseup', handleMouseUp);
+                                    }}
+                                    className={`absolute w-5 h-5 border-2 rounded-lg flex items-center justify-center text-xs font-bold shadow-card transition-colors cursor-crosshair ${
+                                        isGreen ? 'bg-emerald-500 hover:bg-emerald-600 border-emerald-600 text-white' :
+                                        isRed ? 'bg-rose-500 hover:bg-rose-600 border-rose-600 text-white' :
+                                        'bg-slate-400 hover:bg-slate-500 border-slate-500 text-white'
+                                    }`}
+                                    style={{ 
+                                        left: 'calc(100% + 45px)',
+                                        top: `${topPercent}%`,
+                                        transform: 'translateY(-50%)',
+                                        pointerEvents: 'auto',
+                                        zIndex: 10,
+                                    }}
+                                    title="Click to add next node or drag to connect"
+                                >
+                                    +
+                                </div>
+                                
+                                {output.label && (
+                                    <span 
+                                        className={`absolute text-xs font-medium whitespace-nowrap pointer-events-none ${
+                                            isGreen ? 'text-emerald-500' :
+                                            isRed ? 'text-rose-500' :
                                             'text-muted'
                                         }`}
                                         style={{ 
@@ -311,6 +653,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     schedule: (props) => (
@@ -323,6 +667,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     http: (props) => (
@@ -335,6 +681,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     perplexity: (props) => (
@@ -347,6 +695,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     claude: (props) => (
@@ -359,6 +709,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     openai: (props) => (
@@ -371,6 +723,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     code: (props) => (
@@ -383,6 +737,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     escape: (props) => (
@@ -395,6 +751,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     if: (props) => (
@@ -413,16 +771,21 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     switch: (props) => {
         // Dynamic outputs based on rules
         const rules = props.data?.config?.rules || [];
-        const outputs = rules.map((rule, index) => ({
-            id: `output${index}`,
-            label: rule.outputName || `Output ${index + 1}`,
-            color: 'blue'
-        }));
+        const outputs = rules.map((rule, index) => {
+            const outputName = rule.outputName || `Output ${index + 1}`;
+            return {
+                id: `output${index}`,
+                label: outputName,
+                color: 'blue' // Default color - will be overridden by execution state
+            };
+        });
         // Add fallback output
         outputs.push({
             id: 'fallback',
@@ -430,8 +793,15 @@ const nodeTypes = {
             color: 'gray'
         });
 
+        // Calculate height based on number of outputs
+        // Base height: 80px, + 32px per output (min 2 outputs)
+        const minHeight = 80;
+        const outputCount = Math.max(outputs.length, 2);
+        const calculatedHeight = minHeight + (outputCount - 2) * 32;
+        const nodeHeight = Math.min(calculatedHeight, 400); // Max 400px
+
         return (
-            <CompactNode 
+            <SwitchNode 
                 {...props} 
                 nodeType="switch"
                 iconPath="/icons/nodes/switch.svg"
@@ -443,6 +813,9 @@ const nodeTypes = {
                 onQuickAdd={props.data.onQuickAdd}
                 connectedHandles={props.data.connectedHandles || []}
                 selected={props.selected}
+                nodeHeight={nodeHeight}
+                nodeOutputData={props.data.nodeOutputData}
+                isTestingWorkflow={props.data.isTestingWorkflow}
             />
         );
     },
@@ -456,6 +829,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     googlesheets: (props) => (
@@ -468,6 +843,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
     gemini: (props) => (
@@ -480,6 +857,8 @@ const nodeTypes = {
             onQuickAdd={props.data.onQuickAdd}
             connectedHandles={props.data.connectedHandles || []}
             selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
 };
@@ -545,16 +924,67 @@ function WorkflowEditor() {
     const [isTestingWorkflow, setIsTestingWorkflow] = useState(false);
     const [runningNodes, setRunningNodes] = useState(new Set());
     const [completedNodes, setCompletedNodes] = useState(new Set());
+    const [errorNodes, setErrorNodes] = useState(new Set());
     const [isEditingName, setIsEditingName] = useState(false);
     const [editedName, setEditedName] = useState('');
     const [testExecutionId, setTestExecutionId] = useState(null);
     const reactFlowWrapper = useRef(null);
     const [reactFlowInstance, setReactFlowInstance] = useState(null);
     const testPollingRef = useRef(null);
+    const testExecutionIdRef = useRef(null); // Store in ref so cleanup can access it
+    const workflowIdRef = useRef(null); // Store workflow ID in ref for cleanup
 
     useEffect(() => {
         fetchWorkflow();
     }, [id]);
+
+    // Store testExecutionId and workflow.id in refs so cleanup can access them
+    useEffect(() => {
+        testExecutionIdRef.current = testExecutionId;
+    }, [testExecutionId]);
+
+    useEffect(() => {
+        workflowIdRef.current = workflow?.id || id;
+    }, [workflow?.id, id]);
+
+    // Cleanup when component unmounts (e.g., page reload or navigation)
+    useEffect(() => {
+        return () => {
+            // Clear polling interval
+            if (testPollingRef.current) {
+                console.log('🧹 Cleaning up test polling on unmount');
+                clearInterval(testPollingRef.current);
+                testPollingRef.current = null;
+            }
+            
+            // Stop test listening on backend if active
+            const currentTestId = testExecutionIdRef.current;
+            const currentWorkflowId = workflowIdRef.current;
+            
+            if (currentTestId && currentWorkflowId) {
+                console.log('🧹 Stopping test listener on backend:', {
+                    testExecutionId: currentTestId,
+                    workflowId: currentWorkflowId
+                });
+                
+                // Use navigator.sendBeacon for reliable cleanup on page unload
+                // This ensures the request is sent even if page is unloading
+                if (navigator.sendBeacon) {
+                    const url = `${window.location.origin}/api/workflows/${currentWorkflowId}/webhook-test-stop/${currentTestId}`;
+                    const formData = new FormData();
+                    navigator.sendBeacon(url, formData);
+                } else {
+                    // Fallback: use fetch with keepalive
+                    fetch(`/api/workflows/${currentWorkflowId}/webhook-test-stop/${currentTestId}`, {
+                        method: 'POST',
+                        keepalive: true,
+                    }).catch(error => {
+                        console.error('Error stopping test listener on cleanup:', error);
+                    });
+                }
+            }
+        };
+    }, []); // Empty deps - only run on mount/unmount
 
     // Custom wheel handler for Cmd/Ctrl + scroll = zoom
     useEffect(() => {
@@ -927,74 +1357,128 @@ function WorkflowEditor() {
         await handleSave();
         
         if (!workflow?.id) {
-            alert('Please save workflow first');
+            console.error('Workflow not saved yet');
             return;
         }
 
-        // Find webhook node
+        // Find trigger node (webhook or schedule)
         const webhookNode = nodes.find(n => n.type === 'webhook');
-        if (!webhookNode) {
-            alert('Workflow must have a webhook node to test');
-            return;
-        }
-
-        const webhookPath = webhookNode.data?.config?.path;
-        if (!webhookPath) {
-            alert('Webhook node must have a path configured');
-            return;
-        }
+        const scheduleNode = nodes.find(n => n.type === 'schedule');
+        const triggerNode = scheduleNode || webhookNode;
 
         // Reset states
         setIsTestingWorkflow(true);
         setRunningNodes(new Set());
         setCompletedNodes(new Set());
+        setErrorNodes(new Set());
         setNodeOutputData({});
+        
+        // Stop previous test if any before starting new one
+        if (testPollingRef.current) {
+            clearInterval(testPollingRef.current);
+            testPollingRef.current = null;
+        }
+        if (testExecutionIdRef.current && workflowIdRef.current) {
+            // Stop previous test listener
+            axios.post(`/workflows/${workflowIdRef.current}/webhook-test-stop/${testExecutionIdRef.current}`)
+                .catch(error => console.error('Error stopping previous test:', error));
+        }
+        
         setTestExecutionId(null);
+        testExecutionIdRef.current = null;
 
         // Clear previous polling
         if (testPollingRef.current) {
             clearInterval(testPollingRef.current);
         }
 
-        try {
-            // Start listening for webhook
-            const response = await axios.post(`/workflows/${workflow.id}/webhook-test-listen`, {
-                node_id: webhookNode.id,
-                path: webhookPath,
-                method: webhookNode.data?.config?.method || 'POST',
-            });
+        // If has webhook node, wait for webhook
+        if (webhookNode) {
+            let webhookPath = webhookNode.data?.config?.path;
+            if (!webhookPath) {
+                console.error('Webhook node must have a path configured');
+                setIsTestingWorkflow(false);
+                return;
+            }
+            
+            // Normalize path (remove leading/trailing slashes)
+            webhookPath = webhookPath.trim().replace(/^\/+|\/+$/g, '');
 
-            const testRunId = response.data.test_run_id;
-            setTestExecutionId(testRunId);
+            try {
+                // Start listening for webhook
+                const response = await axios.post(`/workflows/${workflow.id}/webhook-test-listen`, {
+                    node_id: webhookNode.id,
+                    path: webhookPath,
+                    method: webhookNode.data?.config?.method || 'POST',
+                });
 
-            console.log('✅ Test workflow started, waiting for webhook:', testRunId);
-            alert(`Test started! Send a ${webhookNode.data?.config?.method || 'POST'} request to:\n\n${window.location.origin}/api/webhook-test/${webhookPath}`);
+                const testRunId = response.data.test_run_id;
+                setTestExecutionId(testRunId);
+                testExecutionIdRef.current = testRunId; // Store in ref for cleanup access
 
-            // Poll for execution status
-            testPollingRef.current = setInterval(async () => {
-                try {
-                    const statusResponse = await axios.get(`/workflows/${workflow.id}/webhook-test-status/${testRunId}`);
-                    
-                    if (statusResponse.data.status === 'received') {
-                        // Webhook received, now execute workflow
-                        clearInterval(testPollingRef.current);
-                        executeTestWorkflow(testRunId, statusResponse.data.data);
-                    } else if (statusResponse.data.status === 'timeout' || statusResponse.data.status === 'stopped') {
+                console.log('✅ Test workflow started, waiting for webhook:', testRunId);
+                console.log(`📝 Send a ${webhookNode.data?.config?.method || 'POST'} request to: ${window.location.origin}/api/webhook-test/${webhookPath}`);
+                console.log(`📋 Test Run ID: ${testRunId}`);
+                console.log(`📋 Listening for path: "${webhookPath}"`);
+
+                // Poll for execution status
+                testPollingRef.current = setInterval(async () => {
+                    try {
+                        const statusResponse = await axios.get(`/workflows/${workflow.id}/webhook-test-status/${testRunId}`);
+                        
+                        console.log('🔄 Polling status:', {
+                            status: statusResponse.data.status,
+                            message: statusResponse.data.message,
+                            hasData: !!statusResponse.data.data
+                        });
+                        
+                        if (statusResponse.data.status === 'received') {
+                            // Webhook received, now execute workflow
+                            clearInterval(testPollingRef.current);
+                            const receivedData = statusResponse.data.data;
+                            console.log('📥 Webhook received, data:', receivedData);
+                            executeTestWorkflow(testRunId, receivedData);
+                        } else if (statusResponse.data.status === 'timeout' || statusResponse.data.status === 'stopped') {
+                            clearInterval(testPollingRef.current);
+                            setIsTestingWorkflow(false);
+                            console.log('⏱️ Test timeout or stopped');
+                        } else if (statusResponse.data.status === 'listening') {
+                            // Still waiting - just log occasionally to avoid spam
+                            if (Math.random() < 0.1) { // Log ~10% of polls
+                                console.log('👂 Still listening for webhook...');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('❌ Error polling test status:', error);
+                        console.error('Error details:', {
+                            message: error.message,
+                            response: error.response?.data,
+                            status: error.response?.status
+                        });
                         clearInterval(testPollingRef.current);
                         setIsTestingWorkflow(false);
-                        alert('Test timeout or stopped');
                     }
-                } catch (error) {
-                    console.error('Error polling test status:', error);
-                    clearInterval(testPollingRef.current);
-                    setIsTestingWorkflow(false);
-                }
-            }, 1000); // Poll every second
+                }, 1000); // Poll every second
 
-        } catch (error) {
-            console.error('Error starting test:', error);
-            alert('Error starting test: ' + (error.response?.data?.message || error.message));
-            setIsTestingWorkflow(false);
+            } catch (error) {
+                console.error('Error starting test:', error);
+                setIsTestingWorkflow(false);
+            }
+        } else {
+            // No webhook node - execute directly with empty webhook data
+            // Backend will find starting node automatically
+            try {
+                console.log('🚀 Executing workflow without webhook trigger (will start from first node)');
+                await executeTestWorkflow(null, {
+                    method: 'POST',
+                    headers: {},
+                    body: {},
+                    query: {},
+                });
+            } catch (error) {
+                console.error('Error executing workflow:', error);
+                setIsTestingWorkflow(false);
+            }
         }
     };
 
@@ -1002,30 +1486,119 @@ function WorkflowEditor() {
         try {
             console.log('🚀 Executing test workflow with webhook data:', webhookData);
             
-            // Simulate execution by calling backend
-            const response = await axios.post(`/webhook-test/${nodes.find(n => n.type === 'webhook')?.data?.config?.path}`, webhookData);
+            // Reset states
+            setRunningNodes(new Set());
+            setCompletedNodes(new Set());
+            setErrorNodes(new Set());
+            setNodeOutputData({});
             
-            // Note: Backend will execute and we need to fetch execution results
-            // For now, we'll simulate node-by-node execution
-            simulateNodeExecution();
+            // Ensure webhook data has required fields
+            // If webhookData is null/undefined, use empty data (for workflows without webhook)
+            const formattedWebhookData = webhookData ? {
+                method: webhookData.method || 'POST',
+                headers: webhookData.headers || {},
+                body: webhookData.body || {},
+                query: webhookData.query || {},
+            } : {
+                method: 'POST',
+                headers: {},
+                body: {},
+                query: {},
+            };
+            
+            console.log('📤 Sending to backend:', formattedWebhookData);
+            
+            // Call backend to execute workflow
+            const response = await axios.post(`/workflows/${workflow.id}/test-execute`, {
+                webhook_data: formattedWebhookData
+            });
+            
+            console.log('📥 Backend response:', response.data);
+            
+            if (!response.data.success) {
+                throw new Error(response.data.error || 'Failed to execute workflow');
+            }
+            
+            const { node_results, execution_order, error_node, has_error } = response.data;
+            
+            console.log('✅ Workflow execution result:', {
+                execution_order_count: execution_order?.length || 0,
+                node_results_count: Object.keys(node_results || {}).length,
+                error_node,
+                has_error,
+                execution_order: execution_order,
+                node_results_keys: Object.keys(node_results || {})
+            });
+            
+            // Check if execution_order is empty
+            if (!execution_order || execution_order.length === 0) {
+                console.warn('⚠️ Execution order is empty - no nodes to execute');
+                setIsTestingWorkflow(false);
+                console.log('ℹ️ Workflow has no executable nodes');
+                return;
+            }
+            
+            // Execute nodes one by one in order with visualization
+            await executeNodesWithVisualization(execution_order, node_results, error_node, has_error);
             
         } catch (error) {
-            console.error('Error executing test workflow:', error);
+            console.error('❌ Error executing test workflow:', error);
+            console.error('❌ Error details:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status,
+                stack: error.stack
+            });
             setIsTestingWorkflow(false);
+            
+            // Show error in UI (optional - can be removed if you don't want alerts)
+            // alert('Error executing workflow: ' + (error.response?.data?.error || error.message));
         }
     };
 
-    const simulateNodeExecution = async () => {
-        // For now, just mark all nodes as completed
-        // In real implementation, we'd get execution data from backend
-        const allNodeIds = nodes.map(n => n.id);
-        
-        for (const nodeId of allNodeIds) {
+    const executeNodesWithVisualization = async (executionOrder, nodeResults, errorNode, hasError) => {
+        // Execute nodes one by one in the order they were executed
+        for (let i = 0; i < executionOrder.length; i++) {
+            const nodeId = executionOrder[i];
+            const nodeResult = nodeResults[nodeId];
+            
+            if (!nodeResult) {
+                console.warn('No result found for node:', nodeId);
+                continue;
+            }
+            
+            // Mark node as running
             setRunningNodes(prev => new Set([...prev, nodeId]));
             
-            // Wait a bit
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Wait a bit to show running state (small delay for visualization)
+            await new Promise(resolve => setTimeout(resolve, 300));
             
+            // Check if this is the error node
+            const isErrorNode = nodeId === errorNode;
+            
+            if (isErrorNode || nodeResult.status === 'error') {
+                // Mark as error - stop execution
+                setRunningNodes(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(nodeId);
+                    return newSet;
+                });
+                
+                setErrorNodes(prev => new Set([...prev, nodeId]));
+                
+                // Store error output
+                setNodeOutputData(prev => ({
+                    ...prev,
+                    [nodeId]: nodeResult.output || { error: nodeResult.error_message || 'Unknown error' }
+                }));
+                
+                setIsTestingWorkflow(false);
+                const nodeName = nodes.find(n => n.id === nodeId)?.data?.customName || nodes.find(n => n.id === nodeId)?.data?.label || nodeId;
+                console.error(`❌ Workflow stopped at node "${nodeName}" with error: ${nodeResult.error_message || 'Unknown error'}`);
+                return; // Stop execution
+            }
+            
+            // Node succeeded - mark as completed
             setRunningNodes(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(nodeId);
@@ -1033,10 +1606,19 @@ function WorkflowEditor() {
             });
             
             setCompletedNodes(prev => new Set([...prev, nodeId]));
+            
+            // Store output data for downstream nodes and UI display
+            setNodeOutputData(prev => ({
+                ...prev,
+                [nodeId]: nodeResult.output || nodeResult
+            }));
         }
         
+        // All nodes completed successfully
         setIsTestingWorkflow(false);
-        alert('Test workflow completed!');
+        if (!hasError) {
+            console.log('✅ Test workflow completed successfully!');
+        }
     };
 
     const handleToggleActive = async () => {
@@ -2372,7 +2954,7 @@ function WorkflowEditor() {
                                     : 'bg-purple-600 hover:bg-purple-700 text-white shadow-card'
                             }`}
                         >
-                            <span>🚀</span>
+                            <span></span>
                             {isTestingWorkflow ? 'Testing...' : 'Test workflow'}
                         </button>
                     </div>
@@ -2443,7 +3025,14 @@ function WorkflowEditor() {
                     <>
                         <ReactFlow
                     onInit={setReactFlowInstance}
-                    nodes={nodes.map(node => {
+                    nodes={nodes.map(node => ({
+                        ...node,
+                        data: {
+                            ...node.data,
+                            nodeOutputData: nodeOutputData[node.id] || null,
+                            isTestingWorkflow: isTestingWorkflow,
+                        }
+                    })).map(node => {
                         // Find which handles are connected
                         const connectedHandles = edges
                             .filter(e => e.source === node.id)
@@ -2460,6 +3049,7 @@ function WorkflowEditor() {
                                 connectedHandles: connectedHandles,
                                 isRunning: runningNodes.has(node.id),
                                 isCompleted: completedNodes.has(node.id),
+                                isError: errorNodes.has(node.id),
                             },
                         };
                     })}

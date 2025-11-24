@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import VariableInput from './VariableInput';
 import CredentialModal from './CredentialModal';
 import axios from '../config/axios';
@@ -23,6 +23,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
 
     const [testResults, setTestResults] = useState(null);
     const [isTesting, setIsTesting] = useState(false);
+    const testAbortControllerRef = useRef(null);
     const [selectedVariable, setSelectedVariable] = useState(null);
     const [credentials, setCredentials] = useState([]);
     const [showCredentialModal, setShowCredentialModal] = useState(false);
@@ -312,6 +313,11 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
         if (onTest) {
             setIsTesting(true);
             setTestResults(null);
+            
+            // Create AbortController for this test
+            const abortController = new AbortController();
+            testAbortControllerRef.current = abortController;
+            
             try {
                 // Convert bodyParams to bodyContent if using fields mode (same as handleSave)
                 const testConfig = { ...config };
@@ -326,6 +332,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                 }
                 
                 const result = await onTest(testConfig);
+                
+                // Check if test was cancelled
+                if (abortController.signal.aborted) {
+                    console.log('Test was cancelled');
+                    return;
+                }
+                
                 setTestResults(result);
 
                 // Save test result to output data
@@ -333,6 +346,12 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                     onTestResult(node.id, result);
                 }
             } catch (error) {
+                // Check if test was cancelled
+                if (abortController.signal.aborted) {
+                    console.log('Test was cancelled');
+                    return;
+                }
+                
                 const errorResult = {
                     error: error.message || 'An error occurred while testing the request',
                 };
@@ -342,8 +361,21 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                     onTestResult(node.id, errorResult);
                 }
             } finally {
-                setIsTesting(false);
+                if (!abortController.signal.aborted) {
+                    setIsTesting(false);
+                }
+                testAbortControllerRef.current = null;
             }
+        }
+    };
+
+    const handleStopTest = () => {
+        if (testAbortControllerRef.current) {
+            testAbortControllerRef.current.abort();
+            setIsTesting(false);
+            setTestResults(null);
+            testAbortControllerRef.current = null;
+            console.log('Test stopped by user');
         }
     };
 
@@ -1023,15 +1055,26 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         📖 Viewing execution history (Read-only)
                                     </span>
                                 )}
-                                {/* Test Button */}
+                                {/* Test/Stop Button */}
                                 {onTest && !readOnly && (
-                                    <button
-                                        onClick={handleTest}
-                                        disabled={isTesting || !config.url}
-                                        className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-sm font-medium"
-                                    >
-                                        {isTesting ? 'Testing...' : 'Test step'}
-                                    </button>
+                                    <>
+                                        {isTesting ? (
+                                            <button
+                                                onClick={handleStopTest}
+                                                className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-1.5 rounded text-sm font-medium"
+                                            >
+                                                Stop step
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={handleTest}
+                                                disabled={!config.url}
+                                                className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-sm font-medium"
+                                            >
+                                                Test step
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>
