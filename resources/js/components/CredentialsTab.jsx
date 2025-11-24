@@ -93,6 +93,89 @@ const CredentialsTab = () => {
         setEditingCredential(null);
     };
 
+    const handleExport = async () => {
+        try {
+            const response = await axios.get('/credentials/export', {
+                responseType: 'blob',
+            });
+
+            // Create blob and download
+            const blob = new Blob([response.data], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `credentials_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+            alert('✅ Credentials exported successfully!');
+        } catch (error) {
+            console.error('Error exporting credentials:', error);
+            alert('❌ Failed to export credentials: ' + (error.response?.data?.message || error.message));
+        }
+    };
+
+    const handleImport = async (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        // Validate file type
+        if (!file.name.endsWith('.json')) {
+            alert('❌ Please select a JSON file');
+            event.target.value = '';
+            return;
+        }
+
+        if (!confirm('⚠️ Importing credentials will update existing credentials with the same name. Continue?')) {
+            event.target.value = '';
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await axios.post('/credentials/import', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            const { imported, skipped, errors } = response.data;
+
+            let message = `✅ Import completed!\n\n`;
+            message += `• Imported: ${imported} credential(s)\n`;
+            message += `• Skipped: ${skipped} credential(s)`;
+
+            if (errors && errors.length > 0) {
+                message += `\n\n⚠️ Errors (${errors.length}):\n`;
+                errors.slice(0, 5).forEach(err => {
+                    message += `  - ${err}\n`;
+                });
+                if (errors.length > 5) {
+                    message += `  ... and ${errors.length - 5} more errors`;
+                }
+            }
+
+            alert(message);
+
+            // Reset file input
+            event.target.value = '';
+
+            // Refresh credentials list
+            fetchCredentials();
+        } catch (error) {
+            console.error('Error importing credentials:', error);
+            const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Unknown error';
+            alert('❌ Failed to import credentials: ' + errorMessage);
+            event.target.value = '';
+        }
+    };
+
     const filteredCredentials = credentials.filter(cred =>
         cred.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         cred.type.toLowerCase().includes(searchTerm.toLowerCase())
@@ -136,15 +219,44 @@ const CredentialsTab = () => {
                     <h2 className="text-2xl font-bold text-primary">Credentials</h2>
                     <p className="text-muted mt-1">Manage your API credentials and authentication</p>
                 </div>
-                <button
-                    onClick={() => setShowModal(true)}
-                    className="btn btn-primary text-sm flex items-center space-x-2"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span>Create Credential</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                    <button
+                        onClick={handleExport}
+                        className="btn btn-secondary text-sm flex items-center space-x-2"
+                        title="Export credentials to JSON file"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Export</span>
+                    </button>
+                    <button
+                        onClick={() => document.getElementById('import-file-input').click()}
+                        className="btn btn-secondary text-sm flex items-center space-x-2"
+                        title="Import credentials from JSON file"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <span>Import</span>
+                    </button>
+                    <input
+                        id="import-file-input"
+                        type="file"
+                        accept=".json"
+                        style={{ display: 'none' }}
+                        onChange={handleImport}
+                    />
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="btn btn-primary text-sm flex items-center space-x-2"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>+ Create Credential</span>
+                    </button>
+                </div>
             </div>
 
             {/* Search */}

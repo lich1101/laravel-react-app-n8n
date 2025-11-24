@@ -2628,6 +2628,14 @@ JS;
             $apiKey = null;
             if ($credential->type === 'openai') {
                 $apiKey = $credential->data['key'] ?? null;
+                Log::info('OpenAI credential - extracted API key', [
+                    'credential_id' => $credential->id,
+                    'credential_type' => $credential->type,
+                    'has_key' => !empty($apiKey),
+                    'key_length' => $apiKey ? strlen($apiKey) : 0,
+                    'key_preview' => $apiKey ? substr($apiKey, 0, 10) . '...' : null,
+                    'data_keys' => is_array($credential->data) ? array_keys($credential->data) : 'not_array',
+                ]);
             } elseif ($credential->type === 'custom' && isset($credential->data['headerValue'])) {
                 // Backward compatibility with old custom header credentials
                 $headerValue = $credential->data['headerValue'];
@@ -2641,7 +2649,13 @@ JS;
             }
 
             if (!$apiKey) {
-                throw new \Exception('Invalid OpenAI credential configuration');
+                Log::error('OpenAI credential - API key is missing', [
+                    'credential_id' => $credential->id,
+                    'credential_type' => $credential->type,
+                    'data_is_null' => is_null($credential->data),
+                    'data_keys' => is_array($credential->data) ? array_keys($credential->data) : 'not_array',
+                ]);
+                throw new \Exception('Invalid OpenAI credential configuration: API key is missing or empty');
             }
 
             // Build request body
@@ -4528,18 +4542,36 @@ JS;
                 ], 404);
             }
 
-            // Extract API key from credential
-            $headerValue = $credential->data['headerValue'] ?? null;
-            if (!$headerValue) {
-                return response()->json([
-                    'error' => 'Invalid credential configuration'
-                ], 400);
+            // Get API key from credential based on type
+            $apiKey = null;
+            if ($credential->type === 'gemini') {
+                $apiKey = $credential->data['key'] ?? null;
+                Log::info('getGeminiModels - extracted API key', [
+                    'credential_id' => $credential->id,
+                    'credential_type' => $credential->type,
+                    'has_key' => !empty($apiKey),
+                    'key_length' => $apiKey ? strlen($apiKey) : 0,
+                    'key_preview' => $apiKey ? substr($apiKey, 0, 10) . '...' : null,
+                ]);
+            } elseif ($credential->type === 'custom' && isset($credential->data['headerValue'])) {
+                // Backward compatibility
+                $headerValue = $credential->data['headerValue'];
+                $apiKey = $headerValue;
+                if (strpos($headerValue, 'Bearer ') === 0) {
+                    $apiKey = substr($headerValue, 7);
+                }
+            } elseif ($credential->type === 'bearer' && isset($credential->data['token'])) {
+                $apiKey = $credential->data['token'];
             }
 
-            // Remove "Bearer " prefix if exists
-            $apiKey = $headerValue;
-            if (strpos($headerValue, 'Bearer ') === 0) {
-                $apiKey = substr($headerValue, 7);
+            if (!$apiKey) {
+                Log::error('getGeminiModels - API key is missing', [
+                    'credential_id' => $credential->id,
+                    'credential_type' => $credential->type,
+                ]);
+                return response()->json([
+                    'error' => 'Invalid credential configuration: API key is missing'
+                ], 400);
             }
 
             // Fetch models from Gemini API
@@ -4595,6 +4627,13 @@ JS;
             $apiKey = null;
             if ($credential->type === 'openai') {
                 $apiKey = $credential->data['key'] ?? null;
+                Log::info('getOpenAIModels - extracted API key', [
+                    'credential_id' => $credential->id,
+                    'credential_type' => $credential->type,
+                    'has_key' => !empty($apiKey),
+                    'key_length' => $apiKey ? strlen($apiKey) : 0,
+                    'key_preview' => $apiKey ? substr($apiKey, 0, 10) . '...' : null,
+                ]);
             } elseif ($credential->type === 'custom' && isset($credential->data['headerValue'])) {
                 // Backward compatibility
                 $headerValue = $credential->data['headerValue'];
@@ -4607,8 +4646,12 @@ JS;
             }
 
             if (!$apiKey) {
+                Log::error('getOpenAIModels - API key is missing', [
+                    'credential_id' => $credential->id,
+                    'credential_type' => $credential->type,
+                ]);
                 return response()->json([
-                    'error' => 'Invalid credential configuration'
+                    'error' => 'Invalid credential configuration: API key is missing'
                 ], 400);
             }
 

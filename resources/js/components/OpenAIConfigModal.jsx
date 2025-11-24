@@ -543,14 +543,31 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     };
 
     const fetchOpenAIModels = async () => {
+        if (!config.credentialId) {
+            setModels([]);
+            return;
+        }
+
         setLoadingModels(true);
         try {
             const response = await axios.post('/openai/get-models', {
                 credentialId: config.credentialId
             });
             
-            if (response.data && Array.isArray(response.data.models)) {
-                const modelList = response.data.models
+            // OpenAI API returns { data: [...] } format
+            let modelArray = null;
+            if (response.data && Array.isArray(response.data.data)) {
+                modelArray = response.data.data;
+            } else if (response.data && Array.isArray(response.data.models)) {
+                // Fallback for different response format
+                modelArray = response.data.models;
+            } else if (Array.isArray(response.data)) {
+                // Direct array response
+                modelArray = response.data;
+            }
+
+            if (modelArray && modelArray.length > 0) {
+                const modelList = modelArray
                     .filter(m => m.id && !m.id.includes('search') && !m.id.includes('similarity') && !m.id.includes('edit') && !m.id.includes('audio'))
                     .map(m => ({
                         value: m.id,
@@ -561,9 +578,21 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                 if (modelList.length > 0 && !modelList.find(m => m.value === config.model)) {
                     setConfig({ ...config, model: modelList[0].value });
                 }
+            } else {
+                console.warn('No models found in response:', response.data);
+                // Fallback to default models
+                setModels([
+                    { value: 'gpt-4o', label: 'GPT-4o' },
+                    { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+                    { value: 'gpt-4', label: 'GPT-4' },
+                    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+                ]);
             }
         } catch (error) {
             console.error('Error fetching OpenAI models:', error);
+            const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Unknown error';
+            console.error('Error details:', errorMessage);
+            // Show error but still provide fallback models
             setModels([
                 { value: 'gpt-4o', label: 'GPT-4o' },
                 { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },

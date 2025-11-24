@@ -249,16 +249,33 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     };
 
     const fetchGeminiModels = async () => {
+        if (!config.credentialId) {
+            setModels([]);
+            return;
+        }
+
         setLoadingModels(true);
         try {
             const response = await axios.post('/gemini/get-models', {
                 credentialId: config.credentialId
             });
             
+            // Gemini API returns { models: [...] } format
+            let modelArray = null;
             if (response.data && Array.isArray(response.data.models)) {
+                modelArray = response.data.models;
+            } else if (response.data && Array.isArray(response.data.data)) {
+                // Fallback for different response format
+                modelArray = response.data.data;
+            } else if (Array.isArray(response.data)) {
+                // Direct array response
+                modelArray = response.data;
+            }
+
+            if (modelArray && modelArray.length > 0) {
                 // Transform API response to dropdown format
-                const modelList = response.data.models
-                    .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+                const modelList = modelArray
+                    .filter(m => m.name && m.supportedGenerationMethods?.includes('generateContent'))
                     .map(m => ({
                         value: m.name.replace('models/', ''),
                         label: m.displayName || m.name.replace('models/', '')
@@ -269,9 +286,19 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                 if (modelList.length > 0 && !modelList.find(m => m.value === config.model)) {
                     setConfig({ ...config, model: modelList[0].value });
                 }
+            } else {
+                console.warn('No models found in response:', response.data);
+                // Fallback to default models
+                setModels([
+                    { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash Exp' },
+                    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+                    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+                ]);
             }
         } catch (error) {
             console.error('Error fetching Gemini models:', error);
+            const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Unknown error';
+            console.error('Error details:', errorMessage);
             // Fallback to default models
             setModels([
                 { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash Exp' },

@@ -99,6 +99,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/credentials/{credential}/test', [CredentialController::class, 'test']);
     Route::get('/credentials/{credential}/oauth2/authorize', [CredentialController::class, 'startOAuth2Authorization']);
     Route::post('/credentials/oauth2/authorize', [CredentialController::class, 'startOAuth2Authorization']);
+    Route::get('/credentials/export', [CredentialController::class, 'export']);
+    Route::post('/credentials/import', [CredentialController::class, 'import']);
     Route::apiResource('credentials', CredentialController::class);
 
     // Automation module routes

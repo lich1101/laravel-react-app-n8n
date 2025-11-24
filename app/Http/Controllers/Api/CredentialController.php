@@ -47,7 +47,7 @@ class CredentialController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'type' => 'required|string|in:bearer,api_key,oauth2,basic,custom',
+            'type' => 'required|string|in:bearer,api_key,oauth2,basic,custom,openai,claude,gemini,perplexity',
             'data' => 'required|array',
             'description' => 'nullable|string',
         ]);
@@ -56,12 +56,29 @@ class CredentialController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Log the data being saved (without sensitive values)
+        Log::info('Creating credential', [
+            'type' => $request->type,
+            'name' => $request->name,
+            'data_keys' => is_array($request->data) ? array_keys($request->data) : 'not_array',
+            'has_key' => isset($request->data['key']) && !empty($request->data['key']),
+        ]);
+
         $credential = Credential::create([
             'user_id' => Auth::id(),
             'name' => $request->name,
             'type' => $request->type,
             'data' => $request->data, // Will be auto-encrypted by model
             'description' => $request->description,
+        ]);
+
+        // Verify the credential was saved correctly
+        $credential->refresh();
+        Log::info('Credential created', [
+            'credential_id' => $credential->id,
+            'type' => $credential->type,
+            'decrypted_data_keys' => is_array($credential->data) ? array_keys($credential->data) : 'not_array',
+            'has_key' => isset($credential->data['key']) && !empty($credential->data['key']),
         ]);
 
         return response()->json([
@@ -104,7 +121,7 @@ class CredentialController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'type' => 'sometimes|required|string|in:bearer,api_key,oauth2,basic,custom',
+            'type' => 'sometimes|required|string|in:bearer,api_key,oauth2,basic,custom,openai,claude,gemini,perplexity',
             'data' => 'sometimes|required|array',
             'description' => 'nullable|string',
         ]);
@@ -598,6 +615,158 @@ class CredentialController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             return redirect('/workflows?oauth_error=' . urlencode($e->getMessage()));
+        }
+    }
+
+    /**
+     * Export credentials as JSON
+     */
+    public function export()
+    {
+        try {
+            $credentials = Credential::where('user_id', Auth::id())
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $exportData = [
+                'version' => '1.0',
+                'exported_at' => now()->toIso8601String(),
+                'exported_by' => Auth::user()->email ?? Auth::id(),
+                'credentials' => $credentials->map(function ($credential) {
+                    return [
+                        'name' => $credential->name,
+                        'type' => $credential->type,
+                        'data' => $credential->data, // Will be decrypted by model accessor
+                        'description' => $credential->description,
+                    ];
+                })->toArray(),
+            ];
+
+            return response()->json($exportData, 200, [
+                'Content-Type' => 'application/json',
+                'Content-Disposition' => 'attachment; filename="credentials_' . date('Y-m-d_His') . '.json"',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error exporting credentials', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to export credentials',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Import credentials from JSON
+     */
+    public function import(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'file' => 'required|file|mimes:json,txt|max:10240', // Max 10MB
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => 'Invalid file',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $file = $request->file('file');
+            $content = file_get_contents($file->getRealPath());
+            $importData = json_decode($content, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return response()->json([
+                    'error' => 'Invalid JSON file',
+                    'message' => json_last_error_msg(),
+                ], 400);
+            }
+
+            // Validate import data structure
+            if (!isset($importData['credentials']) || !is_array($importData['credentials'])) {
+                return response()->json([
+                    'error' => 'Invalid import file format',
+                    'message' => 'File must contain a "credentials" array',
+                ], 400);
+            }
+
+            $imported = 0;
+            $skipped = 0;
+            $errors = [];
+
+            foreach ($importData['credentials'] as $index => $credentialData) {
+                try {
+                    // Validate required fields
+                    if (empty($credentialData['name']) || empty($credentialData['type']) || empty($credentialData['data'])) {
+                        $errors[] = "Credential #{$index}: Missing required fields (name, type, or data)";
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Check if credential with same name already exists
+                    $existing = Credential::where('user_id', Auth::id())
+                        ->where('name', $credentialData['name'])
+                        ->first();
+
+                    if ($existing) {
+                        // Update existing credential
+                        $existing->update([
+                            'type' => $credentialData['type'],
+                            'data' => $credentialData['data'], // Will be auto-encrypted by model
+                            'description' => $credentialData['description'] ?? null,
+                        ]);
+                        $imported++;
+                    } else {
+                        // Create new credential
+                        Credential::create([
+                            'user_id' => Auth::id(),
+                            'name' => $credentialData['name'],
+                            'type' => $credentialData['type'],
+                            'data' => $credentialData['data'], // Will be auto-encrypted by model
+                            'description' => $credentialData['description'] ?? null,
+                        ]);
+                        $imported++;
+                    }
+                } catch (\Exception $e) {
+                    $credentialName = $credentialData['name'] ?? 'unknown';
+                    $errors[] = "Credential #{$index} ({$credentialName}): " . $e->getMessage();
+                    $skipped++;
+                    Log::error('Error importing credential', [
+                        'index' => $index,
+                        'credential_data' => $credentialData,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            Log::info('Credentials import completed', [
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'errors_count' => count($errors),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Credentials imported successfully',
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error importing credentials', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to import credentials',
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 }
