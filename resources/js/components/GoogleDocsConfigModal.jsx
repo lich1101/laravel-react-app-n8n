@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from '../config/axios';
 import CredentialModal from './CredentialModal';
 import ExpandableTextarea from './ExpandableTextarea';
@@ -29,6 +29,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
 
     const [testResults, setTestResults] = useState(null);
     const [isTesting, setIsTesting] = useState(false);
+    const testAbortControllerRef = useRef(null);
     const [credentials, setCredentials] = useState([]);
     const [showCredentialModal, setShowCredentialModal] = useState(false);
     const [inputViewMode, setInputViewMode] = useState('schema');
@@ -98,6 +99,10 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
     };
 
     const handleClose = () => {
+        // Stop test if currently testing
+        if (isTesting && testAbortControllerRef.current) {
+            handleStopTest();
+        }
         handleSave();
         onClose();
     };
@@ -106,13 +111,31 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
         if (onTest) {
             setIsTesting(true);
             setTestResults(null);
+            
+            // Create AbortController for this test
+            const abortController = new AbortController();
+            testAbortControllerRef.current = abortController;
+            
             try {
                 const result = await onTest(config);
+                
+                // Check if test was cancelled
+                if (abortController.signal.aborted) {
+                    console.log('Test was cancelled');
+                    return;
+                }
+                
                 setTestResults(result);
                 if (onTestResult && node?.id) {
                     onTestResult(node.id, result);
                 }
             } catch (error) {
+                // Check if test was cancelled
+                if (abortController.signal.aborted) {
+                    console.log('Test was cancelled');
+                    return;
+                }
+                
                 const errorResult = {
                     error: error.message || 'An error occurred',
                 };
@@ -121,8 +144,21 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                     onTestResult(node.id, errorResult);
                 }
             } finally {
-                setIsTesting(false);
+                if (!abortController.signal.aborted) {
+                    setIsTesting(false);
+                }
+                testAbortControllerRef.current = null;
             }
+        }
+    };
+
+    const handleStopTest = () => {
+        if (testAbortControllerRef.current) {
+            testAbortControllerRef.current.abort();
+            setIsTesting(false);
+            setTestResults(null);
+            testAbortControllerRef.current = null;
+            console.log('Test stopped by user');
         }
     };
 
@@ -566,9 +602,17 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                             <h3 className="font-semibold text-gray-900">OUTPUT</h3>
                             <div className="flex items-center gap-2 mt-2">
                                 {onTest && (
-                                    <button onClick={handleTest} disabled={isTesting || !config.credentialId} className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-sm font-medium">
-                                        {isTesting ? 'Testing...' : 'Test step'}
-                                    </button>
+                                    <>
+                                        {isTesting ? (
+                                            <button onClick={handleStopTest} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-1.5 rounded text-sm font-medium">
+                                                Stop step
+                                            </button>
+                                        ) : (
+                                            <button onClick={handleTest} disabled={!config.credentialId} className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-sm font-medium">
+                                                Test step
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>

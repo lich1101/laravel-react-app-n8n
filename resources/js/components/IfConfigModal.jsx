@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from '../config/axios';
 import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 import ExpandableTextarea from './ExpandableTextarea';
@@ -94,6 +94,7 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
 
     const [testResults, setTestResults] = useState(null);
     const [isTesting, setIsTesting] = useState(false);
+    const testAbortControllerRef = useRef(null);
     const [inputViewMode, setInputViewMode] = useState('schema');
     const [outputViewMode, setOutputViewMode] = useState('json');
     const [collapsedPaths, setCollapsedPaths] = useState(new Set());
@@ -109,6 +110,10 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
     };
 
     const handleClose = () => {
+        // Stop test if currently testing
+        if (isTesting && testAbortControllerRef.current) {
+            handleStopTest();
+        }
         handleSave();
         onClose();
     };
@@ -117,14 +122,32 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
         if (onTest) {
             setIsTesting(true);
             setTestResults(null);
+            
+            // Create AbortController for this test
+            const abortController = new AbortController();
+            testAbortControllerRef.current = abortController;
+            
             try {
                 const result = await onTest(config);
+                
+                // Check if test was cancelled
+                if (abortController.signal.aborted) {
+                    console.log('Test was cancelled');
+                    return;
+                }
+                
                 setTestResults(result);
 
                 if (onTestResult && node?.id) {
                     onTestResult(node.id, result);
                 }
             } catch (error) {
+                // Check if test was cancelled
+                if (abortController.signal.aborted) {
+                    console.log('Test was cancelled');
+                    return;
+                }
+                
                 const errorResult = {
                     error: error.message || 'An error occurred',
                     result: false,
@@ -135,8 +158,21 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                     onTestResult(node.id, errorResult);
                 }
             } finally {
-                setIsTesting(false);
+                if (!abortController.signal.aborted) {
+                    setIsTesting(false);
+                }
+                testAbortControllerRef.current = null;
             }
+        }
+    };
+
+    const handleStopTest = () => {
+        if (testAbortControllerRef.current) {
+            testAbortControllerRef.current.abort();
+            setIsTesting(false);
+            setTestResults(null);
+            testAbortControllerRef.current = null;
+            console.log('Test stopped by user');
         }
     };
 
@@ -643,13 +679,22 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                     </div>
                                 )}
                             </div>
-                            <button
-                                onClick={handleTest}
-                                disabled={isTesting || config.conditions.some(c => !c.value1)}
-                                className="btn btn-danger text-sm w-full disabled:bg-gray-300 disabled:text-white disabled:cursor-not-allowed"
-                            >
-                                {isTesting ? 'Testing...' : 'Test step'}
-                            </button>
+                            {isTesting ? (
+                                <button
+                                    onClick={handleStopTest}
+                                    className="btn text-sm w-full bg-orange-600 hover:bg-orange-700 text-white"
+                                >
+                                    Stop step
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleTest}
+                                    disabled={config.conditions.some(c => !c.value1)}
+                                    className="btn btn-danger text-sm w-full disabled:bg-gray-300 disabled:text-white disabled:cursor-not-allowed"
+                                >
+                                    Test step
+                                </button>
+                            )}
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
                             {isTesting ? (

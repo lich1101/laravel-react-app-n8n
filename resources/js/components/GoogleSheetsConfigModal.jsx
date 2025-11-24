@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from '../config/axios';
 import CredentialModal from './CredentialModal';
 import ExpandableTextarea from './ExpandableTextarea';
@@ -210,6 +210,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
     });
 
     const [isTesting, setIsTesting] = useState(false);
+    const testAbortControllerRef = useRef(null);
     const [credentials, setCredentials] = useState([]);
     const [showCredentialModal, setShowCredentialModal] = useState(false);
     const [sheetColumns, setSheetColumns] = useState([]);
@@ -320,6 +321,10 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
     };
 
     const handleClose = () => {
+        // Stop test if currently testing
+        if (isTesting && testAbortControllerRef.current) {
+            handleStopTest();
+        }
         handleSave();
         onClose();
     };
@@ -328,14 +333,32 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
         if (onTest) {
             setIsTesting(true);
             setTestResults(null);
+            
+            // Create AbortController for this test
+            const abortController = new AbortController();
+            testAbortControllerRef.current = abortController;
+            
             try {
                 const result = await onTest(config);
+                
+                // Check if test was cancelled
+                if (abortController.signal.aborted) {
+                    console.log('Test was cancelled');
+                    return;
+                }
+                
                 setTestResults(result);
 
                 if (onTestResult && node?.id) {
                     onTestResult(node.id, result);
                 }
             } catch (error) {
+                // Check if test was cancelled
+                if (abortController.signal.aborted) {
+                    console.log('Test was cancelled');
+                    return;
+                }
+                
                 const errorResult = {
                     error: error.message || 'An error occurred while testing the Google Sheets operation',
                 };
@@ -345,8 +368,21 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                     onTestResult(node.id, errorResult);
                 }
             } finally {
-                setIsTesting(false);
+                if (!abortController.signal.aborted) {
+                    setIsTesting(false);
+                }
+                testAbortControllerRef.current = null;
             }
+        }
+    };
+
+    const handleStopTest = () => {
+        if (testAbortControllerRef.current) {
+            testAbortControllerRef.current.abort();
+            setIsTesting(false);
+            setTestResults(null);
+            testAbortControllerRef.current = null;
+            console.log('Test stopped by user');
         }
     };
 
@@ -372,14 +408,24 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                             </div>
                         </div>
                         <div className="flex items-center space-x-3">
-                            <button
-                                onClick={handleTest}
-                                disabled={isTesting || !config.credentialId}
-                                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium flex items-center space-x-2"
-                            >
-                                <span>▲</span>
-                                <span>{isTesting ? 'Testing...' : 'Test step'}</span>
-                            </button>
+                            {isTesting ? (
+                                <button
+                                    onClick={handleStopTest}
+                                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium flex items-center space-x-2"
+                                >
+                                    <span>■</span>
+                                    <span>Stop step</span>
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleTest}
+                                    disabled={!config.credentialId}
+                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium flex items-center space-x-2"
+                                >
+                                    <span>▲</span>
+                                    <span>Test step</span>
+                                </button>
+                            )}
                             <button
                                 onClick={handleClose}
                                 className="text-gray-500 hover:text-gray-700"

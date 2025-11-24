@@ -2238,6 +2238,12 @@ JS;
         return $this->executeGeminiNode($config, $inputData);
     }
 
+    // Public wrapper for testing OpenAI node
+    public function testOpenAINode($config, $inputData)
+    {
+        return $this->executeOpenAINode($config, $inputData);
+    }
+
     // Public wrapper for testing Google Docs node
     public function testGoogleDocsNode($config, $inputData)
     {

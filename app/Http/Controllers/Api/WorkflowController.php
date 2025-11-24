@@ -465,6 +465,9 @@ class WorkflowController extends Controller
                 case 'gemini':
                     $result = $webhookController->testGeminiNode($config, $inputData);
                     break;
+                case 'openai':
+                    $result = $webhookController->testOpenAINode($config, $inputData);
+                    break;
                 default:
                     return response()->json([
                         'error' => 'Unsupported node type for testing'
