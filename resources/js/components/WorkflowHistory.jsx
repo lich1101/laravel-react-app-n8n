@@ -122,6 +122,124 @@ const CompactNode = ({ data, nodeType, iconPath, color, handles }) => {
     );
 };
 
+// Compact Switch Node Component - Vertical rectangle that grows with number of outputs (for History view)
+const CompactSwitchNode = ({ data, nodeType, iconPath, color, handles, nodeHeight = 80 }) => {
+    const isCompleted = data?.isCompleted || false;
+    const hasError = data?.hasError || false;
+    const connectedHandles = data?.connectedHandles || [];
+    const [iconError, setIconError] = React.useState(false);
+
+    // Reset error state when iconPath or nodeType changes
+    React.useEffect(() => {
+        setIconError(false);
+    }, [iconPath, nodeType]);
+
+    // Get fallback text from nodeType (first 2-3 characters)
+    const getFallbackText = () => {
+        if (!nodeType) return '?';
+        const words = nodeType.split(/\s+/);
+        if (words.length >= 2) {
+            return words.map(w => w[0]?.toUpperCase() || '').slice(0, 2).join('');
+        }
+        return nodeType.substring(0, 2).toUpperCase();
+    };
+
+    // Calculate output positions evenly distributed vertically
+    const outputCount = handles.outputs?.length || 0;
+    const getOutputTopPercent = (index) => {
+        if (outputCount === 0) return 50;
+        if (outputCount === 1) return 50;
+        // Distribute evenly from top to bottom (leaving some padding)
+        const padding = 15; // Top and bottom padding percentage
+        const availableSpace = 100 - (padding * 2);
+        return padding + (index * (availableSpace / (outputCount - 1)));
+    };
+
+    return (
+        <div 
+            className={`bg-surface-elevated border-2 rounded-2xl p-3 w-20 relative flex flex-col items-center justify-center group transition-all shadow-card ${
+                hasError ? 'border-rose-500 border-4' : 
+                isCompleted ? 'border-emerald-500' : 'border-subtle'
+            }`}
+            style={{ height: `${nodeHeight}px`, minHeight: '80px' }}
+            title={data.customName || data.label || nodeType}
+        >
+            {/* Input handle */}
+            {handles.input && (
+                <Handle 
+                    type="target" 
+                    position={Position.Left} 
+                    className="!bg-slate-300 !w-2.5 !h-2.5 !border-2 !border-slate-300"
+                    style={{ top: '50%' }}
+                />
+            )}
+            
+            {/* Icon SVG */}
+            <div className="w-10 h-10 flex items-center justify-center pointer-events-none relative mt-2">
+                {!iconError ? (
+                    <img 
+                        src={iconPath} 
+                        alt={nodeType}
+                        className="w-full h-full object-contain"
+                        onError={() => setIconError(true)}
+                        loading="lazy"
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200 rounded text-gray-600 text-xs font-bold">
+                        {getFallbackText()}
+                    </div>
+                )}
+            </div>
+            
+            {/* Node name label */}
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-surface-elevated text-secondary text-xs px-3 py-1.5 rounded-lg border border-subtle shadow-card whitespace-nowrap pointer-events-none">
+                {data.customName || data.label}
+            </div>
+            
+            {/* Output handles - Evenly distributed vertically */}
+            {handles.outputs && handles.outputs.map((output, index) => {
+                const topPercent = getOutputTopPercent(index);
+                const handleKey = output.id || 'default';
+                
+                return (
+                    <React.Fragment key={handleKey}>
+                        <Handle 
+                            type="source" 
+                            position={Position.Right} 
+                            id={output.id}
+                            className={`!w-2.5 !h-2.5 !rounded-full !border-2 !border-slate-300 ${
+                                output.color === 'green' ? '!bg-emerald-400' :
+                                output.color === 'red' ? '!bg-rose-400' :
+                                '!bg-slate-300'
+                            }`}
+                            style={{ 
+                                left: 'calc(100%)',
+                                top: `${topPercent}%`,
+                            }}
+                        />
+                        {output.label && (
+                            <span 
+                                className={`absolute text-xs font-medium whitespace-nowrap pointer-events-none ${
+                                    output.color === 'green' ? 'text-emerald-500' :
+                                    output.color === 'red' ? 'text-rose-500' :
+                                    'text-muted'
+                                }`}
+                                style={{ 
+                                    left: 'calc(100% + 8px)',
+                                    top: `${topPercent}%`,
+                                    transform: 'translateY(-50%)',
+                                }}
+                            >
+                                {output.label}
+                            </span>
+                        )}
+                    </React.Fragment>
+                );
+            })}
+        </div>
+    );
+};
+
 // Node types giống hệt Editor
 const nodeTypes = {
     webhook: (props) => (
@@ -233,13 +351,21 @@ const nodeTypes = {
             color: 'gray'
         });
 
+        // Calculate height based on number of outputs (giống Editor)
+        // Base height: 80px, + 32px per output (min 2 outputs)
+        const minHeight = 80;
+        const outputCount = Math.max(outputs.length, 2);
+        const calculatedHeight = minHeight + (outputCount - 2) * 32;
+        const nodeHeight = Math.min(calculatedHeight, 400); // Max 400px
+
         return (
-            <CompactNode 
+            <CompactSwitchNode 
                 {...props} 
                 nodeType="switch"
                 iconPath="/icons/nodes/switch.svg"
                 color="cyan"
                 handles={{ input: true, outputs: outputs }}
+                nodeHeight={nodeHeight}
             />
         );
     },
