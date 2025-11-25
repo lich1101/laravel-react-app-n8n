@@ -315,13 +315,13 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                     <div className="flex items-center gap-3 text-primary">
                         <span className="text-3xl">🔗</span>
                         <h2 
-                            className="text-xl font-semibold cursor-pointer hover:text-primary/70 transition-colors flex items-center gap-2"
+                            className={`text-xl font-semibold ${!readOnly ? 'cursor-pointer hover:text-primary/70' : 'cursor-default'} transition-colors flex items-center gap-2`}
                             onClick={() => {
-                                if (onRename) {
+                                if (onRename && !readOnly) {
                                     onRename();
                                 }
                             }}
-                            title="Click để đổi tên node"
+                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
                         >
                             {node?.data?.customName || 'Webhook'}
                             <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,13 +330,20 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                         </h2>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <button
-                            onClick={isListening ? handleStopListening : handleTestStep}
-                            disabled={isListening && !testOutput}
-                            className={`btn text-sm ${isListening ? 'btn-danger' : 'btn-success'}`}
-                        >
-                            {isListening ? 'Stop Listening' : 'Test step'}
-                        </button>
+                        {!readOnly && (
+                            <button
+                                onClick={isListening ? handleStopListening : handleTestStep}
+                                disabled={isListening && !testOutput}
+                                className={`btn text-sm ${isListening ? 'btn-danger' : 'btn-success'}`}
+                            >
+                                {isListening ? 'Stop Listening' : 'Test step'}
+                            </button>
+                        )}
+                        {readOnly && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
+                                📖 Viewing execution history (Read-only)
+                            </span>
+                        )}
                         <button 
                             onClick={handleClose} 
                             disabled={pathError}
@@ -354,7 +361,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
 
                 <div className="flex h-[calc(90vh-80px)]">
                     {/* Left Panel - Config */}
-                    <div className={`flex-1 overflow-y-auto px-6 py-4 ${readOnly ? 'pointer-events-none opacity-75' : ''}`}>
+                    <div className="flex-1 overflow-y-auto px-6 py-4">
                         <div>
                             {/* Webhook URL */}
                             <div className="mb-6">
@@ -370,7 +377,8 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                 <select
                                     value={config.method}
                                     onChange={(e) => setConfig({ ...config, method: e.target.value })}
-                                    className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
+                                    disabled={readOnly}
+                                    className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <option value="GET">GET</option>
                                     <option value="POST">POST</option>
@@ -389,6 +397,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                         onChange={(newValue) => setConfig({ ...config, path: newValue })}
                                         rows={1}
                                         placeholder="test"
+                                        disabled={readOnly}
                                         className={`w-full bg-surface border rounded-lg px-3 py-2 text-secondary ${
                                             pathError ? 'border-danger-color' : 'border-subtle'
                                         }`}
@@ -418,7 +427,8 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                 <select
                                     value={config.auth}
                                     onChange={(e) => setConfig({ ...config, auth: e.target.value, authType: 'bearer' })}
-                                    className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
+                                    disabled={readOnly}
+                                    className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <option value="none">None</option>
                                     <option value="header">Header Auth</option>
@@ -434,7 +444,8 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                         <select
                                             value={config.authType}
                                             onChange={(e) => setConfig({ ...config, authType: e.target.value })}
-                                            className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
+                                            disabled={readOnly}
+                                            className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             <option value="bearer">Bearer Token</option>
                                             <option value="basic">Basic Auth</option>
@@ -453,7 +464,8 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 <select
                                                     value={config.credentialId || ''}
                                                     onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
-                                                    className="flex-1 bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
+                                                    disabled={readOnly}
+                                                    className="flex-1 bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <option value="">Select Credential...</option>
                                                     {Array.isArray(credentials) && credentials
@@ -464,17 +476,19 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                             </option>
                                                         ))}
                                                 </select>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setSelectedCredentialType('bearer');
-                                                        setShowCredentialModal(true);
-                                                    }}
-                                                    className="btn btn-success text-sm whitespace-nowrap"
-                                                    title="Create new Bearer Token"
-                                                >
-                                                    + New
-                                                </button>
+                                                {!readOnly && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedCredentialType('bearer');
+                                                            setShowCredentialModal(true);
+                                                        }}
+                                                        className="btn btn-success text-sm whitespace-nowrap"
+                                                        title="Create new Bearer Token"
+                                                    >
+                                                        + New
+                                                    </button>
+                                                )}
                                             </div>
                                             {!config.credentialId && (
                                                 <p className="mt-1 text-xs text-warning">
@@ -499,6 +513,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                     onChange={(newValue) => setConfig({ ...config, username: newValue })}
                                                     placeholder="Username"
                                                     rows={1}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                             <div>
@@ -508,6 +523,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                     onChange={(newValue) => setConfig({ ...config, password: newValue })}
                                                     placeholder="Password"
                                                     rows={1}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                         </div>
@@ -523,6 +539,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                     onChange={(newValue) => setConfig({ ...config, apiKeyName: newValue })}
                                                     placeholder="X-API-KEY"
                                                     rows={1}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                             <div>
@@ -532,6 +549,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                     onChange={(newValue) => setConfig({ ...config, apiKeyValue: newValue })}
                                                     placeholder="Your API Key"
                                                     rows={1}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                         </div>
@@ -547,6 +565,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                     onChange={(newValue) => setConfig({ ...config, username: newValue })}
                                                     placeholder="Username"
                                                     rows={1}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                             <div>
@@ -556,6 +575,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                     onChange={(newValue) => setConfig({ ...config, password: newValue })}
                                                     placeholder="Password"
                                                     rows={1}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                         </div>
@@ -569,7 +589,8 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 <select
                                                     value={config.credentialId || ''}
                                                     onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
-                                                    className="flex-1 bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
+                                                    disabled={readOnly}
+                                                    className="flex-1 bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <option value="">Select Credential...</option>
                                                     {Array.isArray(credentials) && credentials
@@ -580,17 +601,19 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                             </option>
                                                         ))}
                                                 </select>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setSelectedCredentialType('oauth2');
-                                                        setShowCredentialModal(true);
-                                                    }}
-                                                    className="btn btn-success text-sm whitespace-nowrap"
-                                                    title="Create new OAuth2 Credential"
-                                                >
-                                                    + New
-                                                </button>
+                                                {!readOnly && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedCredentialType('oauth2');
+                                                            setShowCredentialModal(true);
+                                                        }}
+                                                        className="btn btn-success text-sm whitespace-nowrap"
+                                                        title="Create new OAuth2 Credential"
+                                                    >
+                                                        + New
+                                                    </button>
+                                                )}
                                             </div>
                                             {!config.credentialId && (
                                                 <p className="mt-1 text-xs text-orange-400">
@@ -618,6 +641,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                     onChange={(newValue) => setConfig({ ...config, customHeaderName: newValue })}
                                                     placeholder="X-Custom-Header"
                                                     rows={1}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                             <div className="mb-6">
@@ -627,6 +651,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                     onChange={(newValue) => setConfig({ ...config, customHeaderValue: newValue })}
                                                     placeholder="Header value"
                                                     rows={1}
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                         </>
@@ -640,7 +665,8 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                 <select
                                     value={config.respond}
                                     onChange={(e) => setConfig({ ...config, respond: e.target.value })}
-                                    className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary"
+                                    disabled={readOnly}
+                                    className="w-full bg-surface border border-subtle rounded-lg px-3 py-2 text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <option value="immediately">Immediately</option>
                                     <option value="when_last_node_finishes">When last node finishes</option>

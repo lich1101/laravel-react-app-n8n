@@ -403,13 +403,13 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">🔮</span>
                         <h2 
-                            className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
+                            className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} transition-colors flex items-center gap-2`}
                             onClick={() => {
-                                if (onRename) {
+                                if (onRename && !readOnly) {
                                     onRename();
                                 }
                             }}
-                            title="Click để đổi tên node"
+                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
                         >
                             {node?.data?.customName || 'Perplexity AI'}
                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

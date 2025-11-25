@@ -413,13 +413,13 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">🤖</span>
                         <h2 
-                            className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
+                            className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} transition-colors flex items-center gap-2`}
                             onClick={() => {
-                                if (onRename) {
+                                if (onRename && !readOnly) {
                                     onRename();
                                 }
                             }}
-                            title="Click để đổi tên node"
+                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
                         >
                             {node?.data?.customName || 'Claude AI'}
                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -533,7 +533,8 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                     <select
                                         value={config.credentialId || ''}
                                         onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
-                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                        disabled={readOnly}
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <option value="">Select Credential...</option>
                                         {credentials.map(cred => (
@@ -542,14 +543,16 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             </option>
                                         ))}
                                     </select>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCredentialModal(true)}
-                                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
-                                        title="Create new credential"
-                                    >
-                                        + New
-                                    </button>
+                                    {!readOnly && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCredentialModal(true)}
+                                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                            title="Create new credential"
+                                        >
+                                            + New
+                                        </button>
+                                    )}
                                 </div>
                                 {!config.credentialId && (
                                     <p className="mt-1 text-xs text-orange-600">
@@ -566,7 +569,8 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 <select
                                     value={config.model}
                                     onChange={(e) => setConfig({ ...config, model: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                    disabled={readOnly}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {models.map(model => (
                                         <option key={model.value} value={model.value}>
@@ -587,6 +591,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             type="checkbox"
                                             checked={config.systemMessageEnabled}
                                             onChange={(e) => setConfig({ ...config, systemMessageEnabled: e.target.checked })}
+                                            disabled={readOnly}
                                             className="sr-only peer"
                                         />
                                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
@@ -601,6 +606,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                         label="System Message"
                                         hint="💡 Kéo thả biến từ INPUT panel hoặc dùng cú pháp {{variable}}"
                                         inputData={inputData}
+                                        disabled={readOnly}
                                     />
                                 )}
                             </div>
@@ -667,13 +673,15 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                     <label className="block text-sm font-medium text-gray-700">
                                         Messages
                                     </label>
-                                    <button
-                                        type="button"
-                                        onClick={addMessagePair}
-                                        className="text-xs px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded"
-                                    >
-                                        + Add Message
-                                    </button>
+                                    {!readOnly && (
+                                        <button
+                                            type="button"
+                                            onClick={addMessagePair}
+                                            className="text-xs px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded"
+                                        >
+                                            + Add Message
+                                        </button>
+                                    )}
                                 </div>
                                 
                                 <div className="space-y-3">
@@ -692,7 +700,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                         Message {index + 1}
                                                     </span>
                                                 </div>
-                                                {config.messages.length > 1 && (
+                                                {config.messages.length > 1 && !readOnly && (
                                                     <button
                                                         type="button"
                                                         onClick={() => deleteMessage(index)}
@@ -717,6 +725,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                 label={`${message.role === 'user' ? 'User' : 'Assistant'} Message ${index + 1}`}
                                                 hint="💡 Kéo thả biến từ INPUT panel"
                                                 inputData={inputData}
+                                                disabled={readOnly}
                                             />
                                         </div>
                                     ))}
@@ -787,6 +796,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                         }}
                                                         rows={1}
                                                         placeholder={String(optionDef.default)}
+                                                        disabled={readOnly}
                                                     />
                                                     
                                                     {optionDef.description && (
@@ -847,7 +857,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
-                                {onTest && (
+                                {onTest && !readOnly && (
                                     <>
                                         {isTesting ? (
                                             <button
@@ -871,6 +881,11 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             </button>
                                         )}
                                     </>
+                                )}
+                                {readOnly && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
+                                        📖 Viewing execution history (Read-only)
+                                    </span>
                                 )}
                             </div>
                         </div>

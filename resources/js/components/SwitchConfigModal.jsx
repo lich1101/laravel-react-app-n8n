@@ -17,7 +17,7 @@ const OPERATORS = [
     { value: 'isNotEmpty', label: 'is not empty' },
 ];
 
-function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
+function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
         mode: 'rules',
         rules: [
@@ -366,7 +366,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                 <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">🔀</span>
-                        <h2 className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2" onClick={() => { if (onRename) { onRename(); } }} title="Click để đổi tên node">
+                        <h2 className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} transition-colors flex items-center gap-2`} onClick={() => { if (onRename && !readOnly) { onRename(); } }} title={readOnly ? "Read-only mode" : "Click để đổi tên node"}>
                             {node?.data?.customName || 'Switch'}
                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -428,7 +428,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Mode
                                 </label>
-                                <select value={config.mode} onChange={(e) => setConfig({ ...config, mode: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
+                                <select value={config.mode} onChange={(e) => setConfig({ ...config, mode: e.target.value })} disabled={readOnly} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed">
                                     <option value="rules">Rules</option>
                                 </select>
                             </div>
@@ -439,9 +439,11 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                     <label className="block text-sm font-medium text-gray-700">
                                         Routing Rules
                                     </label>
-                                    <button type="button" onClick={addRule} className="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded font-medium">
-                                        + Add Rule
-                                    </button>
+                                    {!readOnly && (
+                                        <button type="button" onClick={addRule} className="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded font-medium">
+                                            + Add Rule
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="space-y-4">
@@ -476,7 +478,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                         Rule {index + 1}
                                                     </span>
                                                 </div>
-                                                {config.rules.length > 1 && (
+                                                {config.rules.length > 1 && !readOnly && (
                                                     <button 
                                                         type="button" 
                                                         onClick={() => deleteRule(index)} 
@@ -501,6 +503,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                     inputData={inputData}
                                                     rows={1}
                                                     placeholder="{{variable}} or value"
+                                                    disabled={readOnly}
                                                 />
                                             </div>
 
@@ -509,7 +512,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                 <label className="block text-xs font-medium text-gray-700 mb-1">
                                                     Operator
                                                 </label>
-                                                <select value={rule.operator} onChange={(e) => updateRule(index, 'operator', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
+                                                <select value={rule.operator} onChange={(e) => updateRule(index, 'operator', e.target.value)} disabled={readOnly} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                                     {OPERATORS.map(op => (
                                                         <option key={op.value} value={op.value}>{op.label}</option>
                                                     ))}
@@ -528,6 +531,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                         inputData={inputData}
                                                         rows={1}
                                                         placeholder="value or {{variable}}"
+                                                        disabled={readOnly}
                                                     />
                                                 </div>
                                             )}
@@ -542,6 +546,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                     onChange={(newValue) => updateRule(index, 'outputName', newValue)}
                                                     rows={1}
                                                     placeholder="Output name"
+                                                    disabled={readOnly}
                                                 />
                                             </div>
                                         </div>
@@ -559,6 +564,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                     onChange={(newValue) => setConfig({ ...config, fallbackOutput: newValue })}
                                     rows={1}
                                     placeholder="No Match"
+                                    disabled={readOnly}
                                 />
                                 <p className="mt-1 text-xs text-gray-500">
                                     Tên output khi không có rule nào match
@@ -574,7 +580,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 <h3 className="font-semibold text-gray-900">OUTPUT</h3>
                             </div>
                             <div className="flex items-center gap-2">
-                                {onTest && (
+                                {onTest && !readOnly && (
                                     <>
                                         {isTesting ? (
                                             <button onClick={handleStopTest} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-1.5 rounded text-sm font-medium">
@@ -586,6 +592,11 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             </button>
                                         )}
                                     </>
+                                )}
+                                {readOnly && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
+                                        📖 Viewing execution history (Read-only)
+                                    </span>
                                 )}
                             </div>
                         </div>

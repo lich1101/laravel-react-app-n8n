@@ -4,7 +4,7 @@ import CredentialModal from './CredentialModal';
 import ExpandableTextarea from './ExpandableTextarea';
 import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
-function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
+function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
         credentialId: null,
         resource: 'document',
@@ -331,7 +331,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                 <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">📄</span>
-                        <h2 className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 flex items-center gap-2" onClick={() => { if (onRename) onRename(); }} title="Click để đổi tên node">
+                        <h2 className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} flex items-center gap-2`} onClick={() => { if (onRename && !readOnly) onRename(); }} title={readOnly ? "Read-only mode" : "Click để đổi tên node"}>
                             {node?.data?.customName || 'Google Docs'}
                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -389,20 +389,22 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                     Credential to connect with *
                                 </label>
                                 <div className="flex space-x-2">
-                                    <select value={config.credentialId || ''} onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })} className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
+                                    <select value={config.credentialId || ''} onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })} disabled={readOnly} className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed">
                                         <option value="">Select Credential...</option>
                                         {credentials.map(cred => (
                                             <option key={cred.id} value={cred.id}>{cred.name}</option>
                                         ))}
                                     </select>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCredentialModal(true)}
-                                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
-                                        title="Create new OAuth2 credential for Google Docs"
-                                    >
-                                        + New
-                                    </button>
+                                    {!readOnly && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCredentialModal(true)}
+                                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                            title="Create new OAuth2 credential for Google Docs"
+                                        >
+                                            + New
+                                        </button>
+                                    )}
                                 </div>
                                 {!config.credentialId && (
                                     <p className="mt-1 text-xs text-orange-600">
@@ -416,7 +418,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Resource
                                 </label>
-                                <select value={config.resource} onChange={(e) => setConfig({ ...config, resource: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
+                                <select value={config.resource} onChange={(e) => setConfig({ ...config, resource: e.target.value })} disabled={readOnly} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed">
                                     <option value="document">Document</option>
                                 </select>
                             </div>
@@ -426,7 +428,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Operation *
                                 </label>
-                                <select value={config.operation} onChange={(e) => setConfig({ ...config, operation: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900">
+                                <select value={config.operation} onChange={(e) => setConfig({ ...config, operation: e.target.value })} disabled={readOnly} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed">
                                     <option value="create">Create</option>
                                     <option value="update">Update</option>
                                     <option value="get">Get</option>
@@ -446,6 +448,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                             inputData={inputData}
                                             rows={1}
                                             hint="💡 Để trống = tạo trong My Drive root"
+                                            disabled={readOnly}
                                         />
                                     </div>
 
@@ -458,6 +461,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                             placeholder="Document title hoặc {{variable}}"
                                             inputData={inputData}
                                             rows={1}
+                                            disabled={readOnly}
                                         />
                                     </div>
                                 </>
@@ -476,6 +480,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                             inputData={inputData}
                                             rows={1}
                                             hint={`💡 Dùng {{NodeName.id}} từ Create node hoặc paste document ID/URL`}
+                                            disabled={readOnly}
                                         />
                                     </div>
 
@@ -486,7 +491,8 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                 type="checkbox" 
                                                 checked={config.simplify !== false} 
                                                 onChange={(e) => setConfig({ ...config, simplify: e.target.checked })} 
-                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                disabled={readOnly}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                             />
                                             <span className="text-sm font-medium text-gray-700">Simplify</span>
                                         </label>
@@ -510,6 +516,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                             inputData={inputData}
                                             rows={1}
                                             hint={`💡 Dùng {{NodeName.id}} từ Create node`}
+                                            disabled={readOnly}
                                         />
                                     </div>
 
@@ -519,9 +526,11 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                             <label className="block text-sm font-medium text-gray-700">
                                                 Actions
                                             </label>
-                                            <button type="button" onClick={addAction} className="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded font-medium">
-                                                + Add Action
-                                            </button>
+                                            {!readOnly && (
+                                                <button type="button" onClick={addAction} className="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded font-medium">
+                                                    + Add Action
+                                                </button>
+                                            )}
                                         </div>
 
                                         <div className="space-y-4">
@@ -529,7 +538,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                 <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
                                                     <div className="flex items-center justify-between mb-3">
                                                         <span className="text-sm font-semibold text-gray-900">Action {index + 1}</span>
-                                                        {config.actions.length > 1 && (
+                                                        {config.actions.length > 1 && !readOnly && (
                                                             <button type="button" onClick={() => deleteAction(index)} className="text-red-600 hover:text-red-700 text-xs">
                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -541,7 +550,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                     {/* Object */}
                                                     <div className="mb-3">
                                                         <label className="block text-xs font-medium text-gray-700 mb-1">Object</label>
-                                                        <select value={action.object} onChange={(e) => updateAction(index, 'object', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
+                                                        <select value={action.object} onChange={(e) => updateAction(index, 'object', e.target.value)} disabled={readOnly} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                                             <option value="text">Text</option>
                                                         </select>
                                                     </div>
@@ -549,7 +558,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                     {/* Action Type */}
                                                     <div className="mb-3">
                                                         <label className="block text-xs font-medium text-gray-700 mb-1">Action</label>
-                                                        <select value={action.action} onChange={(e) => updateAction(index, 'action', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
+                                                        <select value={action.action} onChange={(e) => updateAction(index, 'action', e.target.value)} disabled={readOnly} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                                             <option value="insert">Insert</option>
                                                             <option value="replace">Replace</option>
                                                         </select>
@@ -559,7 +568,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                     {action.action === 'insert' && (
                                                         <div className="mb-3">
                                                             <label className="block text-xs font-medium text-gray-700 mb-1">Insert Segment</label>
-                                                            <select value={action.insertSegment} onChange={(e) => updateAction(index, 'insertSegment', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
+                                                            <select value={action.insertSegment} onChange={(e) => updateAction(index, 'insertSegment', e.target.value)} disabled={readOnly} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                                                 <option value="body">Body</option>
                                                             </select>
                                                         </div>
@@ -569,7 +578,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                     {action.action === 'insert' && (
                                                         <div className="mb-3">
                                                             <label className="block text-xs font-medium text-gray-700 mb-1">Insert Location</label>
-                                                            <select value={action.insertLocation} onChange={(e) => updateAction(index, 'insertLocation', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm">
+                                                            <select value={action.insertLocation} onChange={(e) => updateAction(index, 'insertLocation', e.target.value)} disabled={readOnly} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                                                 <option value="start">At Start</option>
                                                                 <option value="end">At End</option>
                                                             </select>
@@ -585,6 +594,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                                             placeholder="Text to insert hoặc {{variable}}"
                                                             rows={4}
                                                             inputData={inputData}
+                                                            disabled={readOnly}
                                                         />
                                                     </div>
                                                 </div>
@@ -601,7 +611,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                         <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                             <h3 className="font-semibold text-gray-900">OUTPUT</h3>
                             <div className="flex items-center gap-2 mt-2">
-                                {onTest && (
+                                {onTest && !readOnly && (
                                     <>
                                         {isTesting ? (
                                             <button onClick={handleStopTest} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-1.5 rounded text-sm font-medium">
@@ -613,6 +623,11 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
                                             </button>
                                         )}
                                     </>
+                                )}
+                                {readOnly && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
+                                        📖 Viewing execution history (Read-only)
+                                    </span>
                                 )}
                             </div>
                         </div>

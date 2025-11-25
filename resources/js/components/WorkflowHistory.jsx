@@ -389,7 +389,7 @@ const nodeTypes = {
     ),
 };
 
-const WorkflowHistory = () => {
+const WorkflowHistory = ({ onCopyToEditor }) => {
     const params = useParams();
     const workflowId = params.workflowId || params.id;
     const [executions, setExecutions] = useState([]);
@@ -972,17 +972,55 @@ const WorkflowHistory = () => {
                                         </p>
                                     )}
                                 </div>
-                                {canResumeSelectedExecution() && (
+                                <div className="flex items-center gap-2">
                                     <button
-                                        onClick={handleResumeExecution}
-                                        disabled={resuming}
-                                        className={`btn btn-success text-sm ${
-                                            resuming ? 'opacity-60 cursor-not-allowed' : ''
-                                        }`}
+                                        onClick={() => {
+                                            // Copy execution data to localStorage for WorkflowEditor
+                                            const executionData = {
+                                                node_results: executionDetails.node_results || {},
+                                                execution_order: executionDetails.execution_order || [],
+                                                error_node: executionDetails.error_node || null,
+                                                has_error: executionDetails.status === 'error' || executionDetails.status === 'failed',
+                                                workflow_id: workflowId,
+                                                execution_id: selectedExecution.id,
+                                                copied_at: new Date().toISOString(),
+                                            };
+                                            
+                                            try {
+                                                localStorage.setItem('copiedExecutionData', JSON.stringify(executionData));
+                                                console.log('📋 Copied execution data:', executionData);
+                                                
+                                                // Trigger tab switch if callback provided
+                                                if (onCopyToEditor) {
+                                                    onCopyToEditor();
+                                                } else {
+                                                    alert('✅ Đã copy execution data vào Editor!\n\nChuyển sang tab Editor để xem và test các node.');
+                                                }
+                                            } catch (error) {
+                                                console.error('Error copying execution data:', error);
+                                                alert('❌ Lỗi khi copy execution data. Vui lòng thử lại.');
+                                            }
+                                        }}
+                                        className="btn btn-primary text-sm flex items-center gap-2"
+                                        title="Copy execution data để test và debug trong Editor"
                                     >
-                                        {resuming ? 'Đang chạy lại...' : 'Chạy lại từ node lỗi'}
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                        Copy to Editor
                                     </button>
-                                )}
+                                    {canResumeSelectedExecution() && (
+                                        <button
+                                            onClick={handleResumeExecution}
+                                            disabled={resuming}
+                                            className={`btn btn-success text-sm ${
+                                                resuming ? 'opacity-60 cursor-not-allowed' : ''
+                                            }`}
+                                        >
+                                            {resuming ? 'Đang chạy lại...' : 'Chạy lại từ node lỗi'}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             {isExecutionActive(executionDetails.status) ? (

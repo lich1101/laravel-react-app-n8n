@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from '../config/axios';
 import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
-function CodeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
-    // Add readOnly support
-    const readOnly = false; // TODO: Get from props
+function CodeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
         language: 'javascript',
         code: `// Access input data from previous nodes
@@ -298,13 +296,13 @@ return result;`,
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">💻</span>
                         <h2 
-                            className="text-xl font-semibold text-primary cursor-pointer hover:text-primary/80 transition-colors flex items-center gap-2"
+                            className={`text-xl font-semibold text-primary ${!readOnly ? 'cursor-pointer hover:text-primary/80' : 'cursor-default'} transition-colors flex items-center gap-2`}
                             onClick={() => {
-                                if (onRename) {
+                                if (onRename && !readOnly) {
                                     onRename();
                                 }
                             }}
-                            title="Click để đổi tên node"
+                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
                         >
                             {node?.data?.customName || 'Code'}
                             <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -419,7 +417,8 @@ return result;`,
                                 <select
                                     value={config.language}
                                     onChange={(e) => setConfig({ ...config, language: e.target.value })}
-                                    className="w-full px-3 py-2 border border-subtle rounded-lg bg-surface text-primary shadow-inner"
+                                    disabled={readOnly}
+                                    className="w-full px-3 py-2 border border-subtle rounded-lg bg-surface text-primary shadow-inner disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <option value="javascript">JavaScript</option>
                                 </select>
@@ -434,7 +433,8 @@ return result;`,
                                     value={config.code}
                                     onChange={(e) => setConfig({ ...config, code: e.target.value })}
                                     placeholder="// Write your JavaScript code here..."
-                                    className="flex-1 px-3 py-3 border border-subtle rounded-xl bg-surface text-secondary font-mono text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/40"
+                                    disabled={readOnly}
+                                    className="flex-1 px-3 py-3 border border-subtle rounded-xl bg-surface text-secondary font-mono text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
                                     style={{ minHeight: '400px', fontFamily: 'Monaco, Menlo, monospace' }}
                                 />
                             </div>
@@ -504,7 +504,7 @@ return {
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
-                                {onTest && (
+                                {onTest && !readOnly && (
                                     <>
                                         {isTesting ? (
                                             <button
@@ -523,6 +523,11 @@ return {
                                             </button>
                                         )}
                                     </>
+                                )}
+                                {readOnly && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
+                                        📖 Viewing execution history (Read-only)
+                                    </span>
                                 )}
                             </div>
                         </div>

@@ -3,9 +3,7 @@ import axios from '../config/axios';
 import ExpandableTextarea from './ExpandableTextarea';
 import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
-function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
-    // Add readOnly support
-    const readOnly = false; // TODO: Get from props
+function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
         fields: [
             { name: '', value: '' }
@@ -324,13 +322,13 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">⚡</span>
                         <h2 
-                            className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
+                            className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} transition-colors flex items-center gap-2`}
                             onClick={() => {
-                                if (onRename) {
+                                if (onRename && !readOnly) {
                                     onRename();
                                 }
                             }}
-                            title="Click để đổi tên node"
+                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
                         >
                             {node?.data?.customName || 'Escape'}
                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -457,7 +455,7 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             <span className="text-xs font-semibold text-gray-700">
                                                 Field {index + 1}
                                             </span>
-                                            {config.fields.length > 1 && (
+                                            {config.fields.length > 1 && !readOnly && (
                                                 <button
                                                     onClick={() => removeField(index)}
                                                     className="text-red-600 hover:text-red-700"
@@ -481,6 +479,7 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                 placeholder="e.g., body.content or systemMessage"
                                                 rows={1}
                                                 inputData={inputData}
+                                                disabled={readOnly}
                                             />
                                             <p className="mt-1 text-xs text-gray-500">
                                                 Tên field trong output (support nested: a.b.c)
@@ -498,6 +497,7 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                                 placeholder="Drag variables or type content"
                                                 rows={4}
                                                 inputData={inputData}
+                                                disabled={readOnly}
                                             />
                                             <p className="mt-1 text-xs text-gray-500">
                                                 💡 Dùng {`{{variable}}`} hoặc kéo thả từ INPUT
@@ -508,12 +508,14 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                             </div>
 
                             {/* Add Field Button */}
-                            <button
-                                onClick={addField}
-                                className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-yellow-500 hover:text-yellow-600 transition-colors"
-                            >
-                                + Add Field
-                            </button>
+                            {!readOnly && (
+                                <button
+                                    onClick={addField}
+                                    className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-yellow-500 hover:text-yellow-600 transition-colors"
+                                >
+                                    + Add Field
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -550,7 +552,7 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
-                                {onTest && (
+                                {onTest && !readOnly && (
                                     <>
                                         {isTesting ? (
                                             <button
@@ -569,6 +571,11 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             </button>
                                         )}
                                     </>
+                                )}
+                                {readOnly && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
+                                        📖 Viewing execution history (Read-only)
+                                    </span>
                                 )}
                             </div>
                         </div>

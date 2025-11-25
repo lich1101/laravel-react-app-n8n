@@ -77,9 +77,7 @@ const OPERATORS_BY_TYPE = {
     ],
 };
 
-function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
-    // Add readOnly support
-    const readOnly = false; // TODO: Get from props
+function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
         conditions: [
             {
@@ -407,13 +405,13 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">🔀</span>
                         <h2 
-                            className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
+                            className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} transition-colors flex items-center gap-2`}
                             onClick={() => {
-                                if (onRename) {
+                                if (onRename && !readOnly) {
                                     onRename();
                                 }
                             }}
-                            title="Click để đổi tên node"
+                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
                         >
                             {node?.data?.customName || 'If'}
                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -526,7 +524,7 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                                 <span className="text-sm font-medium text-gray-700">
                                                     Condition {index + 1}
                                                 </span>
-                                                {config.conditions.length > 1 && (
+                                                {config.conditions.length > 1 && !readOnly && (
                                                     <button
                                                         onClick={() => removeCondition(index)}
                                                         className="text-red-600 hover:text-red-700"
@@ -547,7 +545,8 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                                 <select
                                                     value={condition.dataType}
                                                     onChange={(e) => updateCondition(index, 'dataType', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm"
+                                                    disabled={readOnly}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <option value="string">{getDataTypeIcon('string')} String</option>
                                                     <option value="number">{getDataTypeIcon('number')} Number</option>
@@ -569,6 +568,7 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                                     inputData={inputData}
                                                     rows={1}
                                                     placeholder="Drag variable or type value"
+                                                    disabled={readOnly}
                                                 />
                                             </div>
 
@@ -580,7 +580,8 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                                 <select
                                                     value={condition.operator}
                                                     onChange={(e) => updateCondition(index, 'operator', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm"
+                                                    disabled={readOnly}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     {OPERATORS_BY_TYPE[condition.dataType].map(op => (
                                                         <option key={op.value} value={op.value}>{op.label}</option>
@@ -600,6 +601,7 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                                         inputData={inputData}
                                                         rows={1}
                                                         placeholder="Drag variable or type value"
+                                                        disabled={readOnly}
                                                     />
                                                 </div>
                                             )}
@@ -608,12 +610,14 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                 </div>
 
                                 {/* Add Condition Button */}
-                                <button
-                                    onClick={addCondition}
-                                    className="mt-3 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-green-500 hover:text-green-600 transition-colors"
-                                >
-                                    + Add Condition
-                                </button>
+                                {!readOnly && (
+                                    <button
+                                        onClick={addCondition}
+                                        className="mt-3 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-green-500 hover:text-green-600 transition-colors"
+                                    >
+                                        + Add Condition
+                                    </button>
+                                )}
 
                                 {/* Combine Operation (if multiple conditions) */}
                                 {config.conditions.length > 1 && (
@@ -628,7 +632,8 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                                     value="AND"
                                                     checked={config.combineOperation === 'AND'}
                                                     onChange={(e) => setConfig({ ...config, combineOperation: e.target.value })}
-                                                    className="mr-2"
+                                                    disabled={readOnly}
+                                                    className="mr-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 />
                                                 <span className="text-sm text-gray-700">AND (All must be true)</span>
                                             </label>
@@ -638,7 +643,8 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                                     value="OR"
                                                     checked={config.combineOperation === 'OR'}
                                                     onChange={(e) => setConfig({ ...config, combineOperation: e.target.value })}
-                                                    className="mr-2"
+                                                    disabled={readOnly}
+                                                    className="mr-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 />
                                                 <span className="text-sm text-gray-700">OR (Any can be true)</span>
                                             </label>
@@ -679,21 +685,30 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                     </div>
                                 )}
                             </div>
-                            {isTesting ? (
-                                <button
-                                    onClick={handleStopTest}
-                                    className="btn text-sm w-full bg-orange-600 hover:bg-orange-700 text-white"
-                                >
-                                    Stop step
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleTest}
-                                    disabled={config.conditions.some(c => !c.value1)}
-                                    className="btn btn-danger text-sm w-full disabled:bg-gray-300 disabled:text-white disabled:cursor-not-allowed"
-                                >
-                                    Test step
-                                </button>
+                            {!readOnly && (
+                                <>
+                                    {isTesting ? (
+                                        <button
+                                            onClick={handleStopTest}
+                                            className="btn text-sm w-full bg-orange-600 hover:bg-orange-700 text-white"
+                                        >
+                                            Stop step
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleTest}
+                                            disabled={config.conditions.some(c => !c.value1)}
+                                            className="btn btn-danger text-sm w-full disabled:bg-gray-300 disabled:text-white disabled:cursor-not-allowed"
+                                        >
+                                            Test step
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                            {readOnly && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
+                                    📖 Viewing execution history (Read-only)
+                                </span>
                             )}
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">

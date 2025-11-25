@@ -10,6 +10,8 @@ import ReactFlow, {
     Position,
     SelectionMode,
     useReactFlow,
+    EdgeLabelRenderer,
+    getBezierPath,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import axios from '../config/axios';
@@ -905,7 +907,6 @@ function WorkflowEditor() {
     const [saved, setSaved] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const [showNodeMenu, setShowNodeMenu] = useState(false);
-    const [showEdgeNodeMenu, setShowEdgeNodeMenu] = useState(false);
     const [quickAddContext, setQuickAddContext] = useState(null);
     const [selectedNode, setSelectedNode] = useState(null);
     const [copiedNodes, setCopiedNodes] = useState([]);
@@ -919,7 +920,7 @@ function WorkflowEditor() {
     const [nodeOutputData, setNodeOutputData] = useState({});
     const [activeTab, setActiveTab] = useState('editor'); // 'editor' or 'history'
     const [hoveredEdge, setHoveredEdge] = useState(null);
-    const [edgeMenuPosition, setEdgeMenuPosition] = useState({ x: 0, y: 0 });
+    const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 }); // Track viewport để force re-render khi pan/zoom
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [isTestingWorkflow, setIsTestingWorkflow] = useState(false);
     const [runningNodes, setRunningNodes] = useState(new Set());
@@ -933,10 +934,61 @@ function WorkflowEditor() {
     const testPollingRef = useRef(null);
     const testExecutionIdRef = useRef(null); // Store in ref so cleanup can access it
     const workflowIdRef = useRef(null); // Store workflow ID in ref for cleanup
+    const [connectionStartInfo, setConnectionStartInfo] = useState(null); // Lưu thông tin khi bắt đầu kéo handle
+    const connectionMadeRef = useRef(false); // Track xem có kết nối thành công không
 
     useEffect(() => {
         fetchWorkflow();
     }, [id]);
+
+    // Load copied execution data when switching to editor tab or when workflow is loaded
+    useEffect(() => {
+        if (activeTab === 'editor' && workflow?.id) {
+            try {
+                const copiedData = localStorage.getItem('copiedExecutionData');
+                if (copiedData) {
+                    const executionData = JSON.parse(copiedData);
+                    
+                    // Only load if it's for the current workflow
+                    if (executionData.workflow_id && executionData.workflow_id.toString() === workflow.id.toString()) {
+                        console.log('📋 Found copied execution data, loading into Editor:', executionData);
+                        
+                        // Convert node_results to nodeOutputData format
+                        const outputData = {};
+                        if (executionData.node_results) {
+                            Object.entries(executionData.node_results).forEach(([nodeId, result]) => {
+                                // Extract output from result
+                                outputData[nodeId] = result.output || result;
+                            });
+                        }
+                        
+                        // Set node output data
+                        setNodeOutputData(outputData);
+                        
+                        // Mark nodes as completed/error based on execution order
+                        if (executionData.execution_order) {
+                            const completedSet = new Set(executionData.execution_order);
+                            setCompletedNodes(completedSet);
+                            
+                            // Mark error node if exists
+                            if (executionData.error_node) {
+                                setErrorNodes(new Set([executionData.error_node]));
+                                completedSet.delete(executionData.error_node);
+                            }
+                        }
+                        
+                        // Show notification
+                        console.log('✅ Loaded execution data into Editor. You can now test individual nodes.');
+                        
+                        // Clear the copied data after loading to avoid reloading on every tab switch
+                        localStorage.removeItem('copiedExecutionData');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading copied execution data:', error);
+            }
+        }
+    }, [activeTab, workflow?.id]);
 
     // Store testExecutionId and workflow.id in refs so cleanup can access them
     useEffect(() => {
@@ -1178,19 +1230,58 @@ function WorkflowEditor() {
 
     const onNodesChange = useCallback(
         (changes) => {
-            setNodes((nds) => applyNodeChanges(changes, nds));
-            // Handle delete node
+            // Xử lý xóa node trước khi apply changes
             changes.forEach((change) => {
                 if (change.type === 'remove') {
+                    const nodeId = change.id;
+                    
+                    // Tìm tất cả edges liên quan đến node này
+                    const incomingEdges = edges.filter(edge => edge.target === nodeId);
+                    const outgoingEdges = edges.filter(edge => edge.source === nodeId);
+                    
+                    // Kiểm tra xem node này có phải là intermediate node không
+                    const isIntermediateNode = incomingEdges.length === 1 && outgoingEdges.length === 1;
+                    
+                    if (isIntermediateNode) {
+                        const inputEdge = incomingEdges[0];
+                        const outputEdge = outgoingEdges[0];
+                        
+                        // Tạo edge mới nối source của input edge với target của output edge
+                        const reconnectedEdge = {
+                            id: `edge-${Date.now()}`,
+                            source: inputEdge.source,
+                            target: outputEdge.target,
+                            sourceHandle: inputEdge.sourceHandle,
+                            targetHandle: outputEdge.targetHandle,
+                        };
+                        
+                        // Xóa edges cũ và thêm edge mới
+                        setEdges(prevEdges => {
+                            const filtered = prevEdges.filter(edge => 
+                                edge.source !== nodeId && edge.target !== nodeId
+                            );
+                            return [...filtered, reconnectedEdge];
+                        });
+                        
+                        console.log('✅ Tự động nối lại 2 node bên cạnh sau khi xóa intermediate node');
+                    } else {
+                        // Nếu không phải intermediate node, chỉ xóa edges liên quan
+                        setEdges(prevEdges => prevEdges.filter(edge => 
+                            edge.source !== nodeId && edge.target !== nodeId
+                        ));
+                    }
+                    
                     setSelectedNode(null);
                     setShowNodeContextMenu(false);
                 }
             });
+            
+            setNodes((nds) => applyNodeChanges(changes, nds));
             // Mark as changed (position, selection, etc)
             setHasChanges(true);
             setSaved(false);
         },
-        []
+        [edges]
     );
 
     const onEdgesChange = useCallback(
@@ -1207,17 +1298,54 @@ function WorkflowEditor() {
             setEdges((eds) => addEdge(params, eds));
             setHasChanges(true);
             setSaved(false);
+            // Đánh dấu đã kết nối thành công
+            connectionMadeRef.current = true;
         },
         []
     );
 
+    // Callback khi bắt đầu kéo handle
+    const onConnectStart = useCallback((event, { nodeId, handleId, handleType }) => {
+        // Chỉ xử lý khi kéo từ output handle (source)
+        if (handleType === 'source') {
+            setConnectionStartInfo({
+                sourceNodeId: nodeId,
+                sourceHandle: handleId || null,
+            });
+            connectionMadeRef.current = false; // Reset flag
+        }
+    }, []);
+
+    // Callback khi kết thúc kéo handle
+    const onConnectEnd = useCallback((event) => {
+        // Nếu không có kết nối thành công (thả ra ở vùng trống)
+        if (!connectionMadeRef.current && connectionStartInfo) {
+            const sourceNode = nodes.find(n => n.id === connectionStartInfo.sourceNodeId);
+            if (sourceNode) {
+                // Tính toán vị trí cho node mới (bên phải source node)
+                const position = {
+                    x: sourceNode.position.x + 150,
+                    y: sourceNode.position.y,
+                };
+
+                // Mở sidebar với context
+                setQuickAddContext({
+                    sourceNodeId: connectionStartInfo.sourceNodeId,
+                    sourceHandle: connectionStartInfo.sourceHandle,
+                    position,
+                });
+                setShowNodeMenu(true);
+            }
+        }
+        
+        // Reset
+        setConnectionStartInfo(null);
+        connectionMadeRef.current = false;
+    }, [connectionStartInfo, nodes]);
+
     const onEdgeMouseEnter = useCallback((event, edge) => {
         setHoveredEdge(edge);
-        const rect = event.currentTarget.getBoundingClientRect();
-        setEdgeMenuPosition({ 
-            x: rect.left + rect.width / 2, 
-            y: rect.top + rect.height / 2 
-        });
+        // Không cần lưu position nữa vì sẽ tính toán trong EdgeLabelRenderer
     }, []);
 
     const onEdgeMouseLeave = useCallback(() => {
@@ -1693,7 +1821,18 @@ function WorkflowEditor() {
 
     const handleAddNodeFromSidebar = (type) => {
         const label = getNodeLabel(type);
-        if (quickAddContext) {
+        
+        // Nếu có edge context (click vào nút + ở giữa edge) - chèn node vào giữa edge
+        if (quickAddContext && quickAddContext.edge) {
+            handleAddIntermediateNode(quickAddContext.edge, type);
+            setShowNodeMenu(false);
+            setQuickAddContext(null);
+            setHoveredEdge(null);
+            return;
+        }
+        
+        // Nếu có context từ kéo handle - tạo node và tự động nối edge
+        if (quickAddContext && quickAddContext.sourceNodeId) {
             addNode(
                 type,
                 label,
@@ -1702,6 +1841,7 @@ function WorkflowEditor() {
                 quickAddContext.sourceHandle
             );
         } else {
+            // Không có context - chỉ tạo node mới
             addNode(type, label);
         }
     };
@@ -1733,13 +1873,47 @@ function WorkflowEditor() {
     };
 
     const handleDeleteNode = () => {
-        if (selectedNode) {
-            setNodes(nodes.filter(node => node.id !== selectedNode.id));
-            setSelectedNode(null);
-            setShowNodeContextMenu(false);
-            setHasChanges(true);
-            setSaved(false);
+        if (!selectedNode) return;
+
+        const nodeId = selectedNode.id;
+        
+        // Tìm tất cả edges liên quan đến node này
+        const incomingEdges = edges.filter(edge => edge.target === nodeId);
+        const outgoingEdges = edges.filter(edge => edge.source === nodeId);
+        
+        // Kiểm tra xem node này có phải là intermediate node không
+        // (có đúng 1 input và 1 output edge)
+        const isIntermediateNode = incomingEdges.length === 1 && outgoingEdges.length === 1;
+        
+        let newEdges = edges.filter(edge => 
+            edge.source !== nodeId && edge.target !== nodeId
+        );
+        
+        // Nếu là intermediate node, tự động nối lại 2 node bên cạnh
+        if (isIntermediateNode) {
+            const inputEdge = incomingEdges[0];
+            const outputEdge = outgoingEdges[0];
+            
+            // Tạo edge mới nối source của input edge với target của output edge
+            const reconnectedEdge = {
+                id: `edge-${Date.now()}`,
+                source: inputEdge.source,
+                target: outputEdge.target,
+                sourceHandle: inputEdge.sourceHandle, // Giữ nguyên sourceHandle từ input edge
+                targetHandle: outputEdge.targetHandle, // Giữ nguyên targetHandle từ output edge
+            };
+            
+            newEdges.push(reconnectedEdge);
+            console.log('✅ Tự động nối lại 2 node bên cạnh sau khi xóa intermediate node');
         }
+        
+        // Xóa node và cập nhật edges
+        setNodes(nodes.filter(node => node.id !== nodeId));
+        setEdges(newEdges);
+        setSelectedNode(null);
+        setShowNodeContextMenu(false);
+        setHasChanges(true);
+        setSaved(false);
     };
 
     // Copy selected nodes
@@ -2968,6 +3142,7 @@ function WorkflowEditor() {
                     onClick={() => {
                         setShowNodeMenu(false);
                         setQuickAddContext(null);
+                        setHoveredEdge(null);
                     }}
                     className={`fixed inset-0 z-[1500] transition-opacity duration-200 ${
                         showNodeMenu ? 'opacity-100 pointer-events-auto bg-black/15 backdrop-blur-sm' : 'opacity-0 pointer-events-none'
@@ -2984,12 +3159,15 @@ function WorkflowEditor() {
                         <div className="flex items-center justify-between px-5 py-4 border-b border-subtle">
                             <div>
                                 <p className="text-xs uppercase tracking-wide text-muted">Thư viện node</p>
-                                <h3 className="text-base font-semibold text-primary mt-1">Thêm node mới</h3>
+                                <h3 className="text-base font-semibold text-primary mt-1">
+                                    {quickAddContext?.edge ? 'Chèn node vào giữa' : 'Thêm node mới'}
+                                </h3>
                             </div>
                             <button
                                 onClick={() => {
                                     setShowNodeMenu(false);
                                     setQuickAddContext(null);
+                                    setHoveredEdge(null);
                                 }}
                                 className="p-2 rounded-full hover:bg-surface-muted text-muted hover:text-primary transition-colors"
                                 title="Đóng"
@@ -3002,7 +3180,9 @@ function WorkflowEditor() {
 
                         <div className="px-5 py-3 border-b border-subtle">
                             <p className="text-sm text-muted">
-                                Chọn loại node để chèn vào workflow. Sidebar sẽ tự đóng sau khi bạn chọn.
+                                {quickAddContext?.edge 
+                                    ? 'Chọn loại node để chèn vào giữa 2 node. Sidebar sẽ tự đóng sau khi bạn chọn.'
+                                    : 'Chọn loại node để chèn vào workflow. Sidebar sẽ tự đóng sau khi bạn chọn.'}
                             </p>
                         </div>
 
@@ -3025,6 +3205,10 @@ function WorkflowEditor() {
                     <>
                         <ReactFlow
                     onInit={setReactFlowInstance}
+                    onMove={(event, viewport) => {
+                        // Update viewport để force re-render EdgeLabelRenderer khi pan/zoom
+                        setViewport(viewport);
+                    }}
                     nodes={nodes.map(node => ({
                         ...node,
                         data: {
@@ -3096,6 +3280,8 @@ function WorkflowEditor() {
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}
+                    onConnectStart={onConnectStart}
+                    onConnectEnd={onConnectEnd}
                     onNodeContextMenu={handleNodeContextMenu}
                     onNodeDoubleClick={handleNodeDoubleClick}
                     onEdgeContextMenu={onEdgeContextMenu}
@@ -3131,70 +3317,127 @@ function WorkflowEditor() {
                     <Background />
                     <Controls />
                     <MiniMap />
+                    
+                    {/* Edge Controls - Rendered as part of canvas */}
+                    <EdgeLabelRenderer>
+                        {edges.map((edge) => {
+                            const sourceNode = nodes.find(n => n.id === edge.source);
+                            const targetNode = nodes.find(n => n.id === edge.target);
+                            
+                            if (!sourceNode || !targetNode || !reactFlowInstance) return null;
+                            
+                            // Tính toán vị trí source và target handles từ node position
+                            // Source handle ở bên phải node, target handle ở bên trái node
+                            const sourceHandleX = sourceNode.position.x + (sourceNode.width || 150);
+                            const sourceHandleY = sourceNode.position.y + (sourceNode.height || 40) / 2;
+                            const targetHandleX = targetNode.position.x;
+                            const targetHandleY = targetNode.position.y + (targetNode.height || 40) / 2;
+                            
+                            // Sử dụng getBezierPath để tính toán điểm giữa trên bezier curve
+                            try {
+                                const bezierPathResult = getBezierPath({
+                                    sourceX: sourceHandleX,
+                                    sourceY: sourceHandleY,
+                                    targetX: targetHandleX,
+                                    targetY: targetHandleY,
+                                    sourcePosition: Position.Right,
+                                    targetPosition: Position.Left,
+                                });
+                                
+                                // getBezierPath trả về [path, labelX, labelY]
+                                let labelX, labelY;
+                                if (Array.isArray(bezierPathResult) && bezierPathResult.length >= 3) {
+                                    [, labelX, labelY] = bezierPathResult;
+                                } else {
+                                    // Fallback: tính điểm giữa đơn giản
+                                    labelX = (sourceHandleX + targetHandleX) / 2;
+                                    labelY = (sourceHandleY + targetHandleY) / 2;
+                                }
+                                
+                                // EdgeLabelRenderer đã tự transform theo viewport, sử dụng flow coordinates trực tiếp
+                                // ReactFlow transform: screenX = (flowX - viewport.x) * viewport.zoom
+                                // EdgeLabelRenderer đã apply transform này, nên chỉ cần dùng flow coordinates
+                                const screenX = labelX;
+                                const screenY = labelY;
+                                
+                                const isHovered = hoveredEdge && hoveredEdge.id === edge.id;
+                                
+                                return (
+                                    <div
+                                        key={edge.id}
+                                        className="flex items-center gap-2 transition-opacity duration-200"
+                                        style={{
+                                            position: 'absolute',
+                                            left: screenX,
+                                            top: screenY,
+                                            transform: 'translate(-50%, -50%)',
+                                            pointerEvents: isHovered ? 'all' : 'none',
+                                            opacity: isHovered ? 1 : 0,
+                                            zIndex: 1000,
+                                        }}
+                                        onMouseEnter={() => setHoveredEdge(edge)}
+                                        onMouseLeave={(e) => {
+                                            // Chỉ ẩn nếu không di chuyển vào các buttons
+                                            if (!e.currentTarget.contains(e.relatedTarget)) {
+                                                setHoveredEdge(null);
+                                            }
+                                        }}
+                                    >
+                                        {/* Add intermediate node button */}
+                                        <button
+                                            onMouseDown={(e) => {
+                                                // Chỉ stopPropagation khi click, không block pan
+                                                if (!isSpacePressed) {
+                                                    e.stopPropagation();
+                                                }
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                // Lưu edge vào context và mở sidebar
+                                                setQuickAddContext({
+                                                    edge: edge,
+                                                });
+                                                setShowNodeMenu(true);
+                                                setHoveredEdge(null);
+                                            }}
+                                            className="w-8 h-8 bg-surface-elevated border border-subtle rounded-xl flex items-center justify-center text-primary hover:bg-surface-muted shadow-card transition-colors"
+                                            title="Chèn node vào giữa"
+                                            onMouseEnter={() => setHoveredEdge(edge)}
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                            </svg>
+                                        </button>
+
+                                        {/* Delete edge button */}
+                                        <button
+                                            onMouseDown={(e) => {
+                                                // Chỉ stopPropagation khi click, không block pan
+                                                if (!isSpacePressed) {
+                                                    e.stopPropagation();
+                                                }
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteEdge(edge);
+                                            }}
+                                            className="w-8 h-8 bg-surface-elevated border border-subtle rounded-xl flex items-center justify-center text-rose-500 hover:bg-rose-50 shadow-card transition-colors"
+                                            title="Delete connection"
+                                            onMouseEnter={() => setHoveredEdge(edge)}
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                );
+                            } catch (error) {
+                                console.error('Error calculating bezier path:', error);
+                                return null;
+                            }
+                        })}
+                    </EdgeLabelRenderer>
                 </ReactFlow>
-
-                {/* Edge Hover Menu - Icons on edge */}
-                {hoveredEdge && (
-                    <div
-                        className="fixed flex items-center gap-2 z-[60] pointer-events-auto"
-                        style={{
-                            left: `${edgeMenuPosition.x}px`,
-                            top: `${edgeMenuPosition.y}px`,
-                            transform: 'translate(-50%, -50%)',
-                        }}
-                        onMouseEnter={() => setHoveredEdge(hoveredEdge)}
-                        onMouseLeave={() => setHoveredEdge(null)}
-                    >
-                        {/* Add intermediate node button */}
-                        <div className="relative">
-                            <button
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowEdgeNodeMenu(!showEdgeNodeMenu);
-                                }}
-                                className="w-8 h-8 bg-surface-elevated border border-subtle rounded-xl flex items-center justify-center text-primary hover:bg-surface-muted shadow-card transition-colors"
-                                title="Add node between"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                            </button>
-                            {showEdgeNodeMenu && (
-                                <div 
-                                    className="absolute left-0 top-full mt-2 menu-panel py-1 z-[100] min-w-[180px]"
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                >
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'http'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🌐 HTTP Request</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'perplexity'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🤖 Perplexity AI</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'claude'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🤖 Claude AI</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'code'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">💻 Code</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'escape'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">✂️ Escape & Set</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'if'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🔀 If</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'switch'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">🔀 Switch</button>
-                                    <button onClick={() => { handleAddIntermediateNode(hoveredEdge, 'googledocs'); setShowEdgeNodeMenu(false); }} className="menu-item text-sm">📄 Google Docs</button>
-                                    <div className="border-t border-subtle my-1"></div>
-                                    <button onClick={() => setShowEdgeNodeMenu(false)} className="menu-item menu-item--danger text-sm">Cancel</button>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Delete edge button */}
-                        <button
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteEdge(hoveredEdge);
-                            }}
-                            className="w-8 h-8 bg-surface-elevated border border-subtle rounded-xl flex items-center justify-center text-rose-500 hover:bg-rose-50 shadow-card transition-colors"
-                            title="Delete connection"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
-                    </div>
-                )}
 
                 {/* Edge Context Menu */}
                 {showNodeContextMenu && selectedEdge && (
@@ -3484,7 +3727,7 @@ function WorkflowEditor() {
                 />
                     </>
                 ) : (
-                    <WorkflowHistory />
+                    <WorkflowHistory onCopyToEditor={() => setActiveTab('editor')} />
                 )}
             </div>
         </div>

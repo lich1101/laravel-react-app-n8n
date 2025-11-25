@@ -4,7 +4,7 @@ import CredentialModal from './CredentialModal';
 import ExpandableTextarea from './ExpandableTextarea';
 import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
-function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename }) {
+function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [collapsedPaths, setCollapsedPaths] = useState(new Set());
 
     const truncateText = (text, maxLength = 150) => {
@@ -399,7 +399,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                 </svg>
                             </div>
                             <div>
-                                <h2 className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 flex items-center gap-2" onClick={() => { if (onRename) onRename(); }} title="Click để đổi tên node">
+                                <h2 className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} flex items-center gap-2`} onClick={() => { if (onRename && !readOnly) onRename(); }} title={readOnly ? "Read-only mode" : "Click để đổi tên node"}>
                                     {node?.data?.customName || 'Google Sheets'}
                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -408,23 +408,32 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                             </div>
                         </div>
                         <div className="flex items-center space-x-3">
-                            {isTesting ? (
-                                <button
-                                    onClick={handleStopTest}
-                                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium flex items-center space-x-2"
-                                >
-                                    <span>■</span>
-                                    <span>Stop step</span>
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleTest}
-                                    disabled={!config.credentialId}
-                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium flex items-center space-x-2"
-                                >
-                                    <span>▲</span>
-                                    <span>Test step</span>
-                                </button>
+                            {!readOnly && (
+                                <>
+                                    {isTesting ? (
+                                        <button
+                                            onClick={handleStopTest}
+                                            className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium flex items-center space-x-2"
+                                        >
+                                            <span>■</span>
+                                            <span>Stop step</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleTest}
+                                            disabled={!config.credentialId}
+                                            className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium flex items-center space-x-2"
+                                        >
+                                            <span>▲</span>
+                                            <span>Test step</span>
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                            {readOnly && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
+                                    📖 Viewing execution history (Read-only)
+                                </span>
                             )}
                             <button
                                 onClick={handleClose}
@@ -485,21 +494,24 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                         <select
                                             value={config.credentialId || ''}
                                             onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                            disabled={readOnly}
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             <option value="">Select Credential...</option>
                                             {credentials.map(cred => (
                                                 <option key={cred.id} value={cred.id}>{cred.name}</option>
                                             ))}
                                         </select>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowCredentialModal(true)}
-                                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
-                                            title="Create new OAuth2 credential for Google Sheets"
-                                        >
-                                            + New
-                                        </button>
+                                        {!readOnly && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCredentialModal(true)}
+                                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                                title="Create new OAuth2 credential for Google Sheets"
+                                            >
+                                                + New
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -511,7 +523,8 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                     <select
                                         value={config.resource}
                                         onChange={(e) => setConfig({ ...config, resource: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                        disabled={readOnly}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <option value="sheet">Sheet Within Document</option>
                                     </select>
@@ -525,7 +538,8 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                     <select
                                         value={config.operation}
                                         onChange={(e) => setConfig({ ...config, operation: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                        disabled={readOnly}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <option value="get">Get Row(s)</option>
                                         <option value="append">Append Row</option>
@@ -547,6 +561,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                             onChange={(value) => setConfig({ ...config, documentUrl: value })}
                                             placeholder="https://docs.google.com/spreadsheets/d/..."
                                             inputData={inputData}
+                                            disabled={readOnly}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                             rows={2}
                                         />
@@ -569,6 +584,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                             inputData={inputData}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
                                             rows={2}
+                                            disabled={readOnly}
                                         />
                                     </div>
                                 </div>
@@ -596,12 +612,14 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                                     rows={1}
                                                                     placeholder="Column"
                                                                     inputData={inputData}
+                                                                    disabled={readOnly}
                                                                 />
                                                             </div>
                                                             <select
                                                                 value={filter.operator}
                                                                 onChange={(e) => updateFilter(index, 'operator', e.target.value)}
-                                                                className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm"
+                                                                disabled={readOnly}
+                                                                className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                                             >
                                                                 <option value="=">=</option>
                                                                 <option value="!=">!=</option>
@@ -616,24 +634,29 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                                     rows={1}
                                                                     placeholder="Value"
                                                                     inputData={inputData}
+                                                                    disabled={readOnly}
                                                                 />
                                                             </div>
-                                                            <button
-                                                                onClick={() => deleteFilter(index)}
-                                                                className="px-3 py-2 text-red-600 hover:text-red-700"
-                                                            >
-                                                                ×
-                                                            </button>
+                                                            {!readOnly && (
+                                                                <button
+                                                                    onClick={() => deleteFilter(index)}
+                                                                    className="px-3 py-2 text-red-600 hover:text-red-700"
+                                                                >
+                                                                    ×
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     ))}
                                                 </div>
                                             )}
-                                            <button
-                                                onClick={addFilter}
-                                                className="text-sm text-blue-600 hover:text-blue-700"
-                                            >
-                                                + Add Filter
-                                            </button>
+                                            {!readOnly && (
+                                                <button
+                                                    onClick={addFilter}
+                                                    className="text-sm text-blue-600 hover:text-blue-700"
+                                                >
+                                                    + Add Filter
+                                                </button>
+                                            )}
                                         </div>
 
                                         {/* Combine Filters */}
@@ -645,7 +668,8 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                 <select
                                                     value={config.combineFilters}
                                                     onChange={(e) => setConfig({ ...config, combineFilters: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                                    disabled={readOnly}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <option value="AND">AND</option>
                                                     <option value="OR">OR</option>
@@ -665,7 +689,8 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                             <select
                                                 value={config.mappingMode}
                                                 onChange={(e) => setConfig({ ...config, mappingMode: e.target.value })}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                                disabled={readOnly}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 <option value="manual">Map Each Column Manually</option>
                                             </select>
@@ -680,7 +705,8 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                 <select
                                                     value={config.columnToMatch}
                                                     onChange={(e) => setConfig({ ...config, columnToMatch: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                                    disabled={readOnly}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <option value="row_number">row_number</option>
                                                     {sheetColumns.map(col => (
@@ -728,6 +754,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                                     inputData={inputData}
                                                                     className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm"
                                                                     rows={2}
+                                                                    disabled={readOnly}
                                                                 />
                                                             </div>
                                                         </div>
@@ -759,6 +786,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
                                                                             inputData={inputData}
                                                                             className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 text-sm"
                                                                             rows={2}
+                                                                            disabled={readOnly}
                                                                         />
                                                                     </div>
                                                                 ))}

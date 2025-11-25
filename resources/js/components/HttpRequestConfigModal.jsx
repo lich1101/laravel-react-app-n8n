@@ -412,13 +412,13 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                     <div className="flex items-center gap-3">
                         <span className="text-3xl">🌐</span>
                         <h2 
-                            className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
+                            className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} transition-colors flex items-center gap-2`}
                             onClick={() => {
                                 if (onRename && !readOnly) {
                                     onRename(); // Trigger parent's rename modal
                                 }
                             }}
-                            title="Click để đổi tên node"
+                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
                         >
                             {node?.data?.customName || 'HTTP Request'}
                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -589,7 +589,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                 Settings
                             </button>
                         </div>
-                        <div className={`flex-1 p-4 overflow-y-auto space-y-4 ${readOnly ? 'pointer-events-none opacity-75' : ''}`}>
+                        <div className="flex-1 p-4 overflow-y-auto space-y-4">
                             {/* Method */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -622,6 +622,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     onChange={(newValue) => setConfig({ ...config, url: newValue })}
                                     placeholder="https://example.com/api"
                                     className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                    disabled={readOnly}
                                 />
                             </div>
 
@@ -636,7 +637,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         setConfig({ ...config, auth: e.target.value, credentialId: null });
                                         setSelectedCredentialType(e.target.value === 'basic' ? 'basic' : e.target.value === 'bearer' ? 'bearer' : 'api_key');
                                     }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                    disabled={readOnly}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <option value="none">None</option>
                                     <option value="basic">Basic Auth</option>
@@ -656,7 +658,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         <select
                                             value={config.credentialId || ''}
                                             onChange={(e) => setConfig({ ...config, credentialId: e.target.value || null })}
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                            disabled={readOnly}
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             <option value="">Select Credential...</option>
                                             {Array.isArray(credentials) && credentials
@@ -667,17 +670,19 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                     </option>
                                                 ))}
                                         </select>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedCredentialType(config.auth === 'basic' ? 'basic' : config.auth === 'bearer' ? 'bearer' : 'api_key');
-                                                setShowCredentialModal(true);
-                                            }}
-                                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
-                                            title="Create new credential"
-                                        >
-                                            + New
-                                        </button>
+                                        {!readOnly && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedCredentialType(config.auth === 'basic' ? 'basic' : config.auth === 'bearer' ? 'bearer' : 'api_key');
+                                                    setShowCredentialModal(true);
+                                                }}
+                                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium whitespace-nowrap"
+                                                title="Create new credential"
+                                            >
+                                                + New
+                                            </button>
+                                        )}
                                     </div>
                                     {!config.credentialId && (
                                         <p className="mt-1 text-xs text-orange-600">
@@ -703,6 +708,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         onChange={(newValue) => setConfig({ ...config, credential: newValue })}
                                         placeholder="Enter credential"
                                         className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                        disabled={readOnly}
                                     />
                                 </div>
                             )}
@@ -724,6 +730,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                     setConfig({ ...config, queryParams: [] });
                                                 }
                                             }}
+                                            disabled={readOnly}
                                             className="sr-only peer"
                                         />
                                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -738,6 +745,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                 inputData={inputData}
                                                 rows={1}
                                                 placeholder="Name"
+                                                disabled={readOnly}
                                             />
                                         </div>
                                         <div className="flex-1">
@@ -747,19 +755,22 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                 inputData={inputData}
                                                 rows={1}
                                                 placeholder="Value"
+                                                disabled={readOnly}
                                             />
                                         </div>
-                                        <button
-                                            onClick={() => removeParam('queryParams', index)}
-                                            className="text-red-600 hover:text-red-700"
-                                        >
+                                        {!readOnly && (
+                                            <button
+                                                onClick={() => removeParam('queryParams', index)}
+                                                className="text-red-600 hover:text-red-700"
+                                            >
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                             </svg>
-                                        </button>
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
-                                {config.queryParams.length > 0 && (
+                                {config.queryParams.length > 0 && !readOnly && (
                                     <button
                                         onClick={() => addParam('queryParams')}
                                         className="text-blue-600 hover:text-blue-700 text-sm"
@@ -786,6 +797,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                     setConfig({ ...config, headers: [] });
                                                 }
                                             }}
+                                            disabled={readOnly}
                                             className="sr-only peer"
                                         />
                                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -800,6 +812,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                 inputData={inputData}
                                                 rows={1}
                                                 placeholder="Name"
+                                                disabled={readOnly}
                                             />
                                         </div>
                                         <div className="flex-1">
@@ -809,19 +822,22 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                 inputData={inputData}
                                                 rows={1}
                                                 placeholder="Value"
+                                                disabled={readOnly}
                                             />
                                         </div>
-                                        <button
-                                            onClick={() => removeParam('headers', index)}
-                                            className="text-red-600 hover:text-red-700"
-                                        >
+                                        {!readOnly && (
+                                            <button
+                                                onClick={() => removeParam('headers', index)}
+                                                className="text-red-600 hover:text-red-700"
+                                            >
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                             </svg>
-                                        </button>
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
-                                {config.headers.length > 0 && (
+                                {config.headers.length > 0 && !readOnly && (
                                     <button
                                         onClick={() => addParam('headers')}
                                         className="text-blue-600 hover:text-blue-700 text-sm"
@@ -844,6 +860,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                     }}
                                     rows={1}
                                     placeholder="30"
+                                    disabled={readOnly}
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
                                     Maximum time to wait for response (1-300 seconds). Default: 30s
@@ -868,6 +885,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                         bodyType: e.target.checked ? 'json' : 'none'
                                                     });
                                                 }}
+                                                disabled={readOnly}
                                                 className="sr-only peer"
                                             />
                                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -883,7 +901,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                 <select
                                                     value={config.bodyType || 'json'}
                                                     onChange={(e) => setConfig({ ...config, bodyType: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                                    disabled={readOnly}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <option value="json">JSON</option>
                                                     <option value="form">Form-Data</option>
@@ -901,7 +920,8 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                     <select
                                                         value={config.specifyBody || 'fields'}
                                                         onChange={(e) => setConfig({ ...config, specifyBody: e.target.value })}
-                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                                        disabled={readOnly}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
                                                         <option value="fields">Using Fields Below</option>
                                                         <option value="raw">Raw JSON</option>
@@ -935,6 +955,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                                         inputData={inputData}
                                                                         rows={1}
                                                                         placeholder="Name"
+                                                                        disabled={readOnly}
                                                                     />
                                                                 </div>
                                                                 <div className="flex-1">
@@ -948,33 +969,38 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                                         inputData={inputData}
                                                                         rows={1}
                                                                         placeholder="Value"
+                                                                        disabled={readOnly}
                                                                     />
                                                                 </div>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const newParams = config.bodyParams.filter((_, i) => i !== index);
-                                                                        setConfig({ ...config, bodyParams: newParams });
-                                                                    }}
-                                                                    className="text-red-600 hover:text-red-700"
-                                                                    title="Remove parameter"
-                                                                >
+                                                                {!readOnly && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const newParams = config.bodyParams.filter((_, i) => i !== index);
+                                                                            setConfig({ ...config, bodyParams: newParams });
+                                                                        }}
+                                                                        className="text-red-600 hover:text-red-700"
+                                                                        title="Remove parameter"
+                                                                    >
                                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                                                     </svg>
-                                                                </button>
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         ))}
-                                                        <button
-                                                            onClick={() => {
-                                                                setConfig({ 
-                                                                    ...config, 
-                                                                    bodyParams: [...(config.bodyParams || []), { name: '', value: '' }]
-                                                                });
-                                                            }}
-                                                            className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 text-sm"
-                                                        >
-                                                            + Add Parameter
-                                                        </button>
+                                                        {!readOnly && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setConfig({ 
+                                                                        ...config, 
+                                                                        bodyParams: [...(config.bodyParams || []), { name: '', value: '' }]
+                                                                    });
+                                                                }}
+                                                                className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 text-sm"
+                                                            >
+                                                                + Add Parameter
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}
@@ -991,6 +1017,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                                         placeholder="Enter body content"
                                                         rows={5}
                                                         inputData={inputData}
+                                                        disabled={readOnly}
                                                     />
                                                 </div>
                                             )}
