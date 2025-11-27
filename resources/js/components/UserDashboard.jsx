@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import axios from '../config/axios';
 import UserSidebarNav from './UserSidebarNav';
+import UserHeader from './UserHeader';
 import AutomationTablesTab from './Automation/AutomationTablesTab';
 import WorkflowList from './WorkflowList';
 import WorkflowEditor from './WorkflowEditor';
@@ -155,6 +156,9 @@ const UserDashboard = () => {
             />
 
             <div className="flex-1 flex flex-col bg-surface-muted">
+                {/* User Header - only show for user role */}
+                {user.role === 'user' && <UserHeader />}
+                
                 <div className="flex-1 min-h-0 overflow-y-auto">
                     <div className="bg-surface-elevated shadow-card min-h-full">
                         <Routes>

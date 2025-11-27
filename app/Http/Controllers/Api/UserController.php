@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\SystemSetting;
+use App\Models\Workflow;
+use App\Models\WorkflowExecution;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
@@ -144,6 +148,108 @@ class UserController extends Controller
         return response()->json([
             'message' => $request->verified ? 'User verified successfully' : 'User unverified successfully',
             'user' => $user->fresh()
+        ]);
+    }
+
+    /**
+     * Get subscription package info and workflow statistics for current user
+     */
+    public function getPackageInfo(): JsonResponse
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        // Get subscription package info from system_settings
+        $packageName = SystemSetting::get('subscription_package_name', null);
+        $packageDescription = SystemSetting::get('subscription_package_description', null);
+        $maxConcurrentWorkflows = SystemSetting::get('max_concurrent_workflows', 5);
+        $maxUserWorkflows = SystemSetting::get('max_user_workflows', null);
+
+        // Count running workflows
+        $runningWorkflowsCount = WorkflowExecution::where('status', 'running')->count();
+
+        // Count user created workflows (exclude workflows from folder sync)
+        $userWorkflowsCount = Workflow::where('user_id', $user->id)
+            ->where(function($query) {
+                $query->where('is_from_folder', false)
+                      ->orWhereNull('is_from_folder');
+            })
+            ->count();
+
+        return response()->json([
+            'subscription_package' => [
+                'name' => $packageName,
+                'description' => $packageDescription,
+            ],
+            'workflow_stats' => [
+                'running' => $runningWorkflowsCount,
+                'max_concurrent' => $maxConcurrentWorkflows,
+                'user_created' => $userWorkflowsCount,
+                'max_user_workflows' => $maxUserWorkflows,
+            ],
+        ]);
+    }
+
+    /**
+     * Update current user's profile
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+        ]);
+
+        $user->update([
+            'name' => $request->name,
+            'email' => $request->email,
+        ]);
+
+        // Update localStorage user info
+        $updatedUser = $user->fresh();
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => $updatedUser,
+        ]);
+    }
+
+    /**
+     * Change current user's password
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $request->validate([
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:6',
+            'new_password_confirmation' => 'required|string|same:new_password',
+        ]);
+
+        // Verify current password
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'error' => 'Current password is incorrect'
+            ], 422);
+        }
+
+        // Update password
+        $user->update([
+            'password' => Hash::make($request->new_password),
+        ]);
+
+        return response()->json([
+            'message' => 'Password changed successfully'
         ]);
     }
 }

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Workflow;
 use App\Models\WorkflowNode;
 use App\Models\WorkflowExecution;
+use App\Models\SystemSetting;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +37,60 @@ class WorkflowController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
+
+        $user = auth()->user();
+        
+        // Check max_user_workflows limit for user role only
+        if ($user && $user->role === 'user') {
+            // Get max_user_workflows from system_settings or project
+            $maxUserWorkflows = null;
+            $subscriptionPackageName = null;
+            
+            // Try to get from project first
+            if ($user->project_id) {
+                $project = $user->project;
+                if ($project) {
+                    $maxUserWorkflows = $project->max_user_workflows;
+                    // Get subscription package name from system_settings if available
+                    $subscriptionPackageName = SystemSetting::get('subscription_package_name', null);
+                }
+            }
+            
+            // Fallback to system_settings
+            if ($maxUserWorkflows === null) {
+                $maxUserWorkflows = SystemSetting::get('max_user_workflows', null);
+            }
+            
+            // If max_user_workflows is set, check limit
+            if ($maxUserWorkflows !== null && $maxUserWorkflows >= 0) {
+                // Count workflows created by user (exclude workflows from folder sync)
+                // Workflows synced from folders have is_from_folder = true and are created by admin user
+                // so they are automatically excluded by both user_id check and is_from_folder check
+                $userWorkflowCount = Workflow::where('user_id', $user->id)
+                    ->where(function($query) {
+                        $query->where('is_from_folder', false)
+                              ->orWhereNull('is_from_folder');
+                    })
+                    ->count();
+                
+                // Check if limit reached
+                if ($userWorkflowCount >= $maxUserWorkflows) {
+                    // Get subscription package name for error message
+                    if (!$subscriptionPackageName) {
+                        $subscriptionPackageName = SystemSetting::get('subscription_package_name', 'gói cước hiện tại');
+                    }
+                    
+                    return response()->json([
+                        'error' => 'workflow_limit_reached',
+                        'message' => "Số lượng workflows có thể tạo đã đến giới hạn của {$subscriptionPackageName}",
+                        'detail_message' => "Số lượng workflows có thể tạo đã đến giới hạn của {$subscriptionPackageName} - vui lòng liên hệ đội ngũ hỗ trợ để đổi gói cước",
+                        'current_count' => $userWorkflowCount,
+                        'max_limit' => $maxUserWorkflows,
+                        'subscription_package_name' => $subscriptionPackageName,
+                    ], 403);
+                }
+            }
+        }
 
         $workflow = Workflow::create([
             'user_id' => auth()->id(),

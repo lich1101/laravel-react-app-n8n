@@ -1199,12 +1199,24 @@ function WorkflowEditor() {
                 const newWorkflowId = response.data.id;
                 console.log('New workflow created with ID:', newWorkflowId);
                 
+                // Dispatch event to refresh header stats
+                window.dispatchEvent(new CustomEvent('workflow-created'));
+                
                 // Redirect to the newly created workflow (replace history to avoid back button issues)
                 navigate(`${workflowBasePath}/${newWorkflowId}`, { replace: true });
                 return;
             } catch (error) {
                 console.error('Error auto-creating workflow:', error);
-                alert('Lỗi khi tạo workflow mới');
+                
+                // Check if it's a workflow limit error
+                if (error.response?.status === 403 && error.response?.data?.error === 'workflow_limit_reached') {
+                    const errorData = error.response.data;
+                    const message = errorData.detail_message || errorData.message || 
+                        `Số lượng workflows có thể tạo đã đến giới hạn của ${errorData.subscription_package_name || 'gói cước hiện tại'} - vui lòng liên hệ đội ngũ hỗ trợ để đổi gói cước`;
+                    alert(message);
+                } else {
+                    alert('Lỗi khi tạo workflow mới');
+                }
                 navigate(getBackUrl());
                 return;
             }

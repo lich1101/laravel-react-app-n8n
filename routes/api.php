@@ -40,6 +40,12 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    
+    // User profile routes (for current user)
+    Route::get('/user/package-info', [UserController::class, 'getPackageInfo']);
+    Route::put('/user/profile', [UserController::class, 'updateProfile']);
+    Route::post('/user/change-password', [UserController::class, 'changePassword']);
+    
     Route::apiResource('users', UserController::class);
     Route::post('/users/{user}/verify', [UserController::class, 'verify']);
     Route::apiResource('workflows', WorkflowController::class);

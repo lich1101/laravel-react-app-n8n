@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import FolderWorkflowView from './FolderWorkflowView';
 import SyncModal from './SyncModal';
 import CredentialsTab from '../CredentialsTab';
+import WorkflowLimitModal from '../WorkflowLimitModal';
 
 const FoldersTab = () => {
     const [activeSubTab, setActiveSubTab] = useState('workflows');
@@ -29,6 +30,7 @@ const FoldersTab = () => {
         name: '',
         description: ''
     });
+    const [workflowLimitError, setWorkflowLimitError] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -116,11 +118,26 @@ const FoldersTab = () => {
             setShowCreateWorkflowModal(false);
             setNewWorkflowData({ name: '', description: '' });
             
+            // Dispatch event to refresh header stats
+            window.dispatchEvent(new CustomEvent('workflow-created'));
+            
             // Navigate to the newly created workflow
             navigate(`/workflows/${response.data.id}`);
         } catch (error) {
             console.error('Error creating workflow:', error);
-            alert('Failed to create workflow');
+            
+            // Check if it's a workflow limit error
+            if (error.response?.status === 403 && error.response?.data?.error === 'workflow_limit_reached') {
+                const errorData = error.response.data;
+                setWorkflowLimitError({
+                    subscriptionPackageName: errorData.subscription_package_name || 'gói cước hiện tại',
+                    currentCount: errorData.current_count || 0,
+                    maxLimit: errorData.max_limit || 0,
+                });
+                setShowCreateWorkflowModal(false);
+            } else {
+                alert(error.response?.data?.detail_message || error.response?.data?.message || 'Failed to create workflow');
+            }
         }
     };
 
@@ -580,6 +597,15 @@ const FoldersTab = () => {
                 }}
                 onConfirm={handleSyncConfirm}
                 folderName={syncFolder?.name || ''}
+            />
+            
+            {/* Workflow Limit Modal */}
+            <WorkflowLimitModal
+                isOpen={workflowLimitError !== null}
+                onClose={() => setWorkflowLimitError(null)}
+                subscriptionPackageName={workflowLimitError?.subscriptionPackageName}
+                currentCount={workflowLimitError?.currentCount}
+                maxLimit={workflowLimitError?.maxLimit}
             />
 
             {/* Create Workflow Modal */}

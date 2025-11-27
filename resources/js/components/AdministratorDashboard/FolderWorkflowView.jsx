@@ -66,6 +66,9 @@ const FolderWorkflowView = ({ folder, onBack }) => {
             setNewWorkflowDescription('');
             setShowWorkflowForm(false);
             fetchFolderWorkflows();
+            
+            // Dispatch event to refresh header stats
+            window.dispatchEvent(new CustomEvent('workflow-created'));
         } catch (error) {
             console.error('Error creating workflow:', error);
         }

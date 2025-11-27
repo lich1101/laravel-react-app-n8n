@@ -89,14 +89,37 @@ class ProjectConfigController extends Controller
             );
         }
         
-        // Log subscription package info if provided
+        // Save subscription package info if provided
         if ($request->has('subscription_package') && $request->subscription_package) {
+            $packageName = $request->subscription_package['name'] ?? null;
+            $packageDescription = $request->subscription_package['description'] ?? null;
+            
+            if ($packageName) {
+                SystemSetting::set(
+                    'subscription_package_name',
+                    $packageName,
+                    'string'
+                );
+            }
+            
+            if ($packageDescription) {
+                SystemSetting::set(
+                    'subscription_package_description',
+                    $packageDescription,
+                    'string'
+                );
+            }
+            
             \Log::info("Project '{$project->name}' synced with subscription package", [
                 'package_id' => $request->subscription_package['id'] ?? null,
-                'package_name' => $request->subscription_package['name'] ?? null,
+                'package_name' => $packageName,
                 'package_max_concurrent_workflows' => $request->subscription_package['max_concurrent_workflows'] ?? null,
                 'package_max_user_workflows' => $request->subscription_package['max_user_workflows'] ?? null,
             ]);
+        } else {
+            // Clear subscription package info if not provided
+            SystemSetting::where('key', 'subscription_package_name')->delete();
+            SystemSetting::where('key', 'subscription_package_description')->delete();
         }
 
         return response()->json([
@@ -124,6 +147,7 @@ class ProjectConfigController extends Controller
                 $subscriptionPackageData = [
                     'id' => $project->subscriptionPackage->id,
                     'name' => $project->subscriptionPackage->name,
+                    'description' => $project->subscriptionPackage->description,
                     'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
                     'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
                 ];

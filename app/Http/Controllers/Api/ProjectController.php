@@ -264,6 +264,7 @@ class ProjectController extends Controller
                 $subscriptionPackageData = [
                     'id' => $project->subscriptionPackage->id,
                     'name' => $project->subscriptionPackage->name,
+                    'description' => $project->subscriptionPackage->description,
                     'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
                     'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
                 ];
