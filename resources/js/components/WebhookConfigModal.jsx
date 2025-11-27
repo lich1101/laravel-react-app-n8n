@@ -237,8 +237,8 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                     customHeaderName: config.customHeaderName,
                     customHeaderValue: config.customHeaderValue,
                 },
-                custom_response_enabled: config.customResponseEnabled || false,
-                custom_response: config.customResponse || '',
+                custom_response_enabled: Boolean(config.customResponseEnabled),
+                custom_response: String(config.customResponse || ''),
             });
 
             testRunIdRef.current = response.data.test_run_id;
@@ -722,7 +722,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                             className="font-mono text-sm"
                                         />
                                         <p className="mt-1 text-xs text-muted">
-                                            💡 JSON response sẽ được trả về khi webhook được gọi thành công. Có thể sử dụng biến {{variable}} để động.
+                                            JSON response sẽ được trả về khi webhook được gọi thành công. Có thể sử dụng biến {'{{variable}}'} để động.
                                         </p>
                                     </div>
                                 )}
