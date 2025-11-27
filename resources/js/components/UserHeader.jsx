@@ -11,6 +11,8 @@ const UserHeader = () => {
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const menuRef = useRef(null);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userRole = (user?.role || 'user').toLowerCase();
+    const showUserWorkflowQuota = userRole === 'user';
 
     useEffect(() => {
         fetchPackageInfo();
@@ -106,7 +108,7 @@ const UserHeader = () => {
                         )}
 
                         {/* Workflow Stats */}
-                        <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[200px] flex flex-col items-start justify-center">
+                        <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[200px] flex flex-col items-start justify-center space-y-2">
                             <div className="flex items-center justify-center">
                                 <div className="text-xs font-semibold text-blue-900 ">
                                     {packageInfo?.workflow_stats?.running || 0} / {packageInfo?.workflow_stats?.max_concurrent || 0}
@@ -116,14 +118,20 @@ const UserHeader = () => {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-center">
-                                <div className="text-xs font-semibold text-blue-900 ">
-                                    {packageInfo?.workflow_stats?.user_created || 0} / {packageInfo?.workflow_stats?.max_user_workflows || '∞'}
+                            {showUserWorkflowQuota ? (
+                                <div className="flex items-center justify-center">
+                                    <div className="text-xs font-semibold text-blue-900 ">
+                                        {packageInfo?.workflow_stats?.user_created || 0} / {packageInfo?.workflow_stats?.max_user_workflows || '∞'}
+                                    </div>
+                                    <div className="text-xs text-blue-700">
+                                        : Workflows đã tạo
+                                    </div>
                                 </div>
-                                <div className="text-xs text-blue-700">
-                                    : Workflows đã tạo
+                            ) : (
+                                <div className="text-xs text-blue-700 text-center">
+                                    Role {userRole} không bị giới hạn số workflows đã tạo.
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* User Avatar Menu */}

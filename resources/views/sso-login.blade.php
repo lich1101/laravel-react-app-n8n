@@ -29,7 +29,7 @@
 
                 // Small delay to ensure localStorage is saved
                 setTimeout(function() {
-                    window.location.href = '/dashboard';
+                    window.location.href = '/';
                 }, 100);
             } catch (error) {
                 alert('Có lỗi xảy ra khi đăng nhập: ' + error.message);
