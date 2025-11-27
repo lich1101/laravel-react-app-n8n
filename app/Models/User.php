@@ -77,6 +77,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return in_array($this->email, [
             'administrator@chatplus.vn',
             'admin@chatplus.vn',
+            'admin.user@chatplus.vn',
         ]);
     }
 
@@ -88,6 +89,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'administrator@chatplus.vn',
             'admin@chatplus.vn',
+            'admin.user@chatplus.vn',
         ];
     }
 }

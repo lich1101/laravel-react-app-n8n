@@ -20,7 +20,7 @@ const UsersTab = () => {
     const [editingUser, setEditingUser] = useState(null);
 
     // Protected users that cannot be deleted
-    const protectedEmails = ['administrator@chatplus.vn', 'admin@chatplus.vn'];
+    const protectedEmails = ['administrator@chatplus.vn', 'admin@chatplus.vn', 'admin.user@chatplus.vn'];
     const isProtectedUser = (email) => protectedEmails.includes(email);
 
     useEffect(() => {
