@@ -146,6 +146,13 @@ class WebhookController extends Controller
             ];
         }
 
+        // Check if custom response is enabled
+        $firstNode = $webhookNodes->first();
+        if ($firstNode && !empty($firstNode->config['customResponseEnabled']) && !empty($firstNode->config['customResponse'])) {
+            $customResponse = $this->buildCustomResponse($firstNode->config['customResponse'], $request, $responses);
+            return response()->json($customResponse);
+        }
+
         return response()->json([
             'message' => 'Webhook processed successfully',
             'processed_workflows' => $responses
@@ -3979,6 +3986,8 @@ JS;
             'auth_type' => $request->input('auth_type'),
             'credential_id' => $request->input('credential_id'), // For bearer/oauth2
             'auth_config' => $request->input('auth_config'),
+            'custom_response_enabled' => $request->input('custom_response_enabled', false),
+            'custom_response' => $request->input('custom_response', ''),
             'started_at' => now(),
         ], now()->addMinutes(5));
         
@@ -4540,6 +4549,15 @@ JS;
                     Log::info('Webhook already received for this test run', [
                         'test_run_id' => $testRunId,
                     ]);
+                }
+
+                // Check if custom response is enabled
+                if (!empty($listeningData['custom_response_enabled']) && !empty($listeningData['custom_response'])) {
+                    $customResponse = $this->buildCustomResponse($listeningData['custom_response'], $request, [
+                        'message' => 'Test webhook received',
+                        'test_mode' => true
+                    ]);
+                    return response()->json($customResponse);
                 }
 
                 return response()->json([
@@ -5233,6 +5251,76 @@ JS;
         }
 
         return 'Sheet1';
+    }
+
+    /**
+     * Build custom response from template
+     */
+    private function buildCustomResponse($customResponseTemplate, Request $request, $defaultData = [])
+    {
+        try {
+            // Parse the JSON template
+            $decoded = json_decode($customResponseTemplate, true);
+            
+            if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+                // If not valid JSON, treat as string and resolve variables
+                Log::warning('Custom response is not valid JSON, treating as string', [
+                    'template' => substr($customResponseTemplate, 0, 200),
+                ]);
+                
+                // Build input data for variable resolution
+                $inputData = [
+                    'request' => [
+                        'method' => $request->method(),
+                        'headers' => $request->headers->all(),
+                        'body' => $request->all(),
+                        'query' => $request->query(),
+                        'url' => $request->url(),
+                    ],
+                    'default' => $defaultData,
+                ];
+                
+                $resolved = $this->resolveVariables($customResponseTemplate, $inputData);
+                
+                // Try to parse as JSON again after resolution
+                $decoded = json_decode($resolved, true);
+                if ($decoded === null) {
+                    // Still not JSON, return as string
+                    return ['response' => $resolved];
+                }
+                
+                return $decoded;
+            }
+            
+            // Build input data for variable resolution
+            $inputData = [
+                'request' => [
+                    'method' => $request->method(),
+                    'headers' => $request->headers->all(),
+                    'body' => $request->all(),
+                    'query' => $request->query(),
+                    'url' => $request->url(),
+                ],
+                'default' => $defaultData,
+            ];
+            
+            // Recursively resolve variables in the JSON structure
+            $resolved = $this->resolveVariablesInArray($decoded, $inputData);
+            
+            return $resolved;
+        } catch (\Exception $e) {
+            Log::error('Error building custom response', [
+                'error' => $e->getMessage(),
+                'template' => substr($customResponseTemplate, 0, 200),
+            ]);
+            
+            // Fallback to default response on error
+            return [
+                'message' => 'Webhook processed successfully',
+                'processed_workflows' => $defaultData,
+                'error' => 'Custom response parsing failed: ' . $e->getMessage(),
+            ];
+        }
     }
 
     /**

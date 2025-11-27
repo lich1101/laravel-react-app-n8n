@@ -21,6 +21,8 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
         customHeaderName: '',
         customHeaderValue: '',
         respond: 'immediately',
+        customResponseEnabled: false,
+        customResponse: '{\n  "success": true,\n  "message": "Webhook received"\n}',
         ...node?.data?.config,
     });
 
@@ -234,7 +236,9 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                     apiKeyName: config.apiKeyName,
                     customHeaderName: config.customHeaderName,
                     customHeaderValue: config.customHeaderValue,
-                }
+                },
+                custom_response_enabled: config.customResponseEnabled || false,
+                custom_response: config.customResponse || '',
             });
 
             testRunIdRef.current = response.data.test_run_id;
@@ -689,6 +693,39 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     <option value="immediately">Immediately</option>
                                     <option value="when_last_node_finishes">When last node finishes</option>
                                 </select>
+                            </div>
+
+                            {/* Custom Response */}
+                            <div className="mb-6">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-sm font-medium text-secondary">Custom Response</label>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={config.customResponseEnabled || false}
+                                            onChange={(e) => setConfig({ ...config, customResponseEnabled: e.target.checked })}
+                                            disabled={readOnly}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary disabled:opacity-50 disabled:cursor-not-allowed"></div>
+                                    </label>
+                                </div>
+                                {config.customResponseEnabled && (
+                                    <div className="mt-2">
+                                        <label className="block text-xs text-muted mb-1">Response JSON</label>
+                                        <ExpandableTextarea
+                                            value={config.customResponse || ''}
+                                            onChange={(newValue) => setConfig({ ...config, customResponse: newValue })}
+                                            placeholder='{"success": true, "message": "Webhook received"}'
+                                            rows={8}
+                                            disabled={readOnly}
+                                            className="font-mono text-sm"
+                                        />
+                                        <p className="mt-1 text-xs text-muted">
+                                            💡 JSON response sẽ được trả về khi webhook được gọi thành công. Có thể sử dụng biến {{variable}} để động.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
                         </div>
