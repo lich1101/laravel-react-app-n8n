@@ -156,8 +156,8 @@ const UserDashboard = () => {
             />
 
             <div className="flex-1 flex flex-col bg-surface-muted">
-                {/* User Header - only show for user role */}
-                {user.role === 'user' && <UserHeader />}
+                {}
+                {<UserHeader />}
                 
                 <div className="flex-1 min-h-0 overflow-y-auto">
                     <div className="bg-surface-elevated shadow-card min-h-full">
