@@ -352,7 +352,7 @@ class ProjectController extends Controller
     /**
      * Generate SSO token for auto-login to project domain
      */
-    public function generateSsoToken(string $id): JsonResponse
+    public function generateSsoToken(string $id, Request $request): JsonResponse
     {
         $this->checkAdministrator();
         $project = Project::findOrFail($id);
@@ -365,6 +365,12 @@ class ProjectController extends Controller
             $projectDomain = 'https://' . $projectDomain;
         }
         
+        // Get role from request (default: administrator)
+        $role = $request->input('role', 'administrator');
+        if (!in_array($role, ['administrator', 'admin', 'user'])) {
+            $role = 'administrator';
+        }
+        
         // Generate a temporary token (valid for 5 minutes)
         $token = Str::random(64);
         $expiresAt = now()->addMinutes(5);
@@ -374,6 +380,7 @@ class ProjectController extends Controller
             'project_id' => $project->id,
             'project_domain' => $projectDomain,
             'admin_email' => 'admin.user@chatplus.vn', // Default admin user in project domain
+            'admin_role' => $role, // Role for SSO login user
             'expires_at' => $expiresAt->toIso8601String(),
         ], $expiresAt);
         
@@ -420,6 +427,7 @@ class ProjectController extends Controller
         return response()->json([
             'valid' => true,
             'admin_email' => $tokenData['admin_email'],
+            'admin_role' => $tokenData['admin_role'] ?? 'admin',
         ]);
     }
 

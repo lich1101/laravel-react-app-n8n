@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../config/axios';
+import SsoRoleModal from './SsoRoleModal';
 
 const PROJECT_BASE_DOMAIN = import.meta.env.VITE_PROJECT_BASE_DOMAIN || 'chatplus.vn';
 
@@ -96,6 +97,8 @@ const ProjectsTab = () => {
     const [subscriptionPackages, setSubscriptionPackages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [showSsoRoleModal, setShowSsoRoleModal] = useState(false);
+    const [selectedProject, setSelectedProject] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         subscription_package_id: ''
@@ -444,42 +447,11 @@ const ProjectsTab = () => {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
                                     <button
                                         type="button"
-                                        onClick={async (e) => {
+                                        onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            
-                                            try {
-                                                // Note: axios from config/axios already has baseURL='/api', so don't add /api again
-                                                const response = await axios.get(`/projects/${project.id}/sso-token`, {
-                                                    headers: {
-                                                        'Accept': 'application/json',
-                                                    },
-                                                    validateStatus: function (status) {
-                                                        return status < 500; // Don't throw on 4xx errors
-                                                    }
-                                                });
-                                                
-                                                // Check if response is HTML (string starting with <)
-                                                if (typeof response.data === 'string' && response.data.trim().startsWith('<!')) {
-                                                    alert('Bạn cần đăng nhập lại. Vui lòng refresh trang và thử lại.');
-                                                    return;
-                                                }
-                                                
-                                                if (response.status === 200 && response.data?.url) {
-                                                    const newWindow = window.open(response.data.url, '_blank');
-                                                    if (!newWindow) {
-                                                        alert('Popup bị chặn. Vui lòng cho phép popup và thử lại.');
-                                                    }
-                                                } else if (response.status === 401 || response.status === 403) {
-                                                    alert('Bạn không có quyền truy cập. Vui lòng đăng nhập lại.');
-                                                } else {
-                                                    window.open(`https://${project.domain}`, '_blank');
-                                                }
-                                            } catch (error) {
-                                                alert('Không thể tạo SSO token. Đang mở link trực tiếp...');
-                                                // Fallback to direct link
-                                                window.open(`https://${project.domain}`, '_blank');
-                                            }
+                                            setSelectedProject(project);
+                                            setShowSsoRoleModal(true);
                                         }}
                                         className="text-primary hover:text-primary/80 hover:underline cursor-pointer"
                                         title="Click để tự động đăng nhập vào project domain"
@@ -610,6 +582,16 @@ const ProjectsTab = () => {
                     </tbody>
                 </table>
             </div>
+
+            <SsoRoleModal
+                isOpen={showSsoRoleModal}
+                onClose={() => {
+                    setShowSsoRoleModal(false);
+                    setSelectedProject(null);
+                }}
+                onConfirm={handleSsoLogin}
+                projectDomain={selectedProject?.domain || ''}
+            />
         </div>
     );
 };

@@ -37,6 +37,7 @@ Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
         if ($response->successful() && $response->json('valid')) {
             $data = $response->json();
             $adminEmail = $data['admin_email'] ?? 'admin.user@chatplus.vn';
+            $adminRole = $data['admin_role'] ?? 'admin';
             
             // Find or create admin user
             $user = \App\Models\User::where('email', $adminEmail)->first();
@@ -47,9 +48,14 @@ Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
                     'name' => 'Admin User',
                     'email' => $adminEmail,
                     'password' => \Illuminate\Support\Facades\Hash::make('Dangbinh1101@gmail.com'),
-                    'role' => 'admin',
+                    'role' => $adminRole,
                     'email_verified_at' => now(),
                 ]);
+            } else {
+                // Update role if user exists but role is different
+                if ($user->role !== $adminRole) {
+                    $user->update(['role' => $adminRole]);
+                }
             }
             
             // Create API token for React app
