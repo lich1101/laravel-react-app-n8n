@@ -35,7 +35,14 @@ class SystemUsersSeeder extends Seeder
             ]
         );
 
-        
+        User::updateOrCreate(
+            ['email' => 'admin.user@chatplus.vn'],
+            [
+                'name' => 'Admin',
+                'password' => Hash::make('Dangbinh1101@gmail.com'),
+                'role' => 'admin',
+            ]
+        );
 
         $this->command->info('System users created successfully!');
         $this->command->info('');
