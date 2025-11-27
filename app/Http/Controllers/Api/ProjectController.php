@@ -200,7 +200,7 @@ class ProjectController extends Controller
     public function sync(string $id): JsonResponse
     {
         $this->checkAdministrator();
-        $project = Project::with('folders')->findOrFail($id);
+        $project = Project::with(['folders', 'subscriptionPackage'])->findOrFail($id);
         
         $result = $this->syncProject($project);
 
@@ -249,7 +249,7 @@ class ProjectController extends Controller
         ];
 
         try {
-            // 1. Sync max_concurrent_workflows config
+            // 1. Sync config: max_concurrent_workflows, subscription package info, max_user_workflows
             $projectDomain = $project->domain ?: $project->subdomain;
             $projectDomain = rtrim($projectDomain, '/');
             // Add https:// if not present
@@ -258,21 +258,36 @@ class ProjectController extends Controller
             }
             $configUrl = $projectDomain . '/api/project-config/sync';
             
-            \Log::info("Syncing config to project '{$project->name}' at URL: {$configUrl}", [
+            // Prepare subscription package data
+            $subscriptionPackageData = null;
+            if ($project->subscriptionPackage) {
+                $subscriptionPackageData = [
+                    'id' => $project->subscriptionPackage->id,
+                    'name' => $project->subscriptionPackage->name,
+                    'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
+                    'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
+                ];
+            }
+            
+            $configPayload = [
                 'max_concurrent_workflows' => $project->max_concurrent_workflows,
                 'project_id' => $project->id,
-            ]);
+                'project_name' => $project->name,
+                'max_user_workflows' => $project->max_user_workflows,
+            ];
+            
+            if ($subscriptionPackageData) {
+                $configPayload['subscription_package'] = $subscriptionPackageData;
+            }
+            
+            \Log::info("Syncing config to project '{$project->name}' at URL: {$configUrl}", $configPayload);
             
             $configResponse = Http::timeout(30)
                 ->withHeaders([
                     'X-Admin-Key' => config('app.user_app_admin_key'),
                     'Accept' => 'application/json',
                     'Content-Type' => 'application/json',
-                ])->post($configUrl, [
-                    'max_concurrent_workflows' => $project->max_concurrent_workflows,
-                    'project_id' => $project->id,
-                    'project_name' => $project->name,
-                ]);
+                ])->post($configUrl, $configPayload);
 
             $results['config_synced'] = $configResponse->successful();
             if ($configResponse->successful()) {

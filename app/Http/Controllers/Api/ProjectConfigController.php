@@ -20,12 +20,25 @@ class ProjectConfigController extends Controller
         $subdomain = $request->header('X-Project-Domain') ?? $request->getHost();
         
         $project = $this->resolveProject($subdomain);
+        $project->load('subscriptionPackage');
 
-        return response()->json([
+        $response = [
             'max_concurrent_workflows' => $project->max_concurrent_workflows ?? 5,
+            'max_user_workflows' => $project->max_user_workflows,
             'project_name' => $project->name,
             'status' => $project->status,
-        ]);
+        ];
+        
+        if ($project->subscriptionPackage) {
+            $response['subscription_package'] = [
+                'id' => $project->subscriptionPackage->id,
+                'name' => $project->subscriptionPackage->name,
+                'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
+                'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
+            ];
+        }
+
+        return response()->json($response);
     }
 
     /**
@@ -36,6 +49,12 @@ class ProjectConfigController extends Controller
     {
         $request->validate([
             'max_concurrent_workflows' => 'required|integer|min:1|max:100',
+            'max_user_workflows' => 'nullable|integer|min:0|max:1000',
+            'subscription_package' => 'nullable|array',
+            'subscription_package.id' => 'nullable|integer',
+            'subscription_package.name' => 'nullable|string',
+            'subscription_package.max_concurrent_workflows' => 'nullable|integer',
+            'subscription_package.max_user_workflows' => 'nullable|integer',
         ]);
 
         // Get project from subdomain
@@ -44,9 +63,15 @@ class ProjectConfigController extends Controller
         $project = $this->resolveProject($subdomain);
 
         // Update project config
-        $project->update([
+        $updateData = [
             'max_concurrent_workflows' => $request->max_concurrent_workflows,
-        ]);
+        ];
+        
+        if ($request->has('max_user_workflows')) {
+            $updateData['max_user_workflows'] = $request->max_user_workflows;
+        }
+        
+        $project->update($updateData);
 
         // Update local system_settings table
         SystemSetting::set(
@@ -54,10 +79,31 @@ class ProjectConfigController extends Controller
             $request->max_concurrent_workflows,
             'integer'
         );
+        
+        // Update max_user_workflows setting if provided
+        if ($request->has('max_user_workflows') && $request->max_user_workflows !== null) {
+            SystemSetting::set(
+                'max_user_workflows',
+                $request->max_user_workflows,
+                'integer'
+            );
+        }
+        
+        // Log subscription package info if provided
+        if ($request->has('subscription_package') && $request->subscription_package) {
+            \Log::info("Project '{$project->name}' synced with subscription package", [
+                'package_id' => $request->subscription_package['id'] ?? null,
+                'package_name' => $request->subscription_package['name'] ?? null,
+                'package_max_concurrent_workflows' => $request->subscription_package['max_concurrent_workflows'] ?? null,
+                'package_max_user_workflows' => $request->subscription_package['max_user_workflows'] ?? null,
+            ]);
+        }
 
         return response()->json([
             'message' => 'Configuration updated successfully',
             'max_concurrent_workflows' => $project->max_concurrent_workflows,
+            'max_user_workflows' => $project->max_user_workflows,
+            'subscription_package' => $request->subscription_package ?? null,
         ]);
     }
 
@@ -68,15 +114,35 @@ class ProjectConfigController extends Controller
     public function syncConfigToProject(Project $project): JsonResponse
     {
         try {
+            $project->load('subscriptionPackage');
+            
             $apiUrl = rtrim($project->subdomain, '/') . '/api/project-config/sync';
+            
+            // Prepare subscription package data
+            $subscriptionPackageData = null;
+            if ($project->subscriptionPackage) {
+                $subscriptionPackageData = [
+                    'id' => $project->subscriptionPackage->id,
+                    'name' => $project->subscriptionPackage->name,
+                    'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
+                    'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
+                ];
+            }
+            
+            $payload = [
+                'max_concurrent_workflows' => $project->max_concurrent_workflows,
+                'max_user_workflows' => $project->max_user_workflows,
+            ];
+            
+            if ($subscriptionPackageData) {
+                $payload['subscription_package'] = $subscriptionPackageData;
+            }
             
             // Call project's API to update its config
             $response = \Http::withHeaders([
                 'X-Admin-Key' => config('app.admin_key'),
                 'Accept' => 'application/json',
-            ])->post($apiUrl, [
-                'max_concurrent_workflows' => $project->max_concurrent_workflows,
-            ]);
+            ])->post($apiUrl, $payload);
 
             if ($response->successful()) {
                 return response()->json([
