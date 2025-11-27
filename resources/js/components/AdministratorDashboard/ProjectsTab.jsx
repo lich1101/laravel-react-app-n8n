@@ -190,6 +190,50 @@ const ProjectsTab = () => {
         setShowForm(true);
     };
 
+    const handleSsoLogin = async (role) => {
+        if (!selectedProject) return;
+
+        try {
+            // Note: axios from config/axios already has baseURL='/api', so don't add /api again
+            const response = await axios.get(`/projects/${selectedProject.id}/sso-token`, {
+                params: { role },
+                headers: {
+                    'Accept': 'application/json',
+                },
+                validateStatus: function (status) {
+                    return status < 500; // Don't throw on 4xx errors
+                }
+            });
+            
+            // Check if response is HTML (string starting with <)
+            if (typeof response.data === 'string' && response.data.trim().startsWith('<!')) {
+                alert('Bạn cần đăng nhập lại. Vui lòng refresh trang và thử lại.');
+                return;
+            }
+            
+            if (response.status === 200 && response.data?.url) {
+                const newWindow = window.open(response.data.url, '_blank');
+                if (!newWindow) {
+                    alert('Popup bị chặn. Vui lòng cho phép popup và thử lại.');
+                }
+                setShowSsoRoleModal(false);
+                setSelectedProject(null);
+            } else if (response.status === 401 || response.status === 403) {
+                alert('Bạn không có quyền truy cập. Vui lòng đăng nhập lại.');
+            } else {
+                window.open(`https://${selectedProject.domain}`, '_blank');
+                setShowSsoRoleModal(false);
+                setSelectedProject(null);
+            }
+        } catch (error) {
+            alert('Không thể tạo SSO token. Đang mở link trực tiếp...');
+            // Fallback to direct link
+            window.open(`https://${selectedProject.domain}`, '_blank');
+            setShowSsoRoleModal(false);
+            setSelectedProject(null);
+        }
+    };
+
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this project?')) {
             try {
