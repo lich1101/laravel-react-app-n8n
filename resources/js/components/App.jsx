@@ -35,40 +35,9 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
         <Route
-          path="/dashboard/*"
-          element={
-            <ProtectedRoute>
-              <UserDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/workflows"
-          element={
-            <ProtectedRoute>
-              <WorkflowList />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/workflows/:id"
-          element={
-            <ProtectedRoute>
-              <WorkflowEditor />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute requireAdministrator={true}>
-              <Settings />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/"
+          path="/*"
           element={
             token && user ? (
               (() => {
