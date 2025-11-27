@@ -8,7 +8,8 @@ import ModalHeader from './ModalHeader';
  * @param {Function} props.onRename - Rename handler
  * @param {Function} props.onClose - Close handler
  * @param {string} props.title - Modal title
- * @param {string|ReactNode} props.icon - Icon (emoji or React component)
+ * @param {string|ReactNode} props.icon - Icon (emoji or React component) - deprecated, use iconPath instead
+ * @param {string} props.iconPath - Path to icon SVG file
  * @param {boolean} props.readOnly - Whether modal is read-only
  * @param {boolean} props.isTesting - Whether test is running
  * @param {ReactNode} props.testButtons - Test/Stop test buttons
@@ -21,6 +22,7 @@ export default function ConfigModalLayout({
     onClose,
     title,
     icon,
+    iconPath,
     readOnly = false,
     isTesting = false,
     testButtons,
@@ -53,6 +55,7 @@ export default function ConfigModalLayout({
                     onClose={onClose}
                     title={title}
                     icon={icon}
+                    iconPath={iconPath}
                     readOnly={readOnly}
                     actions={headerActions}
                 />

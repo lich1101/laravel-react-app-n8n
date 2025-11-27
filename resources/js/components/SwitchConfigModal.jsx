@@ -313,7 +313,7 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
             onRename={onRename}
             onClose={handleClose}
             title="Switch"
-            icon="🔀"
+            iconPath="/icons/nodes/switch.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

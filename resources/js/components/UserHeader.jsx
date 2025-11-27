@@ -69,8 +69,8 @@ const UserHeader = () => {
 
     if (loading) {
         return (
-            <div className="bg-white border-b border-gray-200 px-6 py-4">
-                <div className="flex items-center justify-between">
+            <div className="bg-white border-b border-gray-200 px-6 py-4 min-h-[72px] flex items-center">
+                <div className="flex items-center justify-between w-full">
                     <div className="flex items-center space-x-4">
                         <div className="h-12 w-12 bg-gray-200 rounded animate-pulse"></div>
                         <div className="h-8 w-32 bg-gray-200 rounded animate-pulse"></div>
@@ -82,8 +82,8 @@ const UserHeader = () => {
 
     return (
         <>
-            <div className="bg-white border-b border-gray-200 px-6 py-4">
-                <div className="flex items-center justify-between">
+            <div className="bg-white border-b border-gray-200 px-6 py-4 min-h-[72px] flex items-center">
+                <div className="flex items-center justify-between w-full">
                     {/* Logo */}
                     <div className="flex items-center space-x-3">
                         
@@ -106,22 +106,22 @@ const UserHeader = () => {
                         )}
 
                         {/* Workflow Stats */}
-                        <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[500px] flex flex-col items-center justify-start">
+                        <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[200px] flex flex-col items-start justify-center">
                             <div className="flex items-center justify-center">
-                                <div className="text-sm font-semibold text-blue-900 mb-1">
+                                <div className="text-xs font-semibold text-blue-900 ">
                                     {packageInfo?.workflow_stats?.running || 0} / {packageInfo?.workflow_stats?.max_concurrent || 0}
                                 </div>
                                 <div className="text-xs text-blue-700">
-                                    Workflows đang chạy
+                                    : Workflows đang chạy
                                 </div>
                             </div>
 
                             <div className="flex items-center justify-center">
-                                <div className="text-sm font-semibold text-blue-900 mt-2">
+                                <div className="text-xs font-semibold text-blue-900 ">
                                     {packageInfo?.workflow_stats?.user_created || 0} / {packageInfo?.workflow_stats?.max_user_workflows || '∞'}
                                 </div>
                                 <div className="text-xs text-blue-700">
-                                    Workflows đã tạo
+                                    : Workflows đã tạo
                                 </div>
                             </div>
                         </div>

@@ -7,7 +7,8 @@ import React from 'react';
  * @param {Function} props.onRename - Rename handler
  * @param {Function} props.onClose - Close handler
  * @param {string} props.title - Modal title
- * @param {string|ReactNode} props.icon - Icon (emoji or React component)
+ * @param {string|ReactNode} props.icon - Icon (emoji or React component) - deprecated, use iconPath instead
+ * @param {string} props.iconPath - Path to icon SVG file
  * @param {boolean} props.readOnly - Whether modal is read-only
  * @param {ReactNode} props.actions - Additional action buttons (e.g., test buttons)
  * @param {string} props.className - Additional CSS classes
@@ -18,6 +19,7 @@ export default function ModalHeader({
     onClose,
     title,
     icon,
+    iconPath,
     readOnly = false,
     actions,
     className = ''
@@ -27,7 +29,13 @@ export default function ModalHeader({
     return (
         <div className={`border-b border-gray-200 px-6 py-4 flex items-center justify-between bg-white ${className}`}>
             <div className="flex items-center gap-3">
-                {icon && (
+                {iconPath ? (
+                    <img 
+                        src={iconPath} 
+                        alt={title || 'Node'}
+                        className="w-8 h-8"
+                    />
+                ) : icon && (
                     <span className="text-3xl">{icon}</span>
                 )}
                 <h2

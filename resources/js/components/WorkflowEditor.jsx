@@ -866,19 +866,19 @@ const nodeTypes = {
 };
 
 const ADD_NODE_OPTIONS = [
-    { type: 'webhook', label: 'Webhook', icon: '🌐' },
-    { type: 'schedule', label: 'Schedule Trigger', icon: '⏰' },
-    { type: 'http', label: 'HTTP Request', icon: '🔗' },
-    { type: 'perplexity', label: 'Perplexity AI', icon: '🤖' },
-    { type: 'claude', label: 'Claude AI', icon: '🤖' },
-    { type: 'openai', label: 'OpenAI', icon: '🤖' },
-    { type: 'gemini', label: 'Gemini AI', icon: '🤖' },
-    { type: 'code', label: 'Code', icon: '💻' },
-    { type: 'escape', label: 'Escape & Set', icon: '✂️' },
-    { type: 'if', label: 'If', icon: '🔀' },
-    { type: 'switch', label: 'Switch', icon: '🔁' },
-    { type: 'googledocs', label: 'Google Docs', icon: '📄' },
-    { type: 'googlesheets', label: 'Google Sheets', icon: '📊' },
+    { type: 'webhook', label: 'Webhook', iconPath: '/icons/nodes/webhook.svg' },
+    { type: 'schedule', label: 'Schedule Trigger', iconPath: '/icons/nodes/schedule.svg' },
+    { type: 'http', label: 'HTTP Request', iconPath: '/icons/nodes/http.svg' },
+    { type: 'perplexity', label: 'Perplexity AI', iconPath: '/icons/nodes/perplexity.svg' },
+    { type: 'claude', label: 'Claude AI', iconPath: '/icons/nodes/claude.svg' },
+    { type: 'openai', label: 'OpenAI', iconPath: '/icons/nodes/open_ai.svg' },
+    { type: 'gemini', label: 'Gemini AI', iconPath: '/icons/nodes/gemini.svg' },
+    { type: 'code', label: 'Code', iconPath: '/icons/nodes/code.svg' },
+    { type: 'escape', label: 'Escape & Set', iconPath: '/icons/nodes/escape.svg' },
+    { type: 'if', label: 'If', iconPath: '/icons/nodes/if.svg' },
+    { type: 'switch', label: 'Switch', iconPath: '/icons/nodes/switch.svg' },
+    { type: 'googledocs', label: 'Google Docs', iconPath: '/icons/nodes/googledocs.svg' },
+    { type: 'googlesheets', label: 'Google Sheets', iconPath: '/icons/nodes/googlesheets.svg' },
 ];
 
 
@@ -3261,7 +3261,15 @@ function WorkflowEditor() {
                                     onClick={() => handleAddNodeFromSidebar(option.type)}
                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-sm font-medium text-secondary hover:text-primary hover:bg-surface-muted transition-colors"
                                 >
-                                    <span className="text-lg leading-none">{option.icon}</span>
+                                    {option.iconPath ? (
+                                        <img 
+                                            src={option.iconPath} 
+                                            alt={option.label}
+                                            className="w-5 h-5 flex-shrink-0"
+                                        />
+                                    ) : (
+                                        <span className="text-lg leading-none">{option.icon}</span>
+                                    )}
                                     <span>{option.label}</span>
                                 </button>
                             ))}

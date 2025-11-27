@@ -266,7 +266,7 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
             onRename={onRename}
             onClose={handleClose}
             title="Google Sheets"
-            icon="📊"
+            iconPath="/icons/nodes/googlesheets.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

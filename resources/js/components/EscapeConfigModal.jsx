@@ -96,7 +96,7 @@ function EscapeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
             onRename={onRename}
             onClose={handleClose}
             title="Escape"
-            icon="⚡"
+            iconPath="/icons/nodes/escape.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

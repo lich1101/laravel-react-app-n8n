@@ -68,7 +68,7 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
             onRename={onRename}
             onClose={handleClose}
             title="Schedule Trigger"
-            icon="⏰"
+            iconPath="/icons/nodes/schedule.svg"
             readOnly={readOnly}
             testButtons={testButtons}
         >

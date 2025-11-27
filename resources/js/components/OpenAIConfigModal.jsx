@@ -811,7 +811,7 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
             onRename={onRename}
             onClose={handleClose}
             title="OpenAI"
-            icon="🤖"
+            iconPath="/icons/nodes/open_ai.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

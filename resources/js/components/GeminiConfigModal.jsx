@@ -352,7 +352,7 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
             onRename={onRename}
             onClose={handleClose}
             title="Gemini AI"
-            icon="💎"
+            iconPath="/icons/nodes/gemini.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

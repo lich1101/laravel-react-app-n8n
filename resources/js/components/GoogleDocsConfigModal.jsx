@@ -225,7 +225,7 @@ function GoogleDocsConfigModal({ node, onSave, onClose, onTest, inputData, outpu
             onRename={onRename}
             onClose={handleClose}
             title="Google Docs"
-            icon="📄"
+            iconPath="/icons/nodes/googledocs.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

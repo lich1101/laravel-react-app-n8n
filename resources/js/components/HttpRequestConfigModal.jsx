@@ -232,7 +232,7 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
             onRename={onRename}
             onClose={handleClose}
             title="HTTP Request"
-            icon="🌐"
+            iconPath="/icons/nodes/http.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

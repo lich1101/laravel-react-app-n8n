@@ -1,13 +1,20 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-const SectionHeader = ({ collapsed, title, icon, isOpen, onToggle }) => (
+const SectionHeader = ({ collapsed, title, iconPath, isOpen, onToggle }) => (
     <button
         onClick={onToggle}
         className={`w-full flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-3 py-2 text-sm font-semibold text-secondary hover:bg-surface-muted rounded-xl transition-colors`}
     >
         <div className="flex items-center space-x-2">
-            {icon && <span className="text-lg">{icon}</span>}
+            {iconPath && (
+                <img 
+                    src={iconPath} 
+                    alt={title}
+                    className="w-5 h-5 text-gray-400 dark:text-gray-500"
+                    style={{ filter: 'opacity(0.7)' }}
+                />
+            )}
             {!collapsed && <span>{title}</span>}
         </div>
         {!collapsed && (
@@ -41,6 +48,23 @@ const UserSidebarNav = ({
     automationDetailPathBuilder = (tableId) => `/dashboard/automations/table/${tableId}`,
     workflowDetailPathBuilder = (workflowId) => `/dashboard/workflows/${workflowId}`,
 }) => {
+    // Preload logo and icon SVGs
+    React.useEffect(() => {
+        const img1 = new Image();
+        img1.src = '/icons/logo-light.svg';
+        const img2 = new Image();
+        img2.src = '/icons/logo-icon.svg';
+        const img3 = new Image();
+        img3.src = '/icons/chevron-left.svg';
+        const img4 = new Image();
+        img4.src = '/icons/chevron-right.svg';
+        const img5 = new Image();
+        img5.src = '/icons/manage.svg';
+        const img6 = new Image();
+        img6.src = '/icons/table-automation.svg';
+        const img7 = new Image();
+        img7.src = '/icons/workflow.svg';
+    }, []);
     const navigate = useNavigate();
     const location = useLocation();
     const [managementOpen, setManagementOpen] = useState(true);
@@ -48,11 +72,9 @@ const UserSidebarNav = ({
     const [workflowsOpen, setWorkflowsOpen] = useState(true);
     const [expandedTopics, setExpandedTopics] = useState(new Set());
     const [expandedFolders, setExpandedFolders] = useState(new Set());
-    const [collapsedSection, setCollapsedSection] = useState(null);
-    const [hoverTopicId, setHoverTopicId] = useState(null);
-    const [hoverFolderId, setHoverFolderId] = useState(null);
-    const [flyoutTop, setFlyoutTop] = useState(0);
-    const [subFlyoutTop, setSubFlyoutTop] = useState(0);
+    const [isPermanentlyCollapsed, setIsPermanentlyCollapsed] = useState(false);
+    const [isToggling, setIsToggling] = useState(false);
+    const toggleButtonRef = useRef(null);
     const sidebarRef = useRef(null);
 
     const tableTopicMap = useMemo(() => {
@@ -133,24 +155,6 @@ const UserSidebarNav = ({
         }
     }, [location.pathname, tableTopicMap, workflowFolderMap]);
 
-    useEffect(() => {
-        if (!collapsed) {
-            setCollapsedSection(null);
-            setHoverTopicId(null);
-            setHoverFolderId(null);
-        }
-    }, [collapsed]);
-
-    useEffect(() => {
-        if (collapsedSection !== 'automations') {
-            setHoverTopicId(null);
-            setSubFlyoutTop(0);
-        }
-        if (collapsedSection !== 'workflows') {
-            setHoverFolderId(null);
-            setSubFlyoutTop(0);
-        }
-    }, [collapsedSection]);
 
     const toggleTopic = (topicId) => {
         setExpandedTopics((prev) => {
@@ -176,314 +180,6 @@ const UserSidebarNav = ({
         });
     };
 
-    const collapsedSections = [
-        { id: 'management', icon: '🛠', label: 'Quản lý' },
-        { id: 'automations', icon: '🤖', label: 'Automations' },
-        { id: 'workflows', icon: '🔁', label: 'Workflows' },
-    ];
-
-    const clampPanelTop = (desiredTop, heightRatio = 0.6) => {
-        const panelHeight = window.innerHeight * heightRatio;
-        const maxTop = Math.max(0, window.innerHeight - panelHeight );
-        return Math.max(0, desiredTop)- 48;
-    };
-
-    const renderCollapsedPanelWrapper = (content, heightRatio = 0.6) => (
-        <div
-            className="absolute left-full top-0 z-50"
-            style={{ top: clampPanelTop(flyoutTop, heightRatio) }}
-        >
-            {content}
-        </div>
-    );
-
-    const handleSectionHover = (sectionId, event) => {
-        setCollapsedSection(sectionId);
-        if (sectionId !== 'automations') {
-            setHoverTopicId(null);
-        }
-        if (sectionId !== 'workflows') {
-            setHoverFolderId(null);
-        }
-        setSubFlyoutTop(0);
-        if (!sidebarRef.current) return;
-        const sidebarRect = sidebarRef.current.getBoundingClientRect();
-        const iconRect = event.currentTarget.getBoundingClientRect();
-        const rawTop = iconRect.top - sidebarRect.top;
-        setFlyoutTop(rawTop);
-    };
-
-    const renderCollapsedManagementPanel = () =>
-        renderCollapsedPanelWrapper(
-            <div className="bg-surface-elevated border border-subtle rounded-2xl shadow-card py-3 w-60">
-                <p className="px-4 text-xs font-semibold text-muted uppercase tracking-wide mb-2">Quản lý</p>
-                <div className="space-y-1 px-3">
-                    {resolvedManagementLinks.length === 0 && (
-                        <div className="px-3 py-2 text-xs text-muted border border-dashed border-subtle rounded-xl">
-                            Không có mục
-                        </div>
-                    )}
-                    {resolvedManagementLinks.map((link) => {
-                        const active = isLinkActive(link);
-                        return (
-                            <button
-                                key={link.id}
-                                onClick={() => {
-                                    setCollapsedSection(null);
-                                    if (link.onClick) {
-                                        link.onClick();
-                                        return;
-                                    }
-                                    if (link.to) {
-                                        navigate(link.to);
-                                    }
-                                }}
-                                className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${
-                                    active
-                                        ? 'bg-amber-100 text-amber-700 border border-amber-300 shadow-card'
-                                        : 'text-secondary hover:bg-surface-muted'
-                                }`}
-                            >
-                                {link.label}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-        , 0.4);
-
-    const handleTopicHover = (topic, event) => {
-        setHoverTopicId(topic.id);
-        const columnEl = event.currentTarget.closest('[data-column="true"]');
-        if (!columnEl) return;
-        const columnRect = columnEl.getBoundingClientRect();
-        const rowRect = event.currentTarget.getBoundingClientRect();
-        const estimatedHeight = Math.min(window.innerHeight * 0.6, topic.tables.length * 44 + 72);
-        const rawTop = rowRect.top - columnRect.top;
-        const maxTop = Math.max(0, columnRect.height - estimatedHeight);
-        setSubFlyoutTop(Math.min(Math.max(0, rawTop), maxTop));
-    };
-
-    const renderCollapsedAutomationsPanel = () => {
-        const activeTopic = topics.find((topic) => topic.id === hoverTopicId);
-        return renderCollapsedPanelWrapper(
-            <div className="relative">
-                <div
-                    className="w-[220px] max-h-[60vh] overflow-y-auto bg-surface-elevated border border-subtle rounded-2xl shadow-card"
-                    data-column="true"
-                >
-                    <p className="px-3 pt-3 text-xs font-semibold text-muted uppercase tracking-wide mb-2">Automations</p>
-                    {loading ? (
-                        <p className="px-3 pb-3 text-xs text-muted">Đang tải...</p>
-                    ) : topics.length === 0 ? (
-                        <p className="px-3 pb-3 text-xs text-muted">Chưa có chủ đề</p>
-                    ) : (
-                        topics.map((topic) => {
-                            const isHovered = hoverTopicId === topic.id;
-                            return (
-                                <button
-                                    key={topic.id}
-                                    onMouseEnter={(event) => handleTopicHover(topic, event)}
-                                    className={`w-full text-left px-3 py-2 text-sm rounded-xl transition-all duration-150 ${
-                                        isHovered
-                                            ? 'bg-primary-soft text-primary border border-blue-200 shadow-card'
-                                            : 'text-secondary hover:bg-surface-muted hover:translate-x-1'
-                                    }`}
-                                >
-                                    {topic.name}
-                                </button>
-                            );
-                        })
-                    )}
-                </div>
-                {hoverTopicId && activeTopic && (
-                    <div
-                        className="absolute left-[calc(100%)] w-[260px] max-h-[60vh] overflow-y-auto bg-surface-elevated border border-subtle rounded-2xl shadow-card"
-                        style={{ top: subFlyoutTop }}
-                    >
-                        <p className="px-3 pt-3 text-xs font-semibold text-muted uppercase tracking-wide mb-2">
-                            {activeTopic.name}
-                        </p>
-                        <div className="px-2 pb-3 space-y-1">
-                            {activeTopic.tables.length === 0 ? (
-                                <p className="px-3 py-2 text-xs text-muted">Chưa có bảng</p>
-                            ) : (
-                                activeTopic.tables.map((table) => {
-                                    const detailPath = automationDetailPathBuilder(table.id);
-                                    const active = detailPath && location.pathname.startsWith(detailPath);
-                                    return (
-                                        <button
-                                            key={table.id}
-                                            onClick={() => {
-                                                onSelectAutomation?.(activeTopic.id, table.id, detailPath);
-                                                if (detailPath) {
-                                                    navigate(detailPath);
-                                                }
-                                                setCollapsedSection(null);
-                                            }}
-                                            className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-all duration-150 ${
-                                                active
-                                                    ? 'bg-primary-soft text-primary border border-blue-200 shadow-card'
-                                                    : 'text-secondary hover:bg-surface-muted hover:translate-x-1'
-                                            }`}
-                                        >
-                                            {table.name}
-                                        </button>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>,
-            0.6
-        );
-    };
-
-    const handleFolderHover = (folder, event) => {
-        setHoverFolderId(folder.id);
-        const columnEl = event.currentTarget.closest('[data-column="true"]');
-        if (!columnEl) return;
-        const columnRect = columnEl.getBoundingClientRect();
-        const rowRect = event.currentTarget.getBoundingClientRect();
-        const workflowCount = (folder.workflows || []).length;
-        const estimatedHeight = Math.min(window.innerHeight * 0.6, workflowCount * 44 + 72);
-        const rawTop = rowRect.top - columnRect.top;
-        const maxTop = Math.max(0, columnRect.height - estimatedHeight);
-        setSubFlyoutTop(Math.min(Math.max(0, rawTop), maxTop));
-    };
-
-    const renderCollapsedWorkflowsPanel = () => {
-        const allFolders = workflowFolders || [];
-        const showingOrphan = hoverFolderId === 'unassigned';
-        const activeFolder =
-            showingOrphan
-                ? { id: 'unassigned', name: 'Không thuộc folder', workflows: orphanWorkflows }
-                : allFolders.find((folder) => folder.id === hoverFolderId);
-
-        return renderCollapsedPanelWrapper(
-            <div className="relative">
-                <div
-                    className="w-[220px] max-h-[60vh] overflow-y-auto bg-surface-elevated border border-subtle rounded-2xl shadow-card"
-                    data-column="true"
-                >
-                    <p className="px-3 pt-3 text-xs font-semibold text-muted uppercase tracking-wide mb-2">Workflows</p>
-                    {loading ? (
-                        <p className="px-3 pb-3 text-xs text-muted">Đang tải...</p>
-                    ) : (
-                        <>
-                            {allFolders.map((folder) => (
-                                <button
-                                    key={folder.id}
-                                    onMouseEnter={(event) => handleFolderHover(folder, event)}
-                                    className={`w-full text-left px-3 py-2 text-sm rounded-xl transition-all duration-150 ${
-                                        hoverFolderId === folder.id
-                                            ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
-                                            : 'text-secondary hover:bg-surface-muted hover:translate-x-1'
-                                    }`}
-                                >
-                                    {folder.name}
-                                </button>
-                            ))}
-                            {orphanWorkflows.length > 0 && (
-                                <button
-                                    onMouseEnter={(event) =>
-                                        handleFolderHover(
-                                            { id: 'unassigned', name: 'Không thuộc folder', workflows: orphanWorkflows },
-                                            event
-                                        )
-                                    }
-                                    className={`w-full text-left px-3 py-2 text-sm rounded-xl transition-all duration-150 ${
-                                        hoverFolderId === 'unassigned'
-                                            ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
-                                            : 'text-secondary hover:bg-surface-muted hover:translate-x-1'
-                                    }`}
-                                >
-                                    Không thuộc folder
-                                </button>
-                            )}
-                            {allFolders.length === 0 && orphanWorkflows.length === 0 && (
-                                <p className="px-3 pb-3 text-xs text-muted">Chưa có workflow</p>
-                            )}
-                        </>
-                    )}
-                </div>
-                {hoverFolderId && activeFolder && (
-                    <div
-                        className="absolute left-[calc(100%+0.5rem)] w-[260px] max-h-[60vh] overflow-y-auto bg-surface-elevated border border-subtle rounded-2xl shadow-card"
-                        style={{ top: subFlyoutTop }}
-                    >
-                        <p className="px-3 pt-3 text-xs font-semibold text-muted uppercase tracking-wide mb-2">
-                            {activeFolder.name}
-                        </p>
-                        <div className="px-2 pb-3 space-y-1">
-                            {activeFolder.workflows.length === 0 ? (
-                                <p className="px-3 py-2 text-xs text-muted">Chưa có workflow</p>
-                            ) : (
-                                activeFolder.workflows.map((workflow) => {
-                                    const workflowPath = workflowDetailPathBuilder(workflow.id);
-                                    const active = workflowPath && location.pathname.startsWith(workflowPath);
-                                    return (
-                                        <button
-                                            key={workflow.id}
-                                            onClick={() => {
-                                                onSelectWorkflow?.(activeFolder.id, workflow.id, workflowPath);
-                                                if (workflowPath) {
-                                                    navigate(workflowPath);
-                                                }
-                                                setCollapsedSection(null);
-                                            }}
-                                            className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-all duration-150 ${
-                                                active
-                                                    ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
-                                                    : 'text-secondary hover:bg-surface-muted hover:translate-x-1'
-                                            }`}
-                                        >
-                                            {workflow.name}
-                                        </button>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const renderCollapsedSidebar = () => (
-        <div
-            className="h-full relative"
-            onMouseLeave={() => {
-                setCollapsedSection(null);
-                setHoverTopicId(null);
-                setHoverFolderId(null);
-                setFlyoutTop(0);
-                setSubFlyoutTop(0);
-            }}
-        >
-            <div className="flex flex-col items-center space-y-4 py-6">
-                {collapsedSections.map((section) => (
-                    <button
-                        key={section.id}
-                        onMouseEnter={(event) => handleSectionHover(section.id, event)}
-                        className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-colors ${
-                            collapsedSection === section.id
-                                ? 'bg-primary-soft text-primary border-blue-200'
-                                : 'bg-surface-elevated text-muted border-subtle hover:bg-surface-muted'
-                        }`}
-                        title={section.label}
-                    >
-                        <span className="text-xl">{section.icon}</span>
-                    </button>
-                ))}
-            </div>
-
-            {collapsedSection === 'management' && renderCollapsedManagementPanel()}
-            {collapsedSection === 'automations' && renderCollapsedAutomationsPanel()}
-            {collapsedSection === 'workflows' && renderCollapsedWorkflowsPanel()}
-        </div>
-    );
 
     const expandedContent = (
         <div className="h-full overflow-y-auto px-3 py-4 pr-2">
@@ -491,34 +187,40 @@ const UserSidebarNav = ({
                 <SectionHeader
                     collapsed={collapsed}
                     title="Quản lý"
-                    icon="🛠"
+                    iconPath="/icons/manage.svg"
                     isOpen={managementOpen}
                     onToggle={() => setManagementOpen((prev) => !prev)}
                 />
-                {managementOpen && (
-                    <div className="mt-1 space-y-1 pl-4">
-                        {resolvedManagementLinks.map((link) => {
+                {managementOpen && !collapsed && (
+                    <div className="relative mt-1 space-y-1 pl-4">
+                        {resolvedManagementLinks.map((link, index) => {
                             const active = isLinkActive(link);
+                            const isLast = index === resolvedManagementLinks.length - 1;
                             return (
-                                <button
-                                    key={link.id}
-                                    onClick={() => {
-                                        if (link.onClick) {
-                                            link.onClick();
-                                            return;
-                                        }
-                                        if (link.to) {
-                                            navigate(link.to);
-                                        }
-                                    }}
-                                    className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${
-                                        active
-                                            ? 'bg-amber-100 text-amber-700 border border-amber-300 shadow-card'
-                                            : 'text-secondary hover:bg-surface-muted'
-                                    }`}
-                                >
-                                    {link.label}
-                                </button>
+                                <div key={link.id} className="relative flex items-center pl-4">
+                                    {/* Vertical line */}
+                                    <div className={`absolute left-0 top-0 w-px bg-gray-300 ${isLast ? 'h-1/2' : 'h-full'}`} />
+                                    {/* Dot - centered on the line */}
+                                    <div className="absolute left-0 w-2 h-2 rounded-full bg-gray-400" style={{ left: '-3.5px' }} />
+                                    <button
+                                        onClick={() => {
+                                            if (link.onClick) {
+                                                link.onClick();
+                                                return;
+                                            }
+                                            if (link.to) {
+                                                navigate(link.to);
+                                            }
+                                        }}
+                                        className={`w-full text-left pl-4 pr-3 py-2 rounded-xl text-sm transition-colors ${
+                                            active
+                                                ? 'text-blue-600 font-semibold'
+                                                : 'text-secondary hover:bg-surface-muted'
+                                        }`}
+                                    >
+                                        {link.label}
+                                    </button>
+                                </div>
                             );
                         })}
                         {resolvedManagementLinks.length === 0 && (
@@ -534,18 +236,24 @@ const UserSidebarNav = ({
                 <SectionHeader
                     collapsed={collapsed}
                     title="Automations"
+                    iconPath="/icons/table-automation.svg"
                     isOpen={automationOpen}
                     onToggle={() => setAutomationOpen((prev) => !prev)}
                 />
-                {automationOpen && (
+                {automationOpen && !collapsed && (
                     <div className="mt-1 space-y-2 pl-4">
                         {loading ? (
                             <p className="px-3 py-2 text-xs text-muted">Đang tải chủ đề...</p>
                         ) : (
-                            topics.map((topic) => {
+                            topics.map((topic, topicIndex) => {
                                 const isExpanded = expandedTopics.has(topic.id);
+                                const isLastTopic = topicIndex === topics.length - 1;
                                 return (
-                                    <div key={topic.id} className="rounded-xl">
+                                    <div key={topic.id} className="relative rounded-xl">
+                                        {/* Vertical line */}
+                                        <div className={`absolute left-0 top-0 w-px bg-gray-300 ${isLastTopic && !isExpanded ? 'h-1/2' : isExpanded ? 'h-full' : 'h-1/2'}`} />
+                                        {/* Dot */}
+                                        <div className="absolute left-0 w-2 h-2 rounded-full bg-gray-400" style={{ left: '-3.5px', top: '1rem' }} />
                                         <button
                                             onClick={() => {
                                                 toggleTopic(topic.id);
@@ -563,30 +271,35 @@ const UserSidebarNav = ({
                                             </svg>
                                         </button>
                                         {isExpanded && (
-                                            <div className="relative pl-7 pb-3 space-y-1">
-                                                <div className="absolute left-3 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
-                                                {topic.tables.map((table) => {
+                                            <div className="relative pl-4 pb-3 space-y-1">
+                                                {/* Continue vertical line from topic */}
+                                                <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-300" />
+                                                {topic.tables.map((table, tableIndex) => {
                                                     const detailPath = automationDetailPathBuilder(table.id);
                                                     const isTableActive = detailPath && location.pathname.startsWith(detailPath);
+                                                    const isLastTable = tableIndex === topic.tables.length - 1;
                                                     return (
-                                                        <div key={table.id} className="flex items-center">
-                                                        <div className="w-3 -ml-2 border-t border-subtle opacity-60" />
-                                                    <button
-                                                        onClick={() => {
-                                                            onSelectAutomation?.(topic.id, table.id, detailPath);
-                                                            if (detailPath) {
-                                                                navigate(detailPath);
-                                                            }
-                                                        }}
-                                                        className={`flex-1 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                                            isTableActive
-                                                                ? 'bg-primary-soft text-primary border border-blue-200 shadow-card'
-                                                                : 'text-secondary hover:bg-surface-muted'
-                                                        }`}
-                                                    >
-                                                        {table.name}
-                                                    </button>
-                                                    </div>
+                                                        <div key={table.id} className="relative flex items-center pl-4">
+                                                            {/* Vertical line */}
+                                                            <div className={`absolute left-0 top-0 w-px bg-gray-300 ${isLastTable ? 'h-1/2' : 'h-full'}`} />
+                                                            {/* Dot - centered on the line */}
+                                                            <div className="absolute left-0 w-2 h-2 rounded-full bg-gray-400" style={{ left: '-3.5px' }} />
+                                                            <button
+                                                                onClick={() => {
+                                                                    onSelectAutomation?.(topic.id, table.id, detailPath);
+                                                                    if (detailPath) {
+                                                                        navigate(detailPath);
+                                                                    }
+                                                                }}
+                                                                className={`flex-1 text-left pl-4 pr-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                                    isTableActive
+                                                                        ? 'text-blue-600 font-semibold'
+                                                                        : 'text-secondary hover:bg-surface-muted'
+                                                                }`}
+                                                            >
+                                                                {table.name}
+                                                            </button>
+                                                        </div>
                                                     );
                                                 })}
                                                 {topic.tables.length === 0 && (
@@ -606,18 +319,24 @@ const UserSidebarNav = ({
                 <SectionHeader
                     collapsed={collapsed}
                     title="Workflows"
+                    iconPath="/icons/workflow.svg"
                     isOpen={workflowsOpen}
                     onToggle={() => setWorkflowsOpen((prev) => !prev)}
                 />
-                {workflowsOpen && (
+                {workflowsOpen && !collapsed && (
                     <div className="mt-1 space-y-2 pl-4">
                         {loading ? (
                             <p className="px-3 py-2 text-xs text-muted">Đang tải workflows...</p>
                         ) : (
-                            workflowFolders.map((folder) => {
+                            workflowFolders.map((folder, folderIndex) => {
                                 const isExpanded = expandedFolders.has(folder.id);
+                                const isLastFolder = folderIndex === workflowFolders.length - 1 && orphanWorkflows.length === 0;
                                 return (
-                                    <div key={folder.id} className="rounded-xl">
+                                    <div key={folder.id} className="relative rounded-xl">
+                                        {/* Vertical line */}
+                                        <div className={`absolute left-0 top-0 w-px bg-gray-300 ${isLastFolder && !isExpanded ? 'h-1/2' : isExpanded ? 'h-full' : 'h-1/2'}`} />
+                                        {/* Dot */}
+                                        <div className="absolute left-0 w-2 h-2 rounded-full bg-gray-400" style={{ left: '-3.5px', top: '1rem' }} />
                                         <button
                                             onClick={() => {
                                                 toggleFolder(folder.id);
@@ -635,30 +354,35 @@ const UserSidebarNav = ({
                                             </svg>
                                         </button>
                                         {isExpanded && (
-                                            <div className="relative pl-7 pb-3 space-y-1">
-                                                <div className="absolute left-3 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
-                                                {folder.workflows.map((workflow) => {
+                                            <div className="relative pl-4 pb-3 space-y-1">
+                                                {/* Continue vertical line from folder */}
+                                                <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-300" />
+                                                {folder.workflows.map((workflow, workflowIndex) => {
                                                     const workflowPath = workflowDetailPathBuilder(workflow.id);
                                                     const isWorkflowActive = workflowPath && location.pathname.startsWith(workflowPath);
+                                                    const isLastWorkflow = workflowIndex === folder.workflows.length - 1;
                                                     return (
-                                                        <div key={workflow.id} className="flex items-center">
-                                                        <div className="w-3 -ml-2 border-t border-subtle opacity-60" />
-                                                        <button
-                                                            onClick={() => {
-                                                                onSelectWorkflow?.(folder.id, workflow.id, workflowPath);
-                                                                if (workflowPath) {
-                                                                    navigate(workflowPath);
-                                                                }
-                                                            }}
-                                                            className={`flex-1 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                                                isWorkflowActive
-                                                                    ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
-                                                                    : 'text-secondary hover:bg-surface-muted'
-                                                            }`}
-                                                        >
-                                                            {workflow.name}
-                                                        </button>
-                                                    </div>
+                                                        <div key={workflow.id} className="relative flex items-center pl-4">
+                                                            {/* Vertical line */}
+                                                            <div className={`absolute left-0 top-0 w-px bg-gray-300 ${isLastWorkflow ? 'h-1/2' : 'h-full'}`} />
+                                                            {/* Dot - centered on the line */}
+                                                            <div className="absolute left-0 w-2 h-2 rounded-full bg-gray-400" style={{ left: '-3.5px' }} />
+                                                            <button
+                                                                onClick={() => {
+                                                                    onSelectWorkflow?.(folder.id, workflow.id, workflowPath);
+                                                                    if (workflowPath) {
+                                                                        navigate(workflowPath);
+                                                                    }
+                                                                }}
+                                                                className={`flex-1 text-left pl-4 pr-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                                    isWorkflowActive
+                                                                        ? 'text-blue-600 font-semibold'
+                                                                        : 'text-secondary hover:bg-surface-muted'
+                                                                }`}
+                                                            >
+                                                                {workflow.name}
+                                                            </button>
+                                                        </div>
                                                     );
                                                 })}
                                                 {folder.workflows.length === 0 && (
@@ -671,7 +395,11 @@ const UserSidebarNav = ({
                             })
                         )}
                         {!loading && orphanWorkflows.length > 0 && (
-                            <div className="rounded-xl">
+                            <div className="relative rounded-xl">
+                                {/* Vertical line */}
+                                <div className={`absolute left-0 top-0 w-px bg-gray-300 ${!expandedFolders.has('unassigned') ? 'h-1/2' : 'h-full'}`} />
+                                {/* Dot */}
+                                <div className="absolute left-0 w-2 h-2 rounded-full bg-gray-400" style={{ left: '-3.5px', top: '1rem' }} />
                                 <button
                                     onClick={() => {
                                         toggleFolder('unassigned');
@@ -689,30 +417,35 @@ const UserSidebarNav = ({
                                     </svg>
                                 </button>
                                 {expandedFolders.has('unassigned') && (
-                                    <div className="relative pl-7 pb-3 space-y-1">
-                                        <div className="absolute left-3 top-1.5 bottom-1.5 border-l border-subtle opacity-60 pointer-events-none" />
-                                        {orphanWorkflows.map((workflow) => {
+                                    <div className="relative pl-4 pb-3 space-y-1">
+                                        {/* Continue vertical line from unassigned folder */}
+                                        <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-300" />
+                                        {orphanWorkflows.map((workflow, workflowIndex) => {
                                             const workflowPath = workflowDetailPathBuilder(workflow.id);
                                             const isWorkflowActive = workflowPath && location.pathname.startsWith(workflowPath);
+                                            const isLastWorkflow = workflowIndex === orphanWorkflows.length - 1;
                                             return (
-                                                <div key={workflow.id} className="flex items-center">
-                                                <div className="w-3 -ml-2 border-t border-subtle opacity-60" />
-                                            <button
-                                                onClick={() => {
-                                                    onSelectWorkflow?.('unassigned', workflow.id, workflowPath);
-                                                    if (workflowPath) {
-                                                        navigate(workflowPath);
-                                                    }
-                                                }}
-                                                className={`flex-1 text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                                                    isWorkflowActive
-                                                        ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-card'
-                                                        : 'text-secondary hover:bg-surface-muted'
-                                                }`}
-                                            >
-                                                {workflow.name}
-                                            </button>
-                                            </div>
+                                                <div key={workflow.id} className="relative flex items-center pl-4">
+                                                    {/* Vertical line */}
+                                                    <div className={`absolute left-0 top-0 w-px bg-gray-300 ${isLastWorkflow ? 'h-1/2' : 'h-full'}`} />
+                                                    {/* Dot - centered on the line */}
+                                                    <div className="absolute left-0 w-2 h-2 rounded-full bg-gray-400" style={{ left: '-3.5px' }} />
+                                                    <button
+                                                        onClick={() => {
+                                                            onSelectWorkflow?.('unassigned', workflow.id, workflowPath);
+                                                            if (workflowPath) {
+                                                                navigate(workflowPath);
+                                                            }
+                                                        }}
+                                                        className={`flex-1 text-left pl-4 pr-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                                            isWorkflowActive
+                                                                ? 'text-blue-600 font-semibold'
+                                                                : 'text-secondary hover:bg-surface-muted'
+                                                        }`}
+                                                    >
+                                                        {workflow.name}
+                                                    </button>
+                                                </div>
                                             );
                                         })}
                                     </div>
@@ -725,31 +458,132 @@ const UserSidebarNav = ({
         </div>
     );
 
+    const handleMouseEnter = () => {
+        // Không trigger nếu đang trong quá trình toggle
+        if (isToggling) {
+            return;
+        }
+        // Khi sidebar đang thu gọn (dù là vĩnh viễn hay tạm thời), tự động mở rộng tạm thời
+        if (collapsed) {
+            setCollapsed(false);
+        }
+    };
+
+    const handleMouseLeave = () => {
+        // Không trigger nếu đang trong quá trình toggle
+        if (isToggling) {
+            return;
+        }
+        // Khi chuột rời khỏi sidebar và đang ở trạng thái thu gọn vĩnh viễn, thu gọn lại
+        if (!collapsed && isPermanentlyCollapsed) {
+            setCollapsed(true);
+        }
+    };
+
+    const handleToggleCollapse = () => {
+        setIsToggling(true);
+        const newCollapsed = !collapsed;
+        setCollapsed(newCollapsed);
+        // Nếu thu gọn thì đánh dấu là thu gọn vĩnh viễn, nếu mở rộng thì clear flag
+        setIsPermanentlyCollapsed(newCollapsed);
+        // Sau 300ms (thời gian transition) mới cho phép hover trigger lại
+        setTimeout(() => {
+            setIsToggling(false);
+        }, 300);
+    };
+
     return (
-        <div
-            ref={sidebarRef}
-            className={`${collapsed ? 'w-16' : 'w-72'} bg-surface-elevated text-secondary h-screen transition-all duration-300 flex flex-col border-r border-subtle shadow-card`}
-        >
-            <div className="px-4 py-3 flex items-center justify-between">
-                {!collapsed && <span className="text-lg font-semibold text-primary">Menu</span>}
-                <button
-                    onClick={() => setCollapsed((prev) => !prev)}
-                    className="text-muted hover:text-primary"
-                    title={collapsed ? 'Mở rộng' : 'Thu gọn'}
-                >
-                    <svg
-                        className={`w-5 h-5 transition-transform ${collapsed ? '' : 'transform rotate-180'}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                    </svg>
-                </button>
+        <div className="relative">
+            <div
+                ref={sidebarRef}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+                className={`${collapsed ? 'w-16' : 'w-72'} bg-surface-elevated text-secondary h-screen flex flex-col border-r border-subtle shadow-card overflow-visible`}
+                style={{
+                    transition: 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+                    willChange: 'width'
+                }}
+            >
+            <div className="px-4 py-4 flex items-center min-h-[72px] relative">
+                {/* Logo for expanded sidebar */}
+                {!collapsed && (
+                    <img 
+                        src="/icons/logo-light.svg" 
+                        alt="ChatPlus" 
+                        className="h-10 object-contain transition-opacity duration-200"
+                        style={{ 
+                            willChange: 'opacity',
+                            backfaceVisibility: 'hidden',
+                            transform: 'translateZ(0)'
+                        }}
+                    />
+                )}
+                {/* Logo icon for collapsed sidebar */}
+                {collapsed && (
+                    <img 
+                        src="/icons/logo-icon.svg" 
+                        alt="ChatPlus" 
+                        className="h-10 w-10 object-contain absolute left-1/2 transform -translate-x-1/2 transition-opacity duration-200"
+                        style={{ 
+                            willChange: 'opacity',
+                            backfaceVisibility: 'hidden'
+                        }}
+                    />
+                )}
             </div>
 
-            <div className="flex-1 min-h-0">
-                {collapsed ? renderCollapsedSidebar() : expandedContent}
+            <div className="flex-1 min-h-0 relative overflow-hidden">
+                {/* Expanded content */}
+                <div 
+                    className={`absolute inset-0 transition-opacity duration-200 ease-in-out ${collapsed ? 'opacity-0 pointer-events-none delay-0' : 'opacity-100 delay-100'}`}
+                    style={{ 
+                        transform: collapsed ? 'translateX(-8px)' : 'translateX(0)',
+                        transition: 'opacity 200ms ease-in-out, transform 200ms ease-in-out'
+                    }}
+                >
+                    {expandedContent}
+                </div>
+                {/* Collapsed content - chỉ hiển thị icons */}
+                {collapsed && (
+                    <div className="absolute inset-0 flex flex-col items-center py-4 space-y-4">
+                        <button
+                            onClick={() => setManagementOpen((prev) => !prev)}
+                            className="w-10 h-10 flex items-center justify-center hover:bg-surface-muted rounded-xl transition-colors"
+                            title="Quản lý"
+                        >
+                            <img 
+                                src="/icons/manage.svg" 
+                                alt="Quản lý"
+                                className="w-5 h-5"
+                                style={{ filter: 'opacity(0.7)' }}
+                            />
+                        </button>
+                        <button
+                            onClick={() => setAutomationOpen((prev) => !prev)}
+                            className="w-10 h-10 flex items-center justify-center hover:bg-surface-muted rounded-xl transition-colors"
+                            title="Automations"
+                        >
+                            <img 
+                                src="/icons/table-automation.svg" 
+                                alt="Automations"
+                                className="w-5 h-5"
+                                style={{ filter: 'opacity(0.7)' }}
+                            />
+                        </button>
+                        <button
+                            onClick={() => setWorkflowsOpen((prev) => !prev)}
+                            className="w-10 h-10 flex items-center justify-center hover:bg-surface-muted rounded-xl transition-colors"
+                            title="Workflows"
+                        >
+                            <img 
+                                src="/icons/workflow.svg" 
+                                alt="Workflows"
+                                className="w-5 h-5"
+                                style={{ filter: 'opacity(0.7)' }}
+                            />
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="p-4 border-t border-subtle">
@@ -776,6 +610,52 @@ const UserSidebarNav = ({
                     <div className="text-center mt-2 text-2xs text-muted">{footerText?.split('.')[0] ?? 'v1'}</div>
                 )}
             </div>
+        </div>
+        {/* Toggle button - tách ra ngoài sidebar để không trigger hover */}
+        {/* Button ẩn khi sidebar mở rộng tạm thời (do hover), chỉ hiển thị khi collapsed hoặc mở rộng vĩnh viễn */}
+        {(!collapsed && isPermanentlyCollapsed) ? null : (
+            <button
+                ref={toggleButtonRef}
+                onClick={handleToggleCollapse}
+                className={`absolute  transition-all duration-200 ${collapsed ? 'top-6 right-[-28px] z-50 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 rounded-r-lg p-1.5 shadow-sm' : 'top-7 z-10 text-muted hover:text-primary'}`}
+                title={collapsed ? 'Mở rộng' : 'Thu gọn'}
+                style={{
+                    willChange: 'transform',
+                    backfaceVisibility: 'hidden',
+                    // Đảm bảo button luôn hiển thị
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    // Vị trí dựa trên width của sidebar
+                    left: collapsed ? 'auto' : 'calc(19rem - 3rem)', // 18rem = w-72, 3rem = khoảng cách từ bên phải
+                    right: collapsed ? '-28px' : 'auto'
+                }}
+            >
+            {collapsed ? (
+                // Icon mũi tên phải khi thu gọn (để mở rộng)
+                <img 
+                    src="/icons/chevron-right.svg" 
+                    alt="Mở rộng"
+                    className="w-3.5 h-3.5"
+                    style={{
+                        willChange: 'opacity',
+                        backfaceVisibility: 'hidden'
+                    }}
+                />
+            ) : (
+                // Icon mũi tên trái khi mở rộng (để thu gọn) - hiển thị cả khi mở rộng tạm thời
+                <img 
+                    src="/icons/chevron-left.svg" 
+                    alt="Thu gọn"
+                    className="w-5 h-5"
+                    style={{
+                        willChange: 'opacity',
+                        backfaceVisibility: 'hidden'
+                    }}
+                />
+            )}
+            </button>
+        )}
         </div>
     );
 };

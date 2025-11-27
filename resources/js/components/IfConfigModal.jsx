@@ -199,7 +199,7 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
             onRename={onRename}
             onClose={handleClose}
             title="If"
-            icon="🔀"
+            iconPath="/icons/nodes/if.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

@@ -85,7 +85,7 @@ return result;`,
             onRename={onRename}
             onClose={handleClose}
             title="Code"
-            icon="💻"
+            iconPath="/icons/nodes/code.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

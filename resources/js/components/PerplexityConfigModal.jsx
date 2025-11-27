@@ -302,7 +302,7 @@ function PerplexityConfigModal({ node, onSave, onClose, onTest, inputData, outpu
             onRename={onRename}
             onClose={handleClose}
             title="Perplexity AI"
-            icon="🔮"
+            iconPath="/icons/nodes/perplexity.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

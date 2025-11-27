@@ -294,7 +294,7 @@ function ClaudeConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
             onRename={onRename}
             onClose={handleClose}
             title="Claude AI"
-            icon="🤖"
+            iconPath="/icons/nodes/claude.svg"
             readOnly={readOnly}
             isTesting={false}
             testButtons={testButtons}

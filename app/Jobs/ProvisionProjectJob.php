@@ -3,12 +3,14 @@
 namespace App\Jobs;
 
 use App\Models\Project;
+use App\Models\FolderProjectMapping;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
@@ -84,10 +86,232 @@ class ProvisionProjectJob implements ShouldQueue
             $project->folders()->sync($this->folderIds);
         }
 
+        // Reload project with relationships
+        $project->load(['folders', 'subscriptionPackage']);
+
+        // Wait a bit for project domain to be ready
+        sleep(3);
+
+        // Auto-sync project after provisioning completes
+        try {
+            Log::info('Starting auto-sync for newly created project', [
+                'project_id' => $this->projectId,
+                'project_name' => $project->name,
+            ]);
+
+            $this->syncProject($project);
+
+            Log::info('Auto-sync completed successfully', [
+                'project_id' => $this->projectId,
+                'project_name' => $project->name,
+            ]);
+        } catch (\Exception $e) {
+            // Log error but don't fail the job - provisioning was successful
+            Log::error('Auto-sync failed after provisioning', [
+                'project_id' => $this->projectId,
+                'project_name' => $project->name,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         Log::info('Provision script completed successfully', [
             'project_id' => $this->projectId,
             'environment' => $environmentName,
         ]);
+    }
+
+    /**
+     * Sync project config and folders to project domain
+     */
+    private function syncProject(Project $project): void
+    {
+        // 1. Sync config: max_concurrent_workflows, subscription package info, max_user_workflows
+        $projectDomain = $project->domain ?: $project->subdomain;
+        $projectDomain = rtrim($projectDomain, '/');
+        // Add https:// if not present
+        if (!preg_match('/^https?:\/\//', $projectDomain)) {
+            $projectDomain = 'https://' . $projectDomain;
+        }
+        $configUrl = $projectDomain . '/api/project-config/sync';
+        
+        // Prepare subscription package data
+        $subscriptionPackageData = null;
+        if ($project->subscriptionPackage) {
+            $subscriptionPackageData = [
+                'id' => $project->subscriptionPackage->id,
+                'name' => $project->subscriptionPackage->name,
+                'description' => $project->subscriptionPackage->description,
+                'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
+                'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
+            ];
+        }
+        
+        $configPayload = [
+            'max_concurrent_workflows' => $project->max_concurrent_workflows,
+            'project_id' => $project->id,
+            'project_name' => $project->name,
+            'max_user_workflows' => $project->max_user_workflows,
+        ];
+        
+        if ($subscriptionPackageData) {
+            $configPayload['subscription_package'] = $subscriptionPackageData;
+        }
+        
+        Log::info("Syncing config to project '{$project->name}' at URL: {$configUrl}", $configPayload);
+        
+        $configResponse = Http::timeout(30)
+            ->withHeaders([
+                'X-Admin-Key' => config('app.user_app_admin_key'),
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])->post($configUrl, $configPayload);
+
+        if ($configResponse->successful()) {
+            Log::info("Config sync successful for project '{$project->name}'", $configResponse->json());
+        } else {
+            $errorMsg = 'Config sync failed: ' . $configResponse->status() . ' - ' . $configResponse->body();
+            Log::error($errorMsg);
+            throw new \Exception($errorMsg);
+        }
+
+        // 2. Sync folders (CREATE or UPDATE, not DELETE all)
+        foreach ($project->folders as $folder) {
+            // Load directWorkflows for this folder
+            $folder->loadMissing('directWorkflows');
+
+            // Check if mapping exists
+            $mapping = FolderProjectMapping::where('admin_folder_id', $folder->id)
+                ->where('project_id', $project->id)
+                ->first();
+
+            if (!$mapping) {
+                // First time sync - create folder in project domain
+                Log::info("Creating folder '{$folder->name}' in project '{$project->name}'");
+                $this->createFolderInProject($folder, $project);
+            } else {
+                // Update existing folder in project domain
+                Log::info("Updating folder '{$folder->name}' in project '{$project->name}'");
+                $this->updateFolderInProject($folder, $project, $mapping);
+            }
+        }
+    }
+
+    /**
+     * Create a new folder in the project domain (first time sync)
+     */
+    private function createFolderInProject($folder, Project $project): void
+    {
+        $projectDomain = $project->domain ?: $project->subdomain;
+        // Add https:// if not present
+        if (!preg_match('/^https?:\/\//', $projectDomain)) {
+            $projectDomain = 'https://' . $projectDomain;
+        }
+        $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders';
+
+        Log::info("Creating folder '{$folder->name}' in project domain: {$apiUrl}");
+
+        // Prepare workflows data
+        $workflowsData = $folder->directWorkflows->map(function ($workflow) {
+            return [
+                'name' => $workflow->name,
+                'description' => $workflow->description,
+                'nodes' => $workflow->nodes,
+                'edges' => $workflow->edges,
+                'active' => $workflow->active,
+            ];
+        })->toArray();
+
+        $response = Http::timeout(30)
+            ->withHeaders([
+                'X-Admin-Key' => config('app.user_app_admin_key'),
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])
+            ->post($apiUrl, [
+                'id' => $folder->id,
+                'name' => $folder->name,
+                'description' => $folder->description,
+                'workflows' => $workflowsData,
+                'admin_user_email' => 'admin.user@chatplus.vn',
+            ]);
+
+        if ($response->successful()) {
+            $data = $response->json();
+            Log::info("Successfully created folder in project domain", $data);
+
+            // Create mapping
+            FolderProjectMapping::create([
+                'admin_folder_id' => $folder->id,
+                'project_id' => $project->id,
+                'project_folder_id' => $data['folder_id'] ?? $data['id'] ?? null,
+                'workflow_mappings' => array_combine(
+                    $folder->directWorkflows->pluck('id')->toArray(),
+                    $data['workflow_ids'] ?? []
+                ),
+            ]);
+        } else {
+            $errorMsg = "Failed to create folder. Status: {$response->status()}, Response: " . $response->body();
+            Log::error($errorMsg);
+            throw new \Exception($errorMsg);
+        }
+    }
+
+    /**
+     * Update an existing folder in the project domain
+     */
+    private function updateFolderInProject($folder, Project $project, FolderProjectMapping $mapping): void
+    {
+        $projectDomain = $project->domain ?: $project->subdomain;
+        // Add https:// if not present
+        if (!preg_match('/^https?:\/\//', $projectDomain)) {
+            $projectDomain = 'https://' . $projectDomain;
+        }
+        $apiUrl = rtrim($projectDomain, '/') . '/api/project-folders/' . $mapping->project_folder_id;
+
+        Log::info("Updating folder '{$folder->name}' in project domain: {$apiUrl}");
+
+        // Prepare workflows data with mapped IDs
+        $workflowsData = $folder->directWorkflows->map(function ($workflow) use ($mapping) {
+            $projectWorkflowId = $mapping->workflow_mappings[$workflow->id] ?? null;
+
+            return [
+                'id' => $projectWorkflowId,
+                'name' => $workflow->name,
+                'description' => $workflow->description,
+                'nodes' => $workflow->nodes,
+                'edges' => $workflow->edges,
+                'active' => $workflow->active,
+            ];
+        })->toArray();
+
+        $response = Http::timeout(30)
+            ->withHeaders([
+                'X-Admin-Key' => config('app.user_app_admin_key'),
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])
+            ->put($apiUrl, [
+                'name' => $folder->name,
+                'description' => $folder->description,
+                'workflows' => $workflowsData,
+                'admin_user_email' => 'admin.user@chatplus.vn',
+            ]);
+
+        if ($response->successful()) {
+            Log::info("Successfully updated folder in project domain");
+        } else if ($response->status() === 404) {
+            // Folder not found - it was deleted, recreate it
+            Log::warning("Folder not found (404), deleting old mapping and recreating folder");
+            $mapping->delete();
+            
+            // Recreate the folder
+            $this->createFolderInProject($folder, $project);
+            Log::info("Successfully recreated folder after 404 error");
+        } else {
+            $errorMsg = "Failed to update folder. Status: {$response->status()}, Response: " . $response->body();
+            Log::error($errorMsg);
+            throw new \Exception($errorMsg);
+        }
     }
 }
 
