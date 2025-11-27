@@ -442,9 +442,23 @@ const ProjectsTab = () => {
                                     {project.name}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
-                                    <a href={`https://${project.domain}`} target="_blank" rel="noopener noreferrer">
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const response = await axios.get(`/api/projects/${project.id}/sso-token`);
+                                                if (response.data?.url) {
+                                                    window.open(response.data.url, '_blank');
+                                                }
+                                            } catch (error) {
+                                                console.error('Error generating SSO token:', error);
+                                                // Fallback to direct link
+                                                window.open(`https://${project.domain}`, '_blank');
+                                            }
+                                        }}
+                                        className="text-primary hover:text-primary/80 hover:underline"
+                                    >
                                         {project.domain}
-                                    </a>
+                                    </button>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
                                     {project.subdomain}

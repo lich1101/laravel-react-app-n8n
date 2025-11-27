@@ -33,6 +33,9 @@ Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']
 // OAuth2 callback (public - no auth required as Google redirects here)
 Route::get('/oauth2/callback', [CredentialController::class, 'handleOAuth2Callback']);
 
+// SSO verify endpoint (public - called by project domains)
+Route::post('/sso-verify', [ProjectController::class, 'verifySsoToken']);
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
@@ -88,6 +91,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{project}/sync', [ProjectController::class, 'sync']);
     Route::post('/projects/{project}/update-git', [ProjectController::class, 'updateGit']);
     Route::post('/projects/update-git-all', [ProjectController::class, 'updateGitAll']);
+    Route::get('/projects/{project}/sso-token', [ProjectController::class, 'generateSsoToken']);
     Route::apiResource('projects', ProjectController::class);
 
     // Project folder routes (for regular authenticated users)

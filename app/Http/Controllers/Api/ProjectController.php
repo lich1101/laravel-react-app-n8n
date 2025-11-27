@@ -350,6 +350,80 @@ class ProjectController extends Controller
     }
 
     /**
+     * Generate SSO token for auto-login to project domain
+     */
+    public function generateSsoToken(string $id): JsonResponse
+    {
+        $this->checkAdministrator();
+        $project = Project::findOrFail($id);
+        
+        $projectDomain = $project->domain ?: $project->subdomain;
+        $projectDomain = rtrim($projectDomain, '/');
+        
+        // Add https:// if not present
+        if (!preg_match('/^https?:\/\//', $projectDomain)) {
+            $projectDomain = 'https://' . $projectDomain;
+        }
+        
+        // Generate a temporary token (valid for 5 minutes)
+        $token = Str::random(64);
+        $expiresAt = now()->addMinutes(5);
+        
+        // Store token in cache with project info
+        \Cache::put("sso_token_{$token}", [
+            'project_id' => $project->id,
+            'project_domain' => $projectDomain,
+            'admin_email' => 'admin.user@chatplus.vn', // Default admin user in project domain
+            'expires_at' => $expiresAt->toIso8601String(),
+        ], $expiresAt);
+        
+        \Log::info("SSO token generated for project", [
+            'project_id' => $project->id,
+            'project_domain' => $projectDomain,
+            'token' => substr($token, 0, 10) . '...',
+        ]);
+        
+        return response()->json([
+            'token' => $token,
+            'url' => "{$projectDomain}/sso-login?token={$token}",
+        ]);
+    }
+    
+    /**
+     * Verify SSO token (called by project domain)
+     */
+    public function verifySsoToken(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => 'required|string',
+        ]);
+        
+        $token = $request->input('token');
+        $cacheKey = "sso_token_{$token}";
+        $tokenData = \Cache::get($cacheKey);
+        
+        if (!$tokenData) {
+            return response()->json([
+                'valid' => false,
+                'message' => 'Token không hợp lệ hoặc đã hết hạn',
+            ], 400);
+        }
+        
+        // Delete token after verification (one-time use)
+        \Cache::forget($cacheKey);
+        
+        \Log::info("SSO token verified", [
+            'project_id' => $tokenData['project_id'],
+            'admin_email' => $tokenData['admin_email'],
+        ]);
+        
+        return response()->json([
+            'valid' => true,
+            'admin_email' => $tokenData['admin_email'],
+        ]);
+    }
+
+    /**
      * Restart queue worker for project to apply concurrency changes
      */
     private function restartProjectQueue(Project $project): array
