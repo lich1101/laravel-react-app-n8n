@@ -52,11 +52,12 @@ Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
                     'email_verified_at' => now(),
                 ]);
             } else {
-                // Update role if user exists but role is different
-                if ($user->role !== $adminRole) {
-                    $user->update(['role' => $adminRole]);
-                }
+                // Always update role to match SSO request
+                $user->update(['role' => $adminRole]);
             }
+            
+            // Refresh user to ensure latest data
+            $user->refresh();
             
             // Create API token for React app
             $apiToken = $user->createToken('sso_token')->plainTextToken;
