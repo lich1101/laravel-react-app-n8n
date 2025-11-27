@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -14,6 +15,8 @@ class Project extends Model
         'domain',
         'status',
         'max_concurrent_workflows',
+        'subscription_package_id',
+        'max_user_workflows',
         'provisioning_status',
         'provisioning_error',
     ];
@@ -45,5 +48,13 @@ class Project extends Model
     public function workflows(): HasMany
     {
         return $this->hasManyThrough(Workflow::class, User::class, 'project_id', 'user_id');
+    }
+
+    /**
+     * Subscription package for this project
+     */
+    public function subscriptionPackage(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionPackage::class);
     }
 }

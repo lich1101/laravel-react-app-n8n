@@ -8,6 +8,7 @@ use App\Jobs\ProvisionProjectJob;
 use App\Models\Project;
 use App\Models\Folder;
 use App\Models\FolderProjectMapping;
+use App\Models\SubscriptionPackage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -31,7 +32,7 @@ class ProjectController extends Controller
     public function index(): JsonResponse
     {
         $this->checkAdministrator();
-        $projects = Project::with(['users', 'folders'])->get();
+        $projects = Project::with(['users', 'folders', 'subscriptionPackage'])->get();
         return response()->json($projects);
     }
 
@@ -43,6 +44,7 @@ class ProjectController extends Controller
         $this->checkAdministrator();
         $request->validate([
             'name' => 'required|string|max:255',
+            'subscription_package_id' => 'nullable|exists:subscription_packages,id',
             'max_concurrent_workflows' => 'nullable|integer|min:1|max:100',
             'folder_ids' => 'nullable|array',
             'folder_ids.*' => 'exists:folders,id',
@@ -52,21 +54,39 @@ class ProjectController extends Controller
             $this->normalizeEnvironmentName($request->name)
         );
 
+        // Get subscription package if provided
+        $subscriptionPackage = null;
+        $folderIds = $request->folder_ids ?? [];
+        $maxConcurrentWorkflows = $request->max_concurrent_workflows ?? 5;
+        $maxUserWorkflows = null;
+
+        if ($request->has('subscription_package_id') && $request->subscription_package_id) {
+            $subscriptionPackage = SubscriptionPackage::with('folders')->findOrFail($request->subscription_package_id);
+            $maxConcurrentWorkflows = $subscriptionPackage->max_concurrent_workflows;
+            $maxUserWorkflows = $subscriptionPackage->max_user_workflows;
+            // Use folders from package if folder_ids not provided
+            if (empty($folderIds)) {
+                $folderIds = $subscriptionPackage->folders->pluck('id')->toArray();
+            }
+        }
+
         // Create project with provisioning status
         $project = Project::create([
             'name' => $request->name,
             'subdomain' => $subdomain,
             'domain' => $this->buildDomainFromSubdomain($subdomain),
             'status' => 'active',
-            'max_concurrent_workflows' => $request->max_concurrent_workflows ?? 5,
+            'subscription_package_id' => $subscriptionPackage?->id,
+            'max_concurrent_workflows' => $maxConcurrentWorkflows,
+            'max_user_workflows' => $maxUserWorkflows,
             'provisioning_status' => 'provisioning',
             'provisioning_error' => null,
         ]);
 
         // Trigger provisioning asynchronously - job will update project after completion
-        ProvisionProjectJob::dispatch($project->id, $request->folder_ids ?? []);
+        ProvisionProjectJob::dispatch($project->id, $folderIds);
 
-        $project->load(['users', 'folders']);
+        $project->load(['users', 'folders', 'subscriptionPackage']);
         return response()->json($project, 201);
     }
 
@@ -76,7 +96,7 @@ class ProjectController extends Controller
     public function show(string $id): JsonResponse
     {
         $this->checkAdministrator();
-        $project = Project::with(['users', 'folders'])->findOrFail($id);
+        $project = Project::with(['users', 'folders', 'subscriptionPackage'])->findOrFail($id);
         return response()->json($project);
     }
 
@@ -93,6 +113,7 @@ class ProjectController extends Controller
             'subdomain' => 'nullable|string|max:255|unique:projects,subdomain,' . $id,
             'domain' => 'nullable|string|max:255',
             'status' => 'nullable|in:active,inactive',
+            'subscription_package_id' => 'nullable|exists:subscription_packages,id',
             'max_concurrent_workflows' => 'nullable|integer|min:1|max:100',
             'folder_ids' => 'nullable|array',
             'folder_ids.*' => 'exists:folders,id',
@@ -113,22 +134,45 @@ class ProjectController extends Controller
             $domain = $this->buildDomainFromSubdomain($subdomain);
         }
 
+        // Get subscription package if provided
+        $subscriptionPackage = null;
+        $folderIds = $request->has('folder_ids') ? $request->folder_ids : null;
+        $maxConcurrentWorkflows = $request->max_concurrent_workflows ?? $project->max_concurrent_workflows;
+        $maxUserWorkflows = $project->max_user_workflows;
+
+        if ($request->has('subscription_package_id')) {
+            if ($request->subscription_package_id) {
+                $subscriptionPackage = SubscriptionPackage::with('folders')->findOrFail($request->subscription_package_id);
+                $maxConcurrentWorkflows = $subscriptionPackage->max_concurrent_workflows;
+                $maxUserWorkflows = $subscriptionPackage->max_user_workflows;
+                // Use folders from package if folder_ids not provided
+                if ($folderIds === null) {
+                    $folderIds = $subscriptionPackage->folders->pluck('id')->toArray();
+                }
+            } else {
+                // Clear subscription package
+                $subscriptionPackage = null;
+            }
+        }
+
         $project->update([
             'name' => $request->name,
             'subdomain' => $subdomain,
             'domain' => $domain,
             'status' => $request->status ?? $project->status,
-            'max_concurrent_workflows' => $request->max_concurrent_workflows ?? $project->max_concurrent_workflows,
+            'subscription_package_id' => $subscriptionPackage?->id,
+            'max_concurrent_workflows' => $maxConcurrentWorkflows,
+            'max_user_workflows' => $maxUserWorkflows,
         ]);
 
         // Sync folders if provided
-        if ($request->has('folder_ids')) {
-            $project->folders()->sync($request->folder_ids);
+        if ($folderIds !== null) {
+            $project->folders()->sync($folderIds);
         }
 
         // Don't auto-sync - user will manually click Sync button when needed
 
-        $project->load(['users', 'folders']);
+        $project->load(['users', 'folders', 'subscriptionPackage']);
         return response()->json($project);
     }
 

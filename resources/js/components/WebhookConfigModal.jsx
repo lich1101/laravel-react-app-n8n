@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from '../config/axios';
 import VariableInput from './VariableInput';
 import CredentialModal from './CredentialModal';
-import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 import ExpandableTextarea from './ExpandableTextarea';
+import ConfigModalLayout from './common/ConfigModalLayout';
+import TestResultViewer from './common/TestResultViewer';
+import JSONViewer from './common/JSONViewer';
 
 const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, onRename, outputData, readOnly = false }) => {
     const [config, setConfig] = useState({
@@ -55,10 +57,18 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
         const loadSelectedCredential = async () => {
             if (config.credentialId) {
                 try {
+                    console.log('🔵 Loading credential:', config.credentialId);
                     const response = await axios.get(`/credentials/${config.credentialId}`);
+                    console.log('✅ Credential loaded:', {
+                        id: response.data?.id,
+                        type: response.data?.type,
+                        has_data: !!response.data?.data,
+                        data_keys: response.data?.data ? Object.keys(response.data.data) : [],
+                        has_token: !!(response.data?.data?.token || response.data?.data?.headerValue),
+                    });
                     setSelectedCredential(response.data);
                 } catch (error) {
-                    console.error('Error loading credential:', error);
+                    console.error('❌ Error loading credential:', error);
                     setSelectedCredential(null);
                 }
             } else {
@@ -177,8 +187,11 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
     };
 
     const handleTestStep = async () => {
+        console.log('🔵 handleTestStep called', { path: config.path, workflowId, nodeId: node?.id });
+        
         if (!config.path) {
             setTestError('Please enter a webhook path first');
+            console.error('❌ Webhook path is required');
             return;
         }
 
@@ -187,7 +200,26 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
             setTestOutput(null);
             setTestError(null);
 
+            console.log('📡 Starting webhook test listen...', {
+                workflowId,
+                nodeId: node?.id,
+                path: config.path,
+                method: config.method
+            });
+
             // Start listening on the backend
+            console.log('📤 Sending webhook-test-listen request:', {
+                workflowId,
+                nodeId: node?.id,
+                path: config.path,
+                method: config.method,
+                auth: config.auth,
+                auth_type: config.authType,
+                credential_id: config.credentialId,
+                has_selected_credential: !!selectedCredential,
+                credential_data_keys: selectedCredential?.data ? Object.keys(selectedCredential.data) : [],
+            });
+            
             const response = await axios.post(`/workflows/${workflowId}/webhook-test-listen`, {
                 node_id: node?.id,
                 path: config.path,
@@ -206,6 +238,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
             });
 
             testRunIdRef.current = response.data.test_run_id;
+            console.log('✅ Webhook test listener started, testRunId:', testRunIdRef.current);
 
             // Start polling for test results
             pollingIntervalRef.current = setInterval(async () => {
@@ -297,6 +330,31 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
         setTestError(null);
     };
 
+    // Test buttons for Webhook
+    const testButtons = !readOnly ? (
+        <button
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔘 Test button clicked', { isListening, hasTestOutput: !!testOutput });
+                if (isListening) {
+                    handleStopListening();
+                } else {
+                    handleTestStep();
+                }
+            }}
+            disabled={isListening && !testOutput}
+            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                isListening 
+                    ? 'bg-red-600 hover:bg-red-700 text-white' 
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+            } ${(isListening && !testOutput) ? 'opacity-50 cursor-not-allowed' : 'disabled:bg-gray-400 disabled:cursor-not-allowed'}`}
+            title={isListening && !testOutput ? 'Wait for test output to stop' : ''}
+        >
+            {isListening ? 'Stop Listening' : 'Test step'}
+        </button>
+    ) : null;
+
     return (
         <>
             <style>{`
@@ -308,58 +366,18 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                     font-family: monospace;
                 }
             `}</style>
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={handleClose}>
-            <div className="bg-surface-elevated border border-subtle rounded-2xl shadow-card w-full max-w-4xl max-h-[90vh] overflow-hidden text-secondary" onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
-                <div className="border-b border-subtle px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-primary">
-                        <span className="text-3xl">🔗</span>
-                        <h2 
-                            className={`text-xl font-semibold ${!readOnly ? 'cursor-pointer hover:text-primary/70' : 'cursor-default'} transition-colors flex items-center gap-2`}
-                            onClick={() => {
-                                if (onRename && !readOnly) {
-                                    onRename();
-                                }
-                            }}
-                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
-                        >
-                            {node?.data?.customName || 'Webhook'}
-                            <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                        </h2>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        {!readOnly && (
-                            <button
-                                onClick={isListening ? handleStopListening : handleTestStep}
-                                disabled={isListening && !testOutput}
-                                className={`btn text-sm ${isListening ? 'btn-danger' : 'btn-success'}`}
-                            >
-                                {isListening ? 'Stop Listening' : 'Test step'}
-                            </button>
-                        )}
-                        {readOnly && (
-                            <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
-                                📖 Viewing execution history (Read-only)
-                            </span>
-                        )}
-                        <button 
-                            onClick={handleClose} 
-                            disabled={pathError}
-                            className={`btn btn-muted text-sm px-3 py-2 ${
-                                pathError ? 'cursor-not-allowed opacity-60' : ''
-                            }`}
-                            title={pathError ? 'Phải sửa lỗi path trước khi đóng' : 'Close'}
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div className="flex h-[calc(90vh-80px)]">
+            <ConfigModalLayout
+                node={node}
+                onRename={onRename}
+                onClose={handleClose}
+                title="Webhook"
+                icon="🔗"
+                readOnly={readOnly}
+                isTesting={false}
+                testButtons={testButtons}
+                size="default"
+            >
+                <div className="flex h-[calc(90vh-80px)]" style={{ width: '100%' }}>
                     {/* Left Panel - Config */}
                     <div className="flex-1 overflow-y-auto px-6 py-4">
                         <div>
@@ -492,7 +510,7 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                             </div>
                                             {!config.credentialId && (
                                                 <p className="mt-1 text-xs text-warning">
-                                                    ⚠️ Please select a credential or create a new one
+                                                    ⚠️ No credential selected - webhook will work but without security
                                                 </p>
                                             )}
                                             {config.credentialId && (
@@ -616,12 +634,12 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                                 )}
                                             </div>
                                             {!config.credentialId && (
-                                                <p className="mt-1 text-xs text-orange-400">
-                                                    ⚠️ Please select an OAuth2 credential or create a new one
+                                                <p className="mt-1 text-xs text-warning">
+                                                    ⚠️ No OAuth2 credential selected - webhook will work but without security
                                                 </p>
                                             )}
                                             {config.credentialId && (
-                                                <p className="mt-1 text-xs text-green-400">
+                                                <p className="mt-1 text-xs text-success">
                                                     ✓ OAuth2 credential selected
                                                 </p>
                                             )}
@@ -676,38 +694,38 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                         </div>
                     </div>
 
-                    {/* Right Panel - Output */}
-                    <div className="w-1/2 border-l border-subtle px-6 py-4 bg-surface flex flex-col">
-                        <h3 className="text-sm font-medium text-secondary mb-4">OUTPUT</h3>
-                        
-                        {/* Tabs */}
-                        {(testOutput || outputData) && (
-                            <div className="flex gap-2 mb-3 border-b border-subtle">
-                                <button
-                                    onClick={() => setActiveTab('schema')}
-                                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                                        activeTab === 'schema'
-                                            ? 'text-primary border-b-2 border-primary'
-                                            : 'text-muted hover:text-secondary'
-                                    }`}
-                                >
-                                    Schema
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('json')}
-                                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                                        activeTab === 'json'
-                                            ? 'text-primary border-b-2 border-primary'
-                                            : 'text-muted hover:text-secondary'
-                                    }`}
-                                >
-                                    JSON
-                                </button>
-                            </div>
-                        )}
-                        
-                        <div className="flex-1 bg-surface-muted rounded-lg p-4 overflow-y-auto border border-subtle">
-                            {isListening ? (
+                {/* Right Panel - Output */}
+                <div className="w-1/2 border-l border-subtle px-6 py-4 bg-surface flex flex-col">
+                    <h3 className="text-sm font-medium text-secondary mb-4">OUTPUT</h3>
+                    
+                    {/* Tabs */}
+                    {(testOutput || outputData) && (
+                        <div className="flex gap-2 mb-3 border-b border-subtle">
+                            <button
+                                onClick={() => setActiveTab('schema')}
+                                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                                    activeTab === 'schema'
+                                        ? 'text-primary border-b-2 border-primary'
+                                        : 'text-muted hover:text-secondary'
+                                }`}
+                            >
+                                Schema
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('json')}
+                                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                                    activeTab === 'json'
+                                        ? 'text-primary border-b-2 border-primary'
+                                        : 'text-muted hover:text-secondary'
+                                }`}
+                            >
+                                JSON
+                            </button>
+                        </div>
+                    )}
+                    
+                    <div className="flex-1 bg-surface-muted rounded-lg p-4 overflow-y-auto border border-subtle">
+                        {isListening ? (
                                 <div className="flex flex-col items-center justify-center h-full text-center">
                                     <div className="animate-pulse mb-4">
                                         <svg className="w-16 h-16 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -863,16 +881,22 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     </svg>
                                     <p className="text-danger font-medium">{testError}</p>
                                 </div>
-                            ) : (testOutput || outputData) ? (
-                                <div className="space-y-2">
-                                    {activeTab === 'schema' ? (
-                                        <JsonViewer data={testOutput || outputData} />
-                                    ) : (
-                                        <pre className="text-xs text-secondary whitespace-pre-wrap font-mono">
-                                            {JSON.stringify(testOutput || outputData, null, 2)}
-                                        </pre>
-                                    )}
-                                </div>
+                        ) : (testOutput || outputData) ? (
+                            <div className="space-y-2">
+                                {activeTab === 'schema' ? (
+                                    <div className="bg-surface p-3 rounded-lg border border-subtle">
+                                        <JSONViewer
+                                            data={testOutput || outputData}
+                                            collapsedPaths={new Set()}
+                                            onToggleCollapse={() => {}}
+                                        />
+                                    </div>
+                                ) : (
+                                    <pre className="text-xs text-secondary whitespace-pre-wrap font-mono">
+                                        {JSON.stringify(testOutput || outputData, null, 2)}
+                                    </pre>
+                                )}
+                            </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-center text-muted text-sm">
                                     <svg className="w-12 h-12 mb-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -881,91 +905,22 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                                     <p>Click "Test step" to start listening for webhook requests</p>
                                 </div>
                             )}
-                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </ConfigModalLayout>
 
-            {/* Credential Modal */}
-            <CredentialModal
-                isOpen={showCredentialModal}
-                onClose={() => setShowCredentialModal(false)}
-                onSave={handleCredentialSaved}
-                credentialType={selectedCredentialType}
-            />
+        {/* Credential Modal */}
+        <CredentialModal
+            isOpen={showCredentialModal}
+            onClose={() => setShowCredentialModal(false)}
+            onSave={handleCredentialSaved}
+            credentialType={selectedCredentialType}
+        />
         </>
     );
 };
 
-// JSON Viewer Component with Syntax Highlighting
-const JsonViewer = ({ data }) => {
-    const renderValue = (value, key = null, indent = 0) => {
-        const indentSpaces = '  '.repeat(indent);
-        
-        if (value === null) {
-            return <span className="text-gray-500">null</span>;
-        }
-        
-        if (typeof value === 'string') {
-            return <span className="text-green-400">"{value}"</span>;
-        }
-        
-        if (typeof value === 'number') {
-            return <span className="text-blue-400">{value}</span>;
-        }
-        
-        if (typeof value === 'boolean') {
-            return <span className="text-purple-400">{value.toString()}</span>;
-        }
-        
-        if (Array.isArray(value)) {
-            if (value.length === 0) {
-                return <span className="text-gray-400">[]</span>;
-            }
-            return (
-                <div>
-                    <span className="text-gray-400">[</span>
-                    {value.map((item, index) => (
-                        <div key={index} className="ml-4">
-                            {renderValue(item, null, indent + 1)}
-                            {index < value.length - 1 && <span className="text-gray-400">,</span>}
-                        </div>
-                    ))}
-                    <div>{indentSpaces}<span className="text-gray-400">]</span></div>
-                </div>
-            );
-        }
-        
-        if (typeof value === 'object') {
-            const entries = Object.entries(value);
-            if (entries.length === 0) {
-                return <span className="text-gray-400">{'{}'}</span>;
-            }
-            return (
-                <div>
-                    <span className="text-gray-400">{'{'}</span>
-                    {entries.map(([k, v], index) => (
-                        <div key={k} className="ml-4">
-                            <span className="text-cyan-400">"{k}"</span>
-                            <span className="text-gray-400">: </span>
-                            {renderValue(v, k, indent + 1)}
-                            {index < entries.length - 1 && <span className="text-gray-400">,</span>}
-                        </div>
-                    ))}
-                    <div>{indentSpaces}<span className="text-gray-400">{'}'}</span></div>
-                </div>
-            );
-        }
-        
-        return <span className="text-gray-300">{String(value)}</span>;
-    };
-
-    return (
-        <pre className="text-xs bg-surface p-4 rounded border border-subtle overflow-x-auto font-mono text-secondary">
-            {renderValue(data)}
-        </pre>
-    );
-};
+// Removed JsonViewer component - now using JSONViewer from shared components
 
 export default WebhookConfigModal;

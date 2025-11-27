@@ -148,6 +148,18 @@ const Settings = () => {
                                     </p>
                                 </div>
                             )}
+
+                            {setting.key === 'max_user_workflows' && (
+                                <div className="mt-4 p-4 rounded-xl bg-surface-muted border border-subtle">
+                                    <p className="text-sm text-secondary">
+                                        💡 <strong>Lưu ý:</strong> Số workflow mà role user có thể tạo thêm trong project.
+                                        Giá trị này có thể được ghi đè bởi gói cước (subscription package) khi tạo project.
+                                    </p>
+                                    <p className="text-sm text-muted mt-2">
+                                        Giá trị khuyến nghị: 5-50 workflows (tùy thuộc vào nhu cầu sử dụng)
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

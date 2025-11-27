@@ -93,13 +93,12 @@ const ActionButton = ({ label, onClick, disabled, Icon, iconSrc, className = '' 
 
 const ProjectsTab = () => {
     const [projects, setProjects] = useState([]);
-    const [folders, setFolders] = useState([]);
+    const [subscriptionPackages, setSubscriptionPackages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
-        max_concurrent_workflows: 5,
-        folder_ids: []
+        subscription_package_id: ''
     });
     const [editingProject, setEditingProject] = useState(null);
     const [expandedRows, setExpandedRows] = useState([]);
@@ -110,7 +109,7 @@ const ProjectsTab = () => {
 
     useEffect(() => {
         fetchProjects();
-        fetchFolders();
+        fetchSubscriptionPackages();
     }, []);
 
     // Polling for provisioning status
@@ -144,12 +143,12 @@ const ProjectsTab = () => {
         }
     };
 
-    const fetchFolders = async () => {
+    const fetchSubscriptionPackages = async () => {
         try {
-            const response = await axios.get('/folders');
-            setFolders(response.data);
+            const response = await axios.get('/subscription-packages');
+            setSubscriptionPackages(response.data);
         } catch (error) {
-            console.error('Error fetching folders:', error);
+            console.error('Error fetching subscription packages:', error);
         }
     };
 
@@ -157,8 +156,7 @@ const ProjectsTab = () => {
         e.preventDefault();
         const payload = {
             name: formData.name,
-            max_concurrent_workflows: formData.max_concurrent_workflows,
-            folder_ids: formData.folder_ids,
+            subscription_package_id: formData.subscription_package_id || null,
         };
 
         try {
@@ -171,7 +169,7 @@ const ProjectsTab = () => {
                     setProvisioningProjects(prev => new Set([...prev, response.data.id]));
                 }
             }
-            setFormData({ name: '', max_concurrent_workflows: 5, folder_ids: [] });
+            setFormData({ name: '', subscription_package_id: '' });
             setShowForm(false);
             setEditingProject(null);
             fetchProjects();
@@ -184,8 +182,7 @@ const ProjectsTab = () => {
         setEditingProject(project);
         setFormData({
             name: project.name,
-            max_concurrent_workflows: project.max_concurrent_workflows || 5,
-            folder_ids: project.folders?.map(f => f.id) || []
+            subscription_package_id: project.subscription_package_id || ''
         });
         setShowForm(true);
     };
@@ -295,7 +292,7 @@ const ProjectsTab = () => {
                         onClick={() => {
                             setShowForm(true);
                             setEditingProject(null);
-                            setFormData({ name: '', max_concurrent_workflows: 5, folder_ids: [] });
+                            setFormData({ name: '', subscription_package_id: '' });
                         }}
                         className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium space-x-2"
                     >
@@ -337,53 +334,48 @@ const ProjectsTab = () => {
                         />
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Max Concurrent Workflows
+                                Gói cước
                             </label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="100"
-                                required
-                                value={formData.max_concurrent_workflows}
-                                onChange={(e) => setFormData({ ...formData, max_concurrent_workflows: parseInt(e.target.value) })}
+                            <select
+                                value={formData.subscription_package_id}
+                                onChange={(e) => setFormData({ ...formData, subscription_package_id: e.target.value })}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                                Số workflow tối đa có thể chạy đồng thời
-                            </p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Folders
-                            </label>
-                            <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3 bg-white">
-                                {folders.map((folder) => (
-                                    <label key={folder.id} className="flex items-center space-x-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.folder_ids.includes(folder.id)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setFormData({
-                                                        ...formData,
-                                                        folder_ids: [...formData.folder_ids, folder.id]
-                                                    });
-                                                } else {
-                                                    setFormData({
-                                                        ...formData,
-                                                        folder_ids: formData.folder_ids.filter(id => id !== folder.id)
-                                                    });
-                                                }
-                                            }}
-                                            className="rounded text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span className="text-sm text-gray-900">{folder.name}</span>
-                                    </label>
+                            >
+                                <option value="">-- Chọn gói cước --</option>
+                                {subscriptionPackages.map((pkg) => (
+                                    <option key={pkg.id} value={pkg.id}>
+                                        {pkg.name} (Max Workflows: {pkg.max_concurrent_workflows}, User Workflows: {pkg.max_user_workflows})
+                                    </option>
                                 ))}
-                                {folders.length === 0 && (
-                                    <p className="text-sm text-gray-500">Chưa có folder nào</p>
-                                )}
-                            </div>
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Chọn gói cước để tự động áp dụng folders và cấu hình
+                            </p>
+                            {formData.subscription_package_id && (() => {
+                                const selectedPackage = subscriptionPackages.find(p => p.id === parseInt(formData.subscription_package_id));
+                                if (selectedPackage) {
+                                    return (
+                                        <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                            <p className="text-sm font-semibold text-blue-900 mb-1">{selectedPackage.name}</p>
+                                            <p className="text-xs text-blue-700">Max Concurrent Workflows: {selectedPackage.max_concurrent_workflows}</p>
+                                            <p className="text-xs text-blue-700">Max User Workflows: {selectedPackage.max_user_workflows}</p>
+                                            {selectedPackage.folders && selectedPackage.folders.length > 0 && (
+                                                <div className="mt-2">
+                                                    <p className="text-xs font-semibold text-blue-700">Folders:</p>
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {selectedPackage.folders.map(folder => (
+                                                            <span key={folder.id} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                                                {folder.name}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
                         </div>
                         <div className="flex space-x-2">
                             <button
@@ -538,12 +530,28 @@ const ProjectsTab = () => {
                                                                 ⚠️ {project.provisioning_error}
                                                             </div>
                                                         )}
+                                                        {project.subscription_package && (
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-700">Gói cước:</span>
+                                                                <span className="font-semibold text-purple-600">
+                                                                    {project.subscription_package.name}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                         <div className="flex justify-between">
                                                             <span className="text-gray-700">Max Concurrent Workflows:</span>
                                                             <span className="font-semibold text-blue-600">
                                                                 {project.max_concurrent_workflows || 5}
                                                             </span>
                                                         </div>
+                                                        {project.max_user_workflows !== null && (
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-700">Max User Workflows:</span>
+                                                                <span className="font-semibold text-green-600">
+                                                                    {project.max_user_workflows}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                         <div className="flex justify-between">
                                                             <span className="text-gray-700">Domain:</span>
                                                             <span className="font-mono text-gray-600 text-xs">

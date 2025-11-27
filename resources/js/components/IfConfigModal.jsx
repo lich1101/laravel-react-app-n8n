@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import axios from '../config/axios';
-import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
+import React, { useState, useEffect } from 'react';
 import ExpandableTextarea from './ExpandableTextarea';
+import { useConfigModal } from '../utils/hooks/useConfigModal';
+import ConfigModalLayout from './common/ConfigModalLayout';
+import TestResultViewer from './common/TestResultViewer';
 
 // Operators by data type
 const OPERATORS_BY_TYPE = {
@@ -90,89 +91,38 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
         combineOperation: 'AND', // AND or OR
     });
 
-    const [testResults, setTestResults] = useState(null);
-    const [isTesting, setIsTesting] = useState(false);
-    const testAbortControllerRef = useRef(null);
-    const [inputViewMode, setInputViewMode] = useState('schema');
-    const [outputViewMode, setOutputViewMode] = useState('json');
-    const [collapsedPaths, setCollapsedPaths] = useState(new Set());
+    // Sử dụng custom hook cho logic chung
+    const {
+        testResults,
+        isTesting,
+        inputViewMode,
+        outputViewMode,
+        collapsedPaths,
+        displayOutput,
+        setInputViewMode,
+        setOutputViewMode,
+        handleSave,
+        handleClose,
+        handleTest,
+        handleStopTest,
+        togglePathCollapse,
+    } = useConfigModal({
+        onTest,
+        onSave: () => onSave(config),
+        onClose,
+        onTestResult,
+        node,
+        config,
+        inputData,
+        outputData,
+        readOnly
+    });
 
     useEffect(() => {
         if (node?.data?.config) {
             setConfig({ ...config, ...node.data.config });
         }
     }, [node]);
-
-    const handleSave = () => {
-        onSave(config);
-    };
-
-    const handleClose = () => {
-        // Stop test if currently testing
-        if (isTesting && testAbortControllerRef.current) {
-            handleStopTest();
-        }
-        handleSave();
-        onClose();
-    };
-
-    const handleTest = async () => {
-        if (onTest) {
-            setIsTesting(true);
-            setTestResults(null);
-            
-            // Create AbortController for this test
-            const abortController = new AbortController();
-            testAbortControllerRef.current = abortController;
-            
-            try {
-                const result = await onTest(config);
-                
-                // Check if test was cancelled
-                if (abortController.signal.aborted) {
-                    console.log('Test was cancelled');
-                    return;
-                }
-                
-                setTestResults(result);
-
-                if (onTestResult && node?.id) {
-                    onTestResult(node.id, result);
-                }
-            } catch (error) {
-                // Check if test was cancelled
-                if (abortController.signal.aborted) {
-                    console.log('Test was cancelled');
-                    return;
-                }
-                
-                const errorResult = {
-                    error: error.message || 'An error occurred',
-                    result: false,
-                };
-                setTestResults(errorResult);
-
-                if (onTestResult && node?.id) {
-                    onTestResult(node.id, errorResult);
-                }
-            } finally {
-                if (!abortController.signal.aborted) {
-                    setIsTesting(false);
-                }
-                testAbortControllerRef.current = null;
-            }
-        }
-    };
-
-    const handleStopTest = () => {
-        if (testAbortControllerRef.current) {
-            testAbortControllerRef.current.abort();
-            setIsTesting(false);
-            setTestResults(null);
-            testAbortControllerRef.current = null;
-            console.log('Test stopped by user');
-        }
-    };
 
     const addCondition = () => {
         setConfig({
@@ -208,182 +158,6 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
         setConfig({ ...config, conditions: newConditions });
     };
 
-    const truncateText = (text, maxLength = 150) => {
-        if (typeof text !== 'string') return text;
-        if (text.length <= maxLength) return text;
-        return text.substring(0, maxLength) + '...';
-    };
-
-    const getTypeInfo = (value) => {
-        if (value === null) return { icon: '∅', color: 'gray', label: 'null' };
-        if (Array.isArray(value)) return { icon: '[]', color: 'purple', label: 'array' };
-        if (typeof value === 'object') return { icon: '{}', color: 'blue', label: 'object' };
-        if (typeof value === 'string') return { icon: 'Abc', color: 'green', label: 'string' };
-        if (typeof value === 'number') return { icon: '123', color: 'orange', label: 'number' };
-        if (typeof value === 'boolean') return { icon: '✓', color: 'teal', label: 'boolean' };
-        return { icon: '?', color: 'gray', label: 'unknown' };
-    };
-
-    const renderDraggableJSON = (obj, prefix = '', indent = 0) => {
-        const currentPrefix = normalizeVariablePrefix(prefix, indent === 0);
-
-        if (obj === null || obj === undefined) {
-            return (
-                <div className="flex items-center gap-2 py-1">
-                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">null</span>
-                </div>
-            );
-        }
-
-        if (Array.isArray(obj)) {
-            const typeInfo = getTypeInfo(obj);
-            const collapseKey = currentPrefix || prefix;
-            const isCollapsed = collapsedPaths.has(collapseKey);
-            return (
-                <div className="space-y-1">
-                    <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(collapseKey)}
-                    >
-                        <span className="text-gray-500 text-xs">
-                            {isCollapsed ? '▶' : '▼'}
-                        </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
-                            {typeInfo.icon}
-                        </span>
-                        <span className="text-xs text-gray-500">{obj.length} items</span>
-                    </div>
-                    {!isCollapsed && (
-                        <div className="ml-4 space-y-1">
-                            {obj.map((item, index) => (
-                                <div key={index} className="border-l-2 border-gray-200 pl-3">
-                                    <div className="text-xs text-gray-500 mb-1">[{index}]</div>
-                                    {renderDraggableJSON(item, buildArrayPath(currentPrefix, index), indent + 1)}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        if (typeof obj === 'object') {
-            const keys = Object.keys(obj);
-            const basePath = currentPrefix || prefix;
-            const baseCollapsed = collapsedPaths.has(basePath);
-            return (
-                <div className="space-y-1">
-                    <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(basePath)}
-                    >
-                        <span className="text-gray-500 text-xs">
-                            {baseCollapsed ? '▶' : '▼'}
-                        </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${getTypeInfo(obj).color}-100 text-${getTypeInfo(obj).color}-700 rounded font-mono`}>
-                            {getTypeInfo(obj).icon}
-                        </span>
-                        <span className="text-xs text-gray-500">{keys.length} keys</span>
-                    </div>
-                    {!baseCollapsed && (
-                        <div className="ml-4 space-y-1">
-                            {keys.map((key) => {
-                                const value = obj[key];
-                                const variablePath = buildVariablePath(basePath, key);
-                                const isPrimitive = value === null || value === undefined || (typeof value !== 'object' && !Array.isArray(value));
-                                const childCollapsed = collapsedPaths.has(variablePath);
-                                const typeInfo = getTypeInfo(value);
-
-                                return (
-                                    <div key={key} className="group">
-                                        <div className="flex items-start gap-2 py-1 hover:bg-gray-100 rounded px-2 -mx-2">
-                                            {!isPrimitive && (
-                                                <span 
-                                                    className="text-gray-500 text-xs cursor-pointer mt-1"
-                                                    onClick={() => toggleCollapse(variablePath)}
-                                                >
-                                                    {childCollapsed ? '▶' : '▼'}
-                                                </span>
-                                            )}
-                                            <div 
-                                                className="flex-1 min-w-0 cursor-move"
-                                                draggable="true"
-                                                onDragStart={(e) => {
-                                                    e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
-                                                    e.dataTransfer.effectAllowed = 'copy';
-                                                }}
-                                                title={`Kéo thả để sử dụng {{${variablePath}}}`}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono flex-shrink-0`}>
-                                                        {typeInfo.icon}
-                                                    </span>
-                                                    <span className="text-sm font-medium text-gray-700 truncate">
-                                                        {key}
-                                                    </span>
-                                                    {!isPrimitive && childCollapsed && (
-                                                        <span className="text-xs text-gray-500">
-                                                            {Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                
-                                                {isPrimitive && (
-                                                    <div 
-                                                        className="mt-1 text-xs text-gray-600 font-mono break-all cursor-move"
-                                                        draggable="true"
-                                                        onDragStart={(e) => {
-                                                            e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
-                                                            e.dataTransfer.effectAllowed = 'copy';
-                                                        }}
-                                                    >
-                                                        {typeof value === 'string' 
-                                                            ? `"${truncateText(value)}"`
-                                                            : String(value)
-                                                        }
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {!isPrimitive && !childCollapsed && (
-                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 pl-3">
-                                                {renderDraggableJSON(value, variablePath, indent + 1)}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        const typeInfo = getTypeInfo(obj);
-        return (
-            <div className="flex items-center gap-2">
-                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
-                    {typeInfo.icon}
-                </span>
-                <span className="text-xs text-gray-600 font-mono">
-                    {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
-                </span>
-            </div>
-        );
-    };
-
-    const toggleCollapse = (path) => {
-        setCollapsedPaths(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(path)) {
-                newSet.delete(path);
-            } else {
-                newSet.add(path);
-            }
-            return newSet;
-        });
-    };
 
     const getDataTypeIcon = (type) => {
         switch (type) {
@@ -397,113 +171,58 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
         }
     };
 
-    return (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
-                {/* Header */}
-                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <span className="text-3xl">🔀</span>
-                        <h2 
-                            className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} transition-colors flex items-center gap-2`}
-                            onClick={() => {
-                                if (onRename && !readOnly) {
-                                    onRename();
-                                }
-                            }}
-                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
-                        >
-                            {node?.data?.customName || 'If'}
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                        </h2>
-                    </div>
-                    <button
-                        onClick={handleClose}
-                        className="text-gray-400 hover:text-gray-600"
-                    >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
+    // Test buttons
+    const testButtons = onTest && !readOnly ? (
+        <>
+            {isTesting ? (
+                <button
+                    onClick={handleStopTest}
+                    className="btn text-sm w-full bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                    Stop step
+                </button>
+            ) : (
+                <button
+                    onClick={handleTest}
+                    disabled={config.conditions.some(c => !c.value1)}
+                    className="btn btn-danger text-sm w-full disabled:bg-gray-300 disabled:text-white disabled:cursor-not-allowed"
+                >
+                    Test step
+                </button>
+            )}
+        </>
+    ) : null;
 
-                {/* Content */}
-                <div className="flex-1 flex overflow-hidden">
-                    {/* Left Panel - INPUT */}
-                    <div className="w-1/4 border-r border-gray-200 flex flex-col">
-                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-semibold text-gray-900">INPUT</h3>
-                                {inputData && Object.keys(inputData).length > 0 && (
-                                    <div className="flex space-x-1">
-                                        <button
-                                            onClick={() => setInputViewMode('schema')}
-                                            className={`text-xs px-2 py-1 rounded ${
-                                                inputViewMode === 'schema'
-                                                    ? 'bg-primary-soft text-primary shadow-card'
-                                                    : 'text-muted hover:bg-surface-muted'
-                                            }`}
-                                        >
-                                            Schema
-                                        </button>
-                                        <button
-                                            onClick={() => setInputViewMode('json')}
-                                            className={`text-xs px-2 py-1 rounded ${
-                                                inputViewMode === 'json'
-                                                    ? 'bg-primary-soft text-primary shadow-card'
-                                                    : 'text-muted hover:bg-surface-muted'
-                                            }`}
-                                        >
-                                            JSON
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+    return (
+        <ConfigModalLayout
+            node={node}
+            onRename={onRename}
+            onClose={handleClose}
+            title="If"
+            icon="🔀"
+            readOnly={readOnly}
+            isTesting={false}
+            testButtons={testButtons}
+        >
+            {/* Left Panel - INPUT */}
+            <div className="w-1/4 border-r border-gray-200 flex flex-col">
+                <TestResultViewer
+                    data={inputData}
+                    viewMode={inputViewMode}
+                    onViewModeChange={setInputViewMode}
+                    collapsedPaths={collapsedPaths}
+                    onToggleCollapse={togglePathCollapse}
+                    title="INPUT"
+                    emptyState={
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                            <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                            </svg>
+                            <p className="text-center text-sm">No input data yet</p>
                         </div>
-                        <div className="flex-1 p-4 overflow-y-auto">
-                            {inputData && Object.keys(inputData).length > 0 ? (
-                                <div className="space-y-4">
-                                    {inputViewMode === 'schema' && Object.entries(inputData).map(([nodeName, data]) => {
-                                        return (
-                                            <div key={nodeName}>
-                                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
-                                                    <span className="text-xs font-semibold text-gray-700">
-                                                        {nodeName}
-                                                    </span>
-                                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
-                                                        {Object.keys(data || {}).length} fields
-                                                    </span>
-                                                </div>
-                                                <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                                    {renderDraggableJSON(data, nodeName)}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    
-                                    {inputViewMode === 'json' && Object.entries(inputData).map(([nodeName, data]) => (
-                                        <div key={nodeName}>
-                                            <div className="text-xs font-semibold text-gray-700 mb-2">
-                                                {nodeName}:
-                                            </div>
-                                            <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
-                                                {JSON.stringify(data, null, 2)}
-                                            </pre>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                    <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                    </svg>
-                                    <p className="text-center text-sm">No input data yet</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    }
+                />
+            </div>
 
                     {/* Center Panel - Configuration */}
                     <div className="w-1/2 flex flex-col">
@@ -685,39 +404,9 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                                     </div>
                                 )}
                             </div>
-                            {!readOnly && (
-                                <>
-                                    {isTesting ? (
-                                        <button
-                                            onClick={handleStopTest}
-                                            className="btn text-sm w-full bg-orange-600 hover:bg-orange-700 text-white"
-                                        >
-                                            Stop step
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={handleTest}
-                                            disabled={config.conditions.some(c => !c.value1)}
-                                            className="btn btn-danger text-sm w-full disabled:bg-gray-300 disabled:text-white disabled:cursor-not-allowed"
-                                        >
-                                            Test step
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                            {readOnly && (
-                                <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded font-medium">
-                                    📖 Viewing execution history (Read-only)
-                                </span>
-                            )}
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">
-                            {isTesting ? (
-                                <div className="flex flex-col items-center justify-center h-full text-muted">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mb-4"></div>
-                                    <p className="text-center">Evaluating conditions...</p>
-                                </div>
-                            ) : testResults ? (
+                            {testResults ? (
                                 <div className="relative">
                                     {outputViewMode === 'result' && (
                                         <div className="space-y-3">
@@ -784,9 +473,7 @@ function IfConfigModal({ node, onSave, onClose, onTest, inputData, outputData, o
                             )}
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
+        </ConfigModalLayout>
     );
 }
 

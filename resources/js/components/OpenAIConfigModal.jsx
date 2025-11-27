@@ -3,7 +3,9 @@ import axios from '../config/axios';
 import CredentialModal from './CredentialModal';
 import ExpandableTextarea from './ExpandableTextarea';
 import ResultDisplay from './ResultDisplay';
-import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
+import { useConfigModal } from '../utils/hooks/useConfigModal';
+import ConfigModalLayout from './common/ConfigModalLayout';
+import TestResultViewer from './common/TestResultViewer';
 
 function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
     const [config, setConfig] = useState({
@@ -450,11 +452,38 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     const testAbortControllerRef = useRef(null);
     const [credentials, setCredentials] = useState([]);
     const [showCredentialModal, setShowCredentialModal] = useState(false);
-    const [inputViewMode, setInputViewMode] = useState('schema');
-    const [outputViewMode, setOutputViewMode] = useState('json');
     const [models, setModels] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
-    const [collapsedPaths, setCollapsedPaths] = useState(new Set());
+
+    // Use shared hook for common modal state and logic
+    const {
+        inputViewMode,
+        outputViewMode,
+        collapsedPaths,
+        displayOutput,
+        setInputViewMode,
+        setOutputViewMode,
+        togglePathCollapse,
+        handleSave: handleSaveCommon,
+        handleClose: handleCloseCommon,
+    } = useConfigModal({
+        onTest: null, // Custom test logic below
+        onSave: () => onSave(config),
+        onClose: () => {
+            // Stop test if currently testing
+            if (isTesting && testAbortControllerRef.current) {
+                handleStopTest();
+            }
+            onSave(config);
+            onClose();
+        },
+        onTestResult,
+        node,
+        config,
+        inputData,
+        outputData: testResults || outputData,
+        readOnly
+    });
 
     useEffect(() => {
         if (node?.data?.config) {
@@ -674,18 +703,8 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         });
     };
 
-    const handleSave = () => {
-        onSave(config);
-    };
-
-    const handleClose = () => {
-        // Stop test if currently testing
-        if (isTesting && testAbortControllerRef.current) {
-            handleStopTest();
-        }
-        handleSave();
-        onClose();
-    };
+    // handleSave and handleClose are now handled by useConfigModal
+    // But we override handleClose below to include test stop logic
 
     const handleTest = async () => {
         if (onTest) {
@@ -744,243 +763,83 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         }
     };
 
-    const getDisplayOutput = () => {
-        if (testResults) return testResults;
-        if (outputData) return outputData;
-        return null;
+    // Removed: getDisplayOutput, truncateText, toggleCollapse, renderDraggableJSON, getTypeInfo
+    // Now using shared components and hooks
+
+    // Removed getTypeInfo - now using JSONViewer from shared components
+
+    // Custom handleClose that stops test before closing
+    const handleClose = () => {
+        if (isTesting && testAbortControllerRef.current) {
+            handleStopTest();
+        }
+        handleSaveCommon();
+        handleCloseCommon();
     };
 
-    const truncateText = (text, maxLength = 150) => {
-        if (typeof text !== 'string') return text;
-        if (text.length <= maxLength) return text;
-        return text.substring(0, maxLength) + '...';
-    };
-
-    const toggleCollapse = (path) => {
-        setCollapsedPaths(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(path)) {
-                newSet.delete(path);
-            } else {
-                newSet.add(path);
-            }
-            return newSet;
-        });
-    };
-
-    const renderDraggableJSON = (obj, prefix = '', indent = 0) => {
-        const currentPrefix = normalizeVariablePrefix(prefix, indent === 0);
-
-        if (obj === null || obj === undefined) {
-            return (
-                <div className="flex items-center gap-2 py-1">
-                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">null</span>
-                </div>
-            );
-        }
-
-        if (Array.isArray(obj)) {
-            const typeInfo = getTypeInfo(obj);
-            const collapseKey = currentPrefix || prefix;
-            const isCollapsed = collapsedPaths.has(collapseKey);
-            return (
-                <div className="space-y-1">
-                    <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(collapseKey)}
-                    >
-                        <span className="text-gray-500 text-xs">
-                            {isCollapsed ? '▶' : '▼'}
-                        </span>
-                        <span className="text-xs font-medium text-gray-700">
-                            {currentPrefix || 'Array'} ({obj.length} items)
-                        </span>
-                        <span className="text-xs text-gray-500">{typeInfo}</span>
-                    </div>
-                    {!isCollapsed && obj.map((item, index) => {
-                        const itemPath = buildArrayPath(currentPrefix || prefix, index);
-                        return (
-                            <div key={index} className="border-l-2 border-gray-200 pl-3">
-                                <div className="text-xs text-gray-500 mb-1">[{index}]</div>
-                                {renderDraggableJSON(item, itemPath, indent + 1)}
-                            </div>
-                        );
-                    })}
-                </div>
-            );
-        }
-
-        if (typeof obj === 'object') {
-            const keys = Object.keys(obj);
-            const typeInfo = getTypeInfo(obj);
-            const objectPath = currentPrefix || prefix;
-            const objectCollapsed = collapsedPaths.has(objectPath);
-
-            if (keys.length === 0) {
-                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">empty object</span>;
-            }
-
-            return (
-                <div className="space-y-1">
-                    <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(objectPath)}
-                    >
-                        <span className="text-gray-500 text-xs">
-                            {objectCollapsed ? '▶' : '▼'}
-                        </span>
-                        <span className="text-xs font-medium text-gray-700">
-                            {currentPrefix || 'Object'} ({keys.length} keys)
-                        </span>
-                        <span className="text-xs text-gray-500">{typeInfo}</span>
-                    </div>
-                    {!objectCollapsed && keys.map(key => {
-                        const valuePath = buildVariablePath(objectPath, key);
-                        return (
-                            <div key={key} className="border-l-2 border-gray-200 pl-3 space-y-1">
-                                <div className="flex items-center gap-2 group">
-                                    <span className="text-xs font-medium text-blue-600">{key}:</span>
-                                    <button
-                                        onClick={() => {
-                                            const fullPath = valuePath;
-                                            navigator.clipboard.writeText(`{{${fullPath}}}`);
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 text-xs text-blue-600 hover:text-blue-800"
-                                        title="Copy variable path"
-                                    >
-                                        📋
-                                    </button>
-                                </div>
-                                {renderDraggableJSON(obj[key], valuePath, indent + 1)}
-                            </div>
-                        );
-                    })}
-                </div>
-            );
-        }
-
-        return (
-            <div className="flex items-center gap-2 py-1">
-                <span className="text-xs text-gray-700">{String(obj)}</span>
+    // Test buttons
+    const testButtons = onTest && !readOnly ? (
+        <>
+            {isTesting ? (
                 <button
-                    onClick={() => {
-                        const fullPath = currentPrefix || prefix;
-                        navigator.clipboard.writeText(`{{${fullPath}}}`);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-xs text-blue-600 hover:text-blue-800"
-                    title="Copy variable path"
+                    onClick={handleStopTest}
+                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium flex items-center space-x-2"
                 >
-                    📋
+                    <span>■</span>
+                    <span>Stop step</span>
                 </button>
-            </div>
-        );
-    };
+            ) : (
+                <button
+                    onClick={handleTest}
+                    disabled={!config.credentialId}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium flex items-center space-x-2"
+                >
+                    <span>▲</span>
+                    <span>Test step</span>
+                </button>
+            )}
+        </>
+    ) : null;
 
-    const getTypeInfo = (obj) => {
-        if (Array.isArray(obj)) {
-            if (obj.length === 0) return '(empty array)';
-            const firstType = typeof obj[0];
-            return `(${firstType}[])`;
-        }
-        if (typeof obj === 'object' && obj !== null) {
-            return '(object)';
-        }
-        return `(${typeof obj})`;
-    };
+    // Update displayOutput when testResults change
+    const currentDisplayOutput = testResults || outputData || displayOutput;
 
     return (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                    <h2 className="text-xl font-semibold text-gray-900">OpenAI Configuration</h2>
-                    <button
-                        onClick={handleClose}
-                        className="text-gray-400 hover:text-gray-600"
-                    >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 flex overflow-hidden">
-                    {/* Left Panel - INPUT */}
-                    <div className="w-1/3 border-r border-gray-200 flex flex-col">
-                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-semibold text-gray-900">INPUT</h3>
-                                {inputData && Object.keys(inputData).length > 0 && (
-                                    <div className="flex space-x-1">
-                                        <button
-                                            onClick={() => setInputViewMode('schema')}
-                                            className={`text-xs px-2 py-1 rounded ${
-                                                inputViewMode === 'schema'
-                                                    ? 'bg-primary-soft text-primary shadow-card'
-                                                    : 'text-muted hover:bg-surface-muted'
-                                            }`}
-                                        >
-                                            Schema
-                                        </button>
-                                        <button
-                                            onClick={() => setInputViewMode('json')}
-                                            className={`text-xs px-2 py-1 rounded ${
-                                                inputViewMode === 'json'
-                                                    ? 'bg-primary-soft text-primary shadow-card'
-                                                    : 'text-muted hover:bg-surface-muted'
-                                            }`}
-                                        >
-                                            JSON
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+        <>
+        <ConfigModalLayout
+            node={node}
+            onRename={onRename}
+            onClose={handleClose}
+            title="OpenAI"
+            icon="🤖"
+            readOnly={readOnly}
+            isTesting={false}
+            testButtons={testButtons}
+        >
+            {/* Left Panel - INPUT */}
+            <div className="w-1/3 border-r border-gray-200 flex flex-col">
+                <TestResultViewer
+                    data={inputData}
+                    viewMode={inputViewMode}
+                    onViewModeChange={setInputViewMode}
+                    collapsedPaths={collapsedPaths}
+                    onToggleCollapse={togglePathCollapse}
+                    title="INPUT"
+                    emptyState={
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                            <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                            </svg>
+                            <p className="text-center text-sm">
+                                Connect this node to receive input data
+                            </p>
+                            <p className="text-center text-xs mt-2">
+                                Kéo thả biến từ đây vào messages
+                            </p>
                         </div>
-                        <div className="flex-1 p-4 overflow-y-auto">
-                            {inputData && Object.keys(inputData).length > 0 ? (
-                                <div className="space-y-4">
-                                    {inputViewMode === 'schema' && Object.entries(inputData).map(([nodeName, data]) => (
-                                        <div key={nodeName}>
-                                            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
-                                                <span className="text-xs font-semibold text-gray-700">
-                                                    {nodeName}
-                                                </span>
-                                                <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
-                                                    {Object.keys(data || {}).length} fields
-                                                </span>
-                                            </div>
-                                            <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                                {renderDraggableJSON(data, nodeName)}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    
-                                    {inputViewMode === 'json' && Object.entries(inputData).map(([nodeName, data]) => (
-                                        <div key={nodeName}>
-                                            <div className="text-xs font-semibold text-gray-700 mb-2">
-                                                {nodeName}:
-                                            </div>
-                                            <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
-                                                {JSON.stringify(data, null, 2)}
-                                            </pre>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                    <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                    </svg>
-                                    <p className="text-center text-sm">
-                                        Connect this node to receive input data
-                                    </p>
-                                    <p className="text-center text-xs mt-2">
-                                        Kéo thả biến từ đây vào messages
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    }
+                />
+            </div>
 
                     {/* Center Panel - Configuration */}
                     <div className="w-1/3 flex flex-col">
@@ -1222,110 +1081,40 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                         </div>
                     </div>
 
-                    {/* Right Panel - OUTPUT */}
-                    <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-semibold text-gray-900">OUTPUT</h3>
-                                <div className="flex items-center gap-2">
-                                    {getDisplayOutput() && (
-                                        <div className="flex space-x-1">
-                                            <button
-                                                onClick={() => setOutputViewMode('schema')}
-                                                className={`text-xs px-2 py-1 rounded ${
-                                                    outputViewMode === 'schema'
-                                                        ? 'bg-primary-soft text-primary shadow-card'
-                                                        : 'text-muted hover:bg-surface-muted'
-                                                }`}
-                                            >
-                                                Schema
-                                            </button>
-                                            <button
-                                                onClick={() => setOutputViewMode('json')}
-                                                className={`text-xs px-2 py-1 rounded ${
-                                                    outputViewMode === 'json'
-                                                        ? 'bg-primary-soft text-primary shadow-card'
-                                                        : 'text-muted hover:bg-surface-muted'
-                                                }`}
-                                            >
-                                                JSON
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+            {/* Right Panel - OUTPUT */}
+            <div className="w-1/3 flex flex-col">
+                <TestResultViewer
+                    data={currentDisplayOutput}
+                    viewMode={outputViewMode}
+                    onViewModeChange={setOutputViewMode}
+                    collapsedPaths={collapsedPaths}
+                    onToggleCollapse={togglePathCollapse}
+                    title="OUTPUT"
+                    isTesting={isTesting}
+                    testingMessage="Đang gọi OpenAI API..."
+                    emptyState={
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                            <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p className="text-center">
+                                Nhấn "Test step" để xem kết quả từ OpenAI
+                            </p>
                         </div>
-                        <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200">
-                            {onTest && (
-                                <>
-                                    {isTesting ? (
-                                        <button
-                                            onClick={handleStopTest}
-                                            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-1.5 rounded text-sm font-medium"
-                                        >
-                                            Stop step
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={handleTest}
-                                            disabled={
-                                                !config.credentialId || 
-                                                !config.messages || 
-                                                config.messages.length === 0 ||
-                                                !config.messages.some(msg => msg.content && msg.content.trim())
-                                            }
-                                            className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-sm font-medium"
-                                        >
-                                            Test step
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                        <div className="flex-1 p-4 overflow-y-auto">
-                            {isTesting ? (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mb-4"></div>
-                                    <p className="text-center">Đang gọi OpenAI API...</p>
-                                </div>
-                            ) : getDisplayOutput() ? (
-                                <div className="relative">
-                                    {outputViewMode === 'schema' && (
-                                        <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                            {renderDraggableJSON(getDisplayOutput(), 'output')}
-                                        </div>
-                                    )}
-                                    
-                                    {outputViewMode === 'json' && (
-                                        <pre className="text-xs bg-gray-50 p-3 rounded border border-gray-200 overflow-auto whitespace-pre-wrap text-gray-800">
-                                            {JSON.stringify(getDisplayOutput(), null, 2)}
-                                        </pre>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                    <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    <p className="text-center">
-                                        Nhấn "Test step" để xem kết quả từ OpenAI
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                    }
+                />
             </div>
+        </ConfigModalLayout>
 
-            {/* Credential Modal */}
-            <CredentialModal
-                isOpen={showCredentialModal}
-                onClose={() => setShowCredentialModal(false)}
-                onSave={handleCredentialSaved}
-                credentialType="openai"
-                lockedType={true}
-            />
-        </div>
+        {/* Credential Modal */}
+        <CredentialModal
+            isOpen={showCredentialModal}
+            onClose={() => setShowCredentialModal(false)}
+            onSave={handleCredentialSaved}
+            credentialType="openai"
+            lockedType={true}
+        />
+        </>
     );
 }
 

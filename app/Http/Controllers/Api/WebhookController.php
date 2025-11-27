@@ -3810,21 +3810,24 @@ JS;
                 // Bearer token is stored in credentials table
                 $credentialId = $config['credentialId'] ?? null;
                 if (!$credentialId) {
-                    \Log::warning('Bearer auth configured but no credentialId provided');
-                    return false;
+                    // No credential provided - allow request to pass (no security)
+                    \Log::info('Bearer auth configured but no credentialId provided - allowing request without authentication');
+                    return true;
                 }
 
                 $credential = \App\Models\Credential::find($credentialId);
                 if (!$credential) {
-                    \Log::warning('Bearer credential not found', ['credentialId' => $credentialId]);
-                    return false;
+                    // Credential not found - allow request to pass (no security)
+                    \Log::info('Bearer credential not found - allowing request without authentication', ['credentialId' => $credentialId]);
+                    return true;
                 }
 
                 // Support both old (headerValue) and new (token) format
                 $expectedToken = $credential->data['token'] ?? $credential->data['headerValue'] ?? null;
                 if (!$expectedToken) {
-                    \Log::warning('Bearer token not found in credential data', ['credentialId' => $credentialId]);
-                    return false;
+                    // Token not found in credential - allow request to pass (no security)
+                    \Log::info('Bearer token not found in credential data - allowing request without authentication', ['credentialId' => $credentialId]);
+                    return true;
                 }
                 
                 // Remove "Bearer " prefix if present in stored token
@@ -3898,14 +3901,16 @@ JS;
                 // OAuth2 token is stored in credentials table
                 $credentialId = $config['credentialId'] ?? null;
                 if (!$credentialId) {
-                    \Log::warning('OAuth2 auth configured but no credentialId provided');
-                    return false;
+                    // No credential provided - allow request to pass (no security)
+                    \Log::info('OAuth2 auth configured but no credentialId provided - allowing request without authentication');
+                    return true;
                 }
 
                 $credential = \App\Models\Credential::find($credentialId);
                 if (!$credential || !isset($credential->data['accessToken'])) {
-                    \Log::warning('OAuth2 credential not found or invalid', ['credentialId' => $credentialId]);
-                    return false;
+                    // Credential not found or invalid - allow request to pass (no security)
+                    \Log::info('OAuth2 credential not found or invalid - allowing request without authentication', ['credentialId' => $credentialId]);
+                    return true;
                 }
 
                 $expectedToken = $credential->data['accessToken'];
@@ -3982,7 +3987,30 @@ JS;
             'path' => $path,
             'method' => $request->input('method'),
             'workflow_id' => $workflowId,
+            'auth' => $request->input('auth'),
+            'auth_type' => $request->input('auth_type'),
+            'credential_id' => $request->input('credential_id'),
+            'has_auth_config' => !empty($request->input('auth_config')),
         ]);
+        
+        // If credential_id is provided, log credential details
+        if ($request->input('credential_id')) {
+            $credential = \App\Models\Credential::find($request->input('credential_id'));
+            if ($credential) {
+                Log::info('Credential loaded for test listener', [
+                    'credential_id' => $credential->id,
+                    'credential_type' => $credential->type,
+                    'has_data' => !empty($credential->data),
+                    'data_keys' => $credential->data ? array_keys($credential->data) : [],
+                    'has_token' => !!(isset($credential->data['token']) || isset($credential->data['headerValue'])),
+                    'has_accessToken' => !!(isset($credential->data['accessToken'])),
+                ]);
+            } else {
+                Log::warning('Credential not found for test listener', [
+                    'credential_id' => $request->input('credential_id'),
+                ]);
+            }
+        }
 
         // Track this test run ID
         $cacheKeys = \Illuminate\Support\Facades\Cache::get('webhook_test_keys', []);
@@ -4221,6 +4249,13 @@ JS;
         $auth = $listeningData['auth'] ?? 'header';
         $authConfig = $listeningData['auth_config'] ?? [];
 
+        Log::info('Validating test webhook auth', [
+            'auth_type' => $authType,
+            'auth' => $auth,
+            'has_credential_id' => !empty($listeningData['credential_id']),
+            'credential_id' => $listeningData['credential_id'] ?? null,
+        ]);
+
         switch ($authType) {
             case 'bearer':
                 // Get token from credential if available
@@ -4232,25 +4267,68 @@ JS;
                         $expectedToken = $credential->data['token'] ?? $credential->data['headerValue'] ?? null;
                         if ($expectedToken) {
                             $expectedToken = str_replace('Bearer ', '', $expectedToken);
+                            Log::info('Bearer token from credential', [
+                                'credential_id' => $credentialId,
+                                'has_token' => !empty($expectedToken),
+                                'token_length' => strlen($expectedToken),
+                            ]);
                         } else {
-                            return false;
+                            // Token not found in credential - allow request to pass (no security)
+                            Log::info('Bearer token not found in credential - allowing request without authentication', [
+                                'credential_id' => $credentialId,
+                                'credential_data_keys' => array_keys($credential->data ?? []),
+                            ]);
+                            return true;
                         }
                     } else {
-                        return false;
+                        // Credential not found - allow request to pass (no security)
+                        Log::info('Credential not found - allowing request without authentication', ['credential_id' => $credentialId]);
+                        return true;
                     }
                 } else {
+                    // No credential provided - check if token is in auth_config
                     $expectedToken = $authConfig['apiKeyValue'] ?? '';
+                    if (empty($expectedToken)) {
+                        // No token in auth_config either - allow request to pass (no security)
+                        Log::info('Bearer auth configured but no credential or token provided - allowing request without authentication');
+                        return true;
+                    }
                     $expectedToken = str_replace('Bearer ', '', $expectedToken);
+                    Log::info('Bearer token from auth_config', [
+                        'has_token' => !empty($expectedToken),
+                        'token_length' => strlen($expectedToken),
+                    ]);
                 }
                 
                 if ($auth === 'header') {
                     $authHeader = $request->header('Authorization', '');
                     $providedToken = str_replace('Bearer ', '', $authHeader);
+                    Log::info('Bearer auth from header', [
+                        'has_header' => !empty($authHeader),
+                        'provided_token_length' => strlen($providedToken),
+                        'expected_token_length' => strlen($expectedToken),
+                        'tokens_match' => !empty($expectedToken) && hash_equals($expectedToken, $providedToken),
+                    ]);
                 } else {
                     $providedToken = $request->query('token', $request->query('access_token', ''));
+                    Log::info('Bearer auth from query', [
+                        'has_token' => !empty($providedToken),
+                        'provided_token_length' => strlen($providedToken),
+                        'expected_token_length' => strlen($expectedToken),
+                        'tokens_match' => !empty($expectedToken) && hash_equals($expectedToken, $providedToken),
+                    ]);
                 }
                 
-                return !empty($expectedToken) && hash_equals($expectedToken, $providedToken);
+                $isValid = !empty($expectedToken) && hash_equals($expectedToken, $providedToken);
+                if (!$isValid) {
+                    Log::warning('Bearer token validation failed', [
+                        'has_expected_token' => !empty($expectedToken),
+                        'has_provided_token' => !empty($providedToken),
+                        'expected_length' => strlen($expectedToken ?? ''),
+                        'provided_length' => strlen($providedToken ?? ''),
+                    ]);
+                }
+                return $isValid;
 
             case 'basic':
                 $expectedUsername = $authConfig['username'] ?? '';
@@ -4307,10 +4385,14 @@ JS;
                     if ($credential && isset($credential->data['accessToken'])) {
                         $expectedToken = str_replace('Bearer ', '', $credential->data['accessToken']);
                     } else {
-                        return false;
+                        // Credential not found or invalid - allow request to pass (no security)
+                        Log::info('OAuth2 credential not found or invalid - allowing request without authentication', ['credential_id' => $credentialId]);
+                        return true;
                     }
                 } else {
-                    return false;
+                    // No credential provided - allow request to pass (no security)
+                    Log::info('OAuth2 auth configured but no credentialId provided - allowing request without authentication');
+                    return true;
                 }
                 
                 if ($auth === 'header') {
@@ -4332,6 +4414,12 @@ JS;
      */
     public function handleTest(Request $request, $path)
     {
+        // Use error_log for debugging to ensure it's always logged
+        error_log('=== handleTest webhook called ===');
+        error_log('Path: ' . $path);
+        error_log('Method: ' . $request->method());
+        error_log('Full URL: ' . $request->fullUrl());
+        
         Log::info('handleTest webhook called', [
             'path' => $path,
             'method' => $request->method(),
@@ -4340,9 +4428,12 @@ JS;
         
         // Normalize path
         $normalizedPath = trim($path, '/');
+        error_log('Normalized path: ' . $normalizedPath);
         
         // Check if this is a test webhook request (check all test runs)
         $cacheKeys = \Illuminate\Support\Facades\Cache::get('webhook_test_keys', []);
+        error_log('Cache keys count: ' . count($cacheKeys));
+        error_log('Cache keys: ' . json_encode($cacheKeys));
         
         // Cleanup expired listeners first
         $validKeys = [];
@@ -4370,9 +4461,13 @@ JS;
             'count' => count($cacheKeys),
             'test_run_ids' => $cacheKeys,
         ]);
+        error_log('Active test listeners after cleanup: ' . count($cacheKeys));
 
         foreach ($cacheKeys as $testRunId) {
             $listeningData = \Illuminate\Support\Facades\Cache::get("webhook_test_listening_{$testRunId}");
+            
+            error_log("Checking test listener: {$testRunId}");
+            error_log("Has listening data: " . (!empty($listeningData) ? 'yes' : 'no'));
             
             Log::info('Checking test listener', [
                 'test_run_id' => $testRunId,
@@ -4386,7 +4481,11 @@ JS;
             $normalizedPath = trim($path, '/');
             $normalizedListeningPath = trim($listeningData['path'] ?? '', '/');
             
+            error_log("Normalized paths - request: '{$normalizedPath}', listener: '{$normalizedListeningPath}'");
+            error_log("Path match: " . ($normalizedListeningPath === $normalizedPath ? 'YES' : 'NO'));
+            
             if ($listeningData && $normalizedListeningPath === $normalizedPath) {
+                error_log("Path matched! Validating method and auth...");
                 // Validate method and auth
                 if ($listeningData['method'] !== $request->method()) {
                     Log::info('Method mismatch', [
@@ -4398,11 +4497,23 @@ JS;
 
                 // Check auth
                 if (!empty($listeningData['auth']) && $listeningData['auth'] !== 'none') {
-                    if (!$this->validateTestWebhookAuth($request, $listeningData)) {
-                        Log::info('Auth validation failed', [
+                    $authValid = $this->validateTestWebhookAuth($request, $listeningData);
+                    if (!$authValid) {
+                        Log::warning('Auth validation failed for test listener', [
                             'test_run_id' => $testRunId,
+                            'auth' => $listeningData['auth'],
+                            'auth_type' => $listeningData['auth_type'] ?? null,
+                            'credential_id' => $listeningData['credential_id'] ?? null,
+                            'request_method' => $request->method(),
+                            'request_path' => $path,
+                            'has_auth_header' => $request->hasHeader('Authorization'),
+                            'auth_header' => $request->header('Authorization', '') ? '[PRESENT]' : '[MISSING]',
                         ]);
                         continue;
+                    } else {
+                        Log::info('Auth validation passed', [
+                            'test_run_id' => $testRunId,
+                        ]);
                     }
                 }
 
@@ -4438,9 +4549,14 @@ JS;
             }
         }
 
+        error_log('❌ No active test listener found for path: ' . $path);
+        error_log('Request method: ' . $request->method());
+        error_log('Available cache keys: ' . json_encode($cacheKeys));
+        
         Log::warning('❌ No active test listener found for path', [
             'path' => $path,
             'method' => $request->method(),
+            'available_cache_keys' => $cacheKeys,
         ]);
         
         return response()->json([

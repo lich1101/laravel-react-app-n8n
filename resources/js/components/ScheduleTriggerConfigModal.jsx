@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from '../config/axios';
 import ExpandableTextarea from './ExpandableTextarea';
 import ResultDisplay from './ResultDisplay';
+import ConfigModalLayout from './common/ConfigModalLayout';
+import TestResultViewer from './common/TestResultViewer';
 
 const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, onRename, outputData, readOnly = false }) => {
     const [config, setConfig] = useState({
@@ -18,8 +19,6 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
         timezone: 'Asia/Ho_Chi_Minh',
         ...node?.data?.config,
     });
-
-    const [activeTab, setActiveTab] = useState('schema');
 
     const handleSave = () => {
         onSave(config);
@@ -43,12 +42,6 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
         }
     };
 
-    // Get current display output
-    const getDisplayOutput = () => {
-        if (outputData) return outputData;
-        return null;
-    };
-
     const intervalOptions = [
         { value: 'minutes', label: 'Minutes', min: 1, max: 59 },
         { value: 'hours', label: 'Hours', min: 1, max: 23 },
@@ -59,40 +52,26 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
 
     const currentIntervalOption = intervalOptions.find(opt => opt.value === config.interval) || intervalOptions[1];
 
-    return (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-[90vw] h-[90vh] flex flex-col">
-                {/* Header */}
-                <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <span className="text-3xl">⏰</span>
-                        <h2 
-                            className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} transition-colors flex items-center gap-2`}
-                            onClick={() => {
-                                if (onRename && !readOnly) {
-                                    onRename();
-                                }
-                            }}
-                            title={readOnly ? "Read-only mode" : "Click để đổi tên node"}
-                        >
-                            {node?.data?.customName || 'Schedule Trigger'}
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                        </h2>
-                    </div>
-                    <button
-                        onClick={handleClose}
-                        className="text-gray-400 hover:text-gray-600"
-                    >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
+    const testButtons = !readOnly ? (
+        <button
+            onClick={handleTestTrigger}
+            disabled={readOnly}
+            className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm font-medium"
+        >
+            Test Trigger
+        </button>
+    ) : null;
 
-                {/* Content */}
-                <div className="flex-1 flex overflow-hidden">
+    return (
+        <ConfigModalLayout
+            node={node}
+            onRename={onRename}
+            onClose={handleClose}
+            title="Schedule Trigger"
+            icon="⏰"
+            readOnly={readOnly}
+            testButtons={testButtons}
+        >
                     {/* Left Panel - Configuration */}
                     <div className="w-2/3 border-r border-gray-200 flex flex-col p-6 overflow-y-auto">
                         <div className="space-y-6">
@@ -288,30 +267,19 @@ const ScheduleTriggerConfigModal = ({ node, onSave, onClose, workflowId, onTestR
                         </div>
                     </div>
 
-                    {/* Right Panel - OUTPUT */}
-                    <div className="w-1/3 flex flex-col">
-                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-semibold text-gray-900">OUTPUT</h3>
-                            </div>
-                            <button
-                                onClick={handleTestTrigger}
-                                disabled={readOnly}
-                                className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm font-medium"
-                            >
-                                Test Trigger
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                            <ResultDisplay 
-                                data={getDisplayOutput()} 
-                                title="OUTPUT"
-                            />
-                        </div>
-                    </div>
+            {/* Right Panel - OUTPUT */}
+            <div className="w-1/3 flex flex-col">
+                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <h3 className="font-semibold text-gray-900">OUTPUT</h3>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                    <ResultDisplay 
+                        data={outputData} 
+                        title="OUTPUT"
+                    />
                 </div>
             </div>
-        </div>
+        </ConfigModalLayout>
     );
 };
 

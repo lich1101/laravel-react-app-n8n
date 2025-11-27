@@ -1569,6 +1569,15 @@ function WorkflowEditor() {
                         } else if (statusResponse.data.status === 'timeout' || statusResponse.data.status === 'stopped') {
                             clearInterval(testPollingRef.current);
                             setIsTestingWorkflow(false);
+                            // Stop webhook test on timeout/stopped
+                            if (testRunId && workflow?.id) {
+                                try {
+                                    await axios.post(`/workflows/${workflow.id}/webhook-test-stop/${testRunId}`);
+                                    console.log('🛑 Stopped webhook test listener after timeout/stopped');
+                                } catch (error) {
+                                    console.error('Error stopping webhook test:', error);
+                                }
+                            }
                             console.log('⏱️ Test timeout or stopped');
                         } else if (statusResponse.data.status === 'listening') {
                             // Still waiting - just log occasionally to avoid spam
@@ -1585,12 +1594,30 @@ function WorkflowEditor() {
                         });
                         clearInterval(testPollingRef.current);
                         setIsTestingWorkflow(false);
+                        // Stop webhook test on polling error
+                        if (testRunId && workflow?.id) {
+                            try {
+                                await axios.post(`/workflows/${workflow.id}/webhook-test-stop/${testRunId}`);
+                                console.log('🛑 Stopped webhook test listener after polling error');
+                            } catch (stopError) {
+                                console.error('Error stopping webhook test:', stopError);
+                            }
+                        }
                     }
                 }, 1000); // Poll every second
 
             } catch (error) {
                 console.error('Error starting test:', error);
                 setIsTestingWorkflow(false);
+                // If testRunId was set before error, stop it
+                if (testExecutionIdRef.current && workflow?.id) {
+                    try {
+                        await axios.post(`/workflows/${workflow.id}/webhook-test-stop/${testExecutionIdRef.current}`);
+                        console.log('🛑 Stopped webhook test listener after start error');
+                    } catch (stopError) {
+                        console.error('Error stopping webhook test:', stopError);
+                    }
+                }
             }
         } else {
             // No webhook node - execute directly with empty webhook data
@@ -1611,6 +1638,18 @@ function WorkflowEditor() {
     };
 
     const executeTestWorkflow = async (testRunId, webhookData) => {
+        // Helper function to stop webhook test
+        const stopWebhookTest = async () => {
+            if (testRunId && workflow?.id) {
+                try {
+                    await axios.post(`/workflows/${workflow.id}/webhook-test-stop/${testRunId}`);
+                    console.log('🛑 Stopped webhook test listener after workflow completion');
+                } catch (error) {
+                    console.error('Error stopping webhook test:', error);
+                }
+            }
+        };
+
         try {
             console.log('🚀 Executing test workflow with webhook data:', webhookData);
             
@@ -1662,12 +1701,14 @@ function WorkflowEditor() {
             if (!execution_order || execution_order.length === 0) {
                 console.warn('⚠️ Execution order is empty - no nodes to execute');
                 setIsTestingWorkflow(false);
+                // Stop webhook test if it was started
+                await stopWebhookTest();
                 console.log('ℹ️ Workflow has no executable nodes');
                 return;
             }
             
             // Execute nodes one by one in order with visualization
-            await executeNodesWithVisualization(execution_order, node_results, error_node, has_error);
+            await executeNodesWithVisualization(execution_order, node_results, error_node, has_error, stopWebhookTest);
             
         } catch (error) {
             console.error('❌ Error executing test workflow:', error);
@@ -1679,12 +1720,15 @@ function WorkflowEditor() {
             });
             setIsTestingWorkflow(false);
             
+            // Stop webhook test on error
+            await stopWebhookTest();
+            
             // Show error in UI (optional - can be removed if you don't want alerts)
             // alert('Error executing workflow: ' + (error.response?.data?.error || error.message));
         }
     };
 
-    const executeNodesWithVisualization = async (executionOrder, nodeResults, errorNode, hasError) => {
+    const executeNodesWithVisualization = async (executionOrder, nodeResults, errorNode, hasError, stopWebhookTest) => {
         // Execute nodes one by one in the order they were executed
         for (let i = 0; i < executionOrder.length; i++) {
             const nodeId = executionOrder[i];
@@ -1723,6 +1767,12 @@ function WorkflowEditor() {
                 setIsTestingWorkflow(false);
                 const nodeName = nodes.find(n => n.id === nodeId)?.data?.customName || nodes.find(n => n.id === nodeId)?.data?.label || nodeId;
                 console.error(`❌ Workflow stopped at node "${nodeName}" with error: ${nodeResult.error_message || 'Unknown error'}`);
+                
+                // Stop webhook test on error
+                if (stopWebhookTest) {
+                    await stopWebhookTest();
+                }
+                
                 return; // Stop execution
             }
             
@@ -1744,6 +1794,12 @@ function WorkflowEditor() {
         
         // All nodes completed successfully
         setIsTestingWorkflow(false);
+        
+        // Stop webhook test when workflow completes
+        if (stopWebhookTest) {
+            await stopWebhookTest();
+        }
+        
         if (!hasError) {
             console.log('✅ Test workflow completed successfully!');
         }

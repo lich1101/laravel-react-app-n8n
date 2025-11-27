@@ -2,191 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from '../config/axios';
 import CredentialModal from './CredentialModal';
 import ExpandableTextarea from './ExpandableTextarea';
-import ResultDisplay from './ResultDisplay';
-import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
+// Removed ResultDisplay - now using TestResultViewer
+import { useConfigModal } from '../utils/hooks/useConfigModal';
+import ConfigModalLayout from './common/ConfigModalLayout';
+import TestResultViewer from './common/TestResultViewer';
 
 function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
-    const [collapsedPaths, setCollapsedPaths] = useState(new Set());
-
-    const truncateText = (text, maxLength = 150) => {
-        if (typeof text !== 'string') return text;
-        if (text.length <= maxLength) return text;
-        return text.substring(0, maxLength) + '...';
-    };
-
-    const getTypeInfo = (value) => {
-        if (value === null) return { icon: '∅', color: 'gray', label: 'null' };
-        if (Array.isArray(value)) return { icon: '[]', color: 'purple', label: 'array' };
-        if (typeof value === 'object') return { icon: '{}', color: 'blue', label: 'object' };
-        if (typeof value === 'string') return { icon: 'Abc', color: 'green', label: 'string' };
-        if (typeof value === 'number') return { icon: '123', color: 'orange', label: 'number' };
-        if (typeof value === 'boolean') return { icon: '✓', color: 'teal', label: 'boolean' };
-        return { icon: '?', color: 'gray', label: 'unknown' };
-    };
-
-    const toggleCollapse = (path) => {
-        setCollapsedPaths(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(path)) {
-                newSet.delete(path);
-            } else {
-                newSet.add(path);
-            }
-            return newSet;
-        });
-    };
-
-    const renderDraggableJSON = (obj, prefix = '', depth = 0) => {
-        const currentPrefix = normalizeVariablePrefix(prefix, depth === 0);
-
-        if (obj === null || obj === undefined) {
-            return <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">null</span>;
-        }
-
-        if (Array.isArray(obj)) {
-            const typeInfo = getTypeInfo(obj);
-            const collapseKey = currentPrefix || prefix;
-            const isCollapsed = collapsedPaths.has(collapseKey);
-
-            return (
-                <div className="space-y-1">
-                    <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(collapseKey)}
-                    >
-                        <span className="text-gray-500 text-xs">
-                            {isCollapsed ? '▶' : '▼'}
-                        </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
-                            {typeInfo.icon}
-                        </span>
-                        <span className="text-xs text-gray-500">{obj.length} items</span>
-                    </div>
-                    {!isCollapsed && (
-                        <div className="ml-4 space-y-1">
-                            {obj.map((item, index) => {
-                                const itemPath = buildArrayPath(currentPrefix, index);
-                                return (
-                                    <div key={index} className="border-l-2 border-gray-200 pl-3">
-                                        <div className="text-xs text-gray-500 mb-1">[{index}]</div>
-                                        {renderDraggableJSON(item, itemPath, depth + 1)}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        if (typeof obj === 'object') {
-            const keys = Object.keys(obj);
-            const typeInfo = getTypeInfo(obj);
-            const objectPath = currentPrefix || prefix;
-            const objectCollapsed = collapsedPaths.has(objectPath);
-
-            if (keys.length === 0) {
-                return <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">empty object</span>;
-            }
-
-            return (
-                <div className="space-y-1">
-                    <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
-                        onClick={() => toggleCollapse(objectPath)}
-                    >
-                        <span className="text-gray-500 text-xs">
-                            {objectCollapsed ? '▶' : '▼'}
-                        </span>
-                        <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
-                            {typeInfo.icon}
-                        </span>
-                        <span className="text-xs text-gray-500">{keys.length} keys</span>
-                    </div>
-                    {!objectCollapsed && (
-                        <div className="ml-4 space-y-1">
-                            {keys.map(key => {
-                                const value = obj[key];
-                                const variablePath = buildVariablePath(objectPath, key);
-                                const isPrimitive = value === null || value === undefined || (typeof value !== 'object' && !Array.isArray(value));
-                                const childCollapsed = collapsedPaths.has(variablePath);
-
-                                return (
-                                    <div key={key} className="group">
-                                        <div className="flex items-center gap-2">
-                                            {!isPrimitive && (
-                                                <span 
-                                                    className="text-gray-500 text-xs cursor-pointer"
-                                                    onClick={() => toggleCollapse(variablePath)}
-                                                >
-                                                    {childCollapsed ? '▶' : '▼'}
-                                                </span>
-                                            )}
-                                            <span className="text-xs font-semibold text-gray-700">{key}:</span>
-                                            {isPrimitive ? (
-                                                <div
-                                                    draggable
-                                                    onDragStart={(e) => {
-                                                        e.dataTransfer.effectAllowed = 'copy';
-                                                        e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
-                                                    }}
-                                                    className="cursor-move text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors inline-flex items-center gap-1"
-                                                >
-                                                    {typeof value === 'string' 
-                                                        ? `"${truncateText(value)}"`
-                                                        : String(value)
-                                                    }
-                                                </div>
-                                            ) : (
-                                                <div
-                                                    draggable
-                                                    onDragStart={(e) => {
-                                                        e.dataTransfer.effectAllowed = 'copy';
-                                                    }}
-                                                    className="cursor-move text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors inline-flex items-center gap-1"
-                                                >
-                                                    {typeof value === 'string' 
-                                                        ? `"${truncateText(value)}"`
-                                                        : String(value)
-                                                    }
-                                                </div>
-                                            )}
-
-                                            <button
-                                                onClick={() => {
-                                                    const variable = `{{${variablePath}}}`;
-                                                    navigator.clipboard.writeText(variable);
-                                                    alert(`✓ Đã copy: ${variable}`);
-                                                }}
-                                                className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-opacity flex-shrink-0"
-                                                title="Copy variable"
-                                            >
-                                                📋
-                                            </button>
-                                        </div>
-
-                                        {!isPrimitive && !childCollapsed && (
-                                            <div className="ml-6 mt-1 border-l-2 border-gray-200 pl-3">
-                                                {renderDraggableJSON(value, variablePath, depth + 1)}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        return (
-            <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 font-mono">
-                    {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
-                </span>
-            </div>
-        );
-    };
+    // Removed: truncateText, getTypeInfo, toggleCollapse, renderDraggableJSON
+    // Now using shared components and hooks
     const [config, setConfig] = useState({
         model: 'gemini-2.0-flash',
         systemMessageEnabled: false,
@@ -216,10 +39,38 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
     const testAbortControllerRef = useRef(null);
     const [credentials, setCredentials] = useState([]);
     const [showCredentialModal, setShowCredentialModal] = useState(false);
-    const [inputViewMode, setInputViewMode] = useState('schema');
-    const [outputViewMode, setOutputViewMode] = useState('json');
     const [models, setModels] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
+
+    // Use shared hook for common modal state and logic
+    const {
+        inputViewMode,
+        outputViewMode,
+        collapsedPaths,
+        displayOutput,
+        setInputViewMode,
+        setOutputViewMode,
+        togglePathCollapse,
+        handleSave: handleSaveCommon,
+        handleClose: handleCloseCommon,
+    } = useConfigModal({
+        onTest: null, // Custom test logic below
+        onSave: () => onSave(config),
+        onClose: () => {
+            // Stop test if currently testing
+            if (isTesting && testAbortControllerRef.current) {
+                handleStopTest();
+            }
+            onSave(config);
+            onClose();
+        },
+        onTestResult,
+        node,
+        config,
+        inputData,
+        outputData: testResults || outputData,
+        readOnly
+    });
 
     useEffect(() => {
         if (node?.data?.config) {
@@ -398,18 +249,8 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         setConfig({ ...config, advancedOptions: newOptions });
     };
 
-    const handleSave = () => {
-        onSave(config);
-    };
-
-    const handleClose = () => {
-        // Stop test if currently testing
-        if (isTesting && testAbortControllerRef.current) {
-            handleStopTest();
-        }
-        handleSave();
-        onClose();
-    };
+    // handleSave and handleClose are now handled by useConfigModal
+    // But we override handleClose below to include test stop logic
 
     const handleTest = async () => {
         if (onTest) {
@@ -468,86 +309,75 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         }
     };
 
-    return (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-                <div className="bg-white rounded-lg shadow-xl w-[95%] h-[90%] flex flex-col">
-                    {/* Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-purple-100 rounded flex items-center justify-center">
-                                <svg className="w-6 h-6 text-purple-600" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                                </svg>
-                            </div>
-                            <div>
-                                <h2 className={`text-xl font-semibold text-gray-900 ${!readOnly ? 'cursor-pointer hover:text-blue-600' : 'cursor-default'} flex items-center gap-2`} onClick={() => { if (onRename && !readOnly) onRename(); }} title={readOnly ? "Read-only mode" : "Click để đổi tên node"}>
-                                    {node?.data?.customName || 'Gemini AI'}
-                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                    </svg>
-                                </h2>
-                            </div>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                            {isTesting ? (
-                                <button
-                                    onClick={handleStopTest}
-                                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium flex items-center space-x-2"
-                                >
-                                    <span>■</span>
-                                    <span>Stop step</span>
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleTest}
-                                    disabled={!config.credentialId}
-                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium flex items-center space-x-2"
-                                >
-                                    <span>▲</span>
-                                    <span>Test step</span>
-                                </button>
-                            )}
-                            <button
-                                onClick={handleClose}
-                                className="text-gray-500 hover:text-gray-700"
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
+    // Custom handleClose that stops test before closing
+    const handleClose = () => {
+        if (isTesting && testAbortControllerRef.current) {
+            handleStopTest();
+        }
+        handleSaveCommon();
+        handleCloseCommon();
+    };
 
-                    {/* Body - 3 columns layout */}
-                    <div className="flex-1 flex overflow-hidden">
-                        {/* Left Panel - INPUT */}
-                        <div className="w-1/3 border-r border-gray-200 flex flex-col">
-                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                                <h3 className="font-semibold text-gray-900">INPUT</h3>
-                            </div>
-                            <div className="flex-1 p-4 overflow-y-auto bg-white">
-                                {inputData && Object.keys(inputData).length > 0 ? (
-                                    <div className="space-y-4">
-                                        {Object.entries(inputData).map(([nodeName, data]) => (
-                                            <div key={nodeName}>
-                                                <div className="text-xs font-semibold text-gray-700 mb-2">{nodeName}:</div>
-                                                <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                                    {renderDraggableJSON(data, nodeName)}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                        <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                        </svg>
-                                        <p className="text-center text-sm">Connect this node to receive input data</p>
-                                        <p className="text-center text-xs mt-2">Kéo thả biến từ đây vào messages</p>
-                                    </div>
-                                )}
-                            </div>
+    // Test buttons
+    const testButtons = onTest && !readOnly ? (
+        <>
+            {isTesting ? (
+                <button
+                    onClick={handleStopTest}
+                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium flex items-center space-x-2"
+                >
+                    <span>■</span>
+                    <span>Stop step</span>
+                </button>
+            ) : (
+                <button
+                    onClick={handleTest}
+                    disabled={!config.credentialId}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium flex items-center space-x-2"
+                >
+                    <span>▲</span>
+                    <span>Test step</span>
+                </button>
+            )}
+        </>
+    ) : null;
+
+    // Update displayOutput when testResults change
+    const currentDisplayOutput = testResults || outputData || displayOutput;
+
+    return (
+        <>
+        <ConfigModalLayout
+            node={node}
+            onRename={onRename}
+            onClose={handleClose}
+            title="Gemini AI"
+            icon="💎"
+            readOnly={readOnly}
+            isTesting={false}
+            testButtons={testButtons}
+            size="large"
+        >
+            {/* Left Panel - INPUT */}
+            <div className="w-1/3 border-r border-gray-200 flex flex-col">
+                <TestResultViewer
+                    data={inputData}
+                    viewMode={inputViewMode}
+                    onViewModeChange={setInputViewMode}
+                    collapsedPaths={collapsedPaths}
+                    onToggleCollapse={togglePathCollapse}
+                    title="INPUT"
+                    emptyState={
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                            <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                            </svg>
+                            <p className="text-center text-sm">Connect this node to receive input data</p>
+                            <p className="text-center text-xs mt-2">Kéo thả biến từ đây vào messages</p>
                         </div>
+                    }
+                />
+            </div>
 
                         {/* Center Panel - Configuration */}
                         <div className="w-1/3 flex flex-col">
@@ -869,40 +699,35 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                             </div>
                         </div>
 
-                        {/* Right Panel - OUTPUT */}
-                        <div className="w-1/3 border-l border-gray-200 flex flex-col">
-                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                                <h3 className="font-semibold text-gray-900">
-                                    OUTPUT
-                                    {outputData && (
-                                        <span className="ml-2 text-sm font-normal text-gray-500">
-                                            {Array.isArray(outputData) ? `${outputData.length} items` : '1 item'}
-                                        </span>
-                                    )}
-                                </h3>
-                            </div>
-                            <div className="flex-1 p-4 overflow-y-auto bg-white">
-                                {outputData ? (
-                                    <ResultDisplay data={outputData} />
-                                ) : (
-                                    <div className="text-center text-gray-500 py-8">
-                                        <p>Click "Test step" to see output</p>
-                                    </div>
-                                )}
-                            </div>
+            {/* Right Panel - OUTPUT */}
+            <div className="w-1/3 border-l border-gray-200 flex flex-col">
+                <TestResultViewer
+                    data={currentDisplayOutput}
+                    viewMode={outputViewMode}
+                    onViewModeChange={setOutputViewMode}
+                    collapsedPaths={collapsedPaths}
+                    onToggleCollapse={togglePathCollapse}
+                    title="OUTPUT"
+                    isTesting={isTesting}
+                    testingMessage="Đang gọi Gemini API..."
+                    emptyState={
+                        <div className="text-center text-gray-500 py-8">
+                            <p>Click "Test step" to see output</p>
                         </div>
-                    </div>
-                </div>
+                    }
+                />
+            </div>
+        </ConfigModalLayout>
 
-            {/* Credential Modal */}
-            <CredentialModal
-                isOpen={showCredentialModal}
-                onClose={() => setShowCredentialModal(false)}
-                onSave={handleCredentialSaved}
-                credentialType="gemini"
-                lockedType={true}
-            />
-        </div>
+        {/* Credential Modal */}
+        <CredentialModal
+            isOpen={showCredentialModal}
+            onClose={() => setShowCredentialModal(false)}
+            onSave={handleCredentialSaved}
+            credentialType="gemini"
+            lockedType={true}
+        />
+        </>
     );
 }
 

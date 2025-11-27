@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\AutomationRowController;
 use App\Http\Controllers\Api\AutomationStatusController;
 use App\Http\Controllers\Api\AutomationTableController;
 use App\Http\Controllers\Api\AutomationTopicController;
+use App\Http\Controllers\Api\SubscriptionPackageController;
 
 // Public routes
 Route::get('/registration-status', [AuthController::class, 'registrationStatus']);
@@ -92,6 +93,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // System settings routes (administrator only)
     Route::get('/system-settings', [SystemSettingController::class, 'index']);
     Route::put('/system-settings/{key}', [SystemSettingController::class, 'update']);
+    
+    // Subscription package routes (administrator only)
+    Route::apiResource('subscription-packages', SubscriptionPackageController::class);
     
     // Credential routes
     // IMPORTANT: Specific routes must come BEFORE apiResource
