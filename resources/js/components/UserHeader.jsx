@@ -106,8 +106,8 @@ const UserHeader = () => {
                         )}
 
                         {/* Workflow Stats */}
-                        <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[500px] flex items-center justify-center">
-                            <div className="flex flex-col items-center justify-center">
+                        <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[500px] flex flex-col items-center justify-start">
+                            <div className="flex items-center justify-center">
                                 <div className="text-sm font-semibold text-blue-900 mb-1">
                                     {packageInfo?.workflow_stats?.running || 0} / {packageInfo?.workflow_stats?.max_concurrent || 0}
                                 </div>
@@ -116,7 +116,7 @@ const UserHeader = () => {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col items-center justify-center">
+                            <div className="flex items-center justify-center">
                                 <div className="text-sm font-semibold text-blue-900 mt-2">
                                     {packageInfo?.workflow_stats?.user_created || 0} / {packageInfo?.workflow_stats?.max_user_workflows || '∞'}
                                 </div>
