@@ -427,7 +427,7 @@ class ProjectController extends Controller
         return response()->json([
             'valid' => true,
             'admin_email' => $tokenData['admin_email'],
-            'admin_role' => $tokenData['admin_role'] ?? 'admin',
+            'admin_role' => $tokenData['admin_role'] ?? 'administrator',
         ]);
     }
 

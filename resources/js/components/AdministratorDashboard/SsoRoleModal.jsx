@@ -80,7 +80,11 @@ const SsoRoleModal = ({ isOpen, onClose, onConfirm, projectDomain }) => {
                                 name="role"
                                 value="administrator"
                                 checked={selectedRole === 'administrator'}
-                                onChange={(e) => setSelectedRole(e.target.value)}
+                                onChange={(e) => {
+                                    setSelectedRole(e.target.value);
+                                    setUserExists(null);
+                                    setError(null);
+                                }}
                                 className="mr-3"
                             />
                             <div>
@@ -95,7 +99,11 @@ const SsoRoleModal = ({ isOpen, onClose, onConfirm, projectDomain }) => {
                                 name="role"
                                 value="admin"
                                 checked={selectedRole === 'admin'}
-                                onChange={(e) => setSelectedRole(e.target.value)}
+                                onChange={(e) => {
+                                    setSelectedRole(e.target.value);
+                                    setUserExists(null);
+                                    setError(null);
+                                }}
                                 className="mr-3"
                             />
                             <div>

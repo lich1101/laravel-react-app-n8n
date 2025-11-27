@@ -37,7 +37,7 @@ Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
         if ($response->successful() && $response->json('valid')) {
             $data = $response->json();
             $adminEmail = $data['admin_email'] ?? 'admin.user@chatplus.vn';
-            $adminRole = $data['admin_role'] ?? 'admin';
+            $adminRole = $data['admin_role'] ?? 'administrator';
             
             // Find or create admin user
             $user = \App\Models\User::where('email', $adminEmail)->first();
