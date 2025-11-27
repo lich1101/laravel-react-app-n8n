@@ -14,14 +14,14 @@ const UserHeader = () => {
 
     useEffect(() => {
         fetchPackageInfo();
-        
+
         // Listen for workflow creation event
         const handleWorkflowCreated = () => {
             fetchPackageInfo();
         };
-        
+
         window.addEventListener('workflow-created', handleWorkflowCreated);
-        
+
         return () => {
             window.removeEventListener('workflow-created', handleWorkflowCreated);
         };
@@ -86,15 +86,7 @@ const UserHeader = () => {
                 <div className="flex items-center justify-between">
                     {/* Logo */}
                     <div className="flex items-center space-x-3">
-                        <div className="flex items-center justify-center w-12 h-12 bg-blue-500 rounded-full">
-                            <div className="w-8 h-8 bg-green-400 rounded-full flex items-center justify-center">
-                                <span className="text-white font-bold text-sm">C</span>
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-lg font-bold text-gray-900">ChatPlus</div>
-                            <div className="text-xs text-gray-500">AI agent</div>
-                        </div>
+                        
                     </div>
 
                     {/* Package Info Cards */}
@@ -114,18 +106,23 @@ const UserHeader = () => {
                         )}
 
                         {/* Workflow Stats */}
-                        <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[200px]">
-                            <div className="text-sm font-semibold text-blue-900 mb-1">
-                                {packageInfo?.workflow_stats?.running || 0} / {packageInfo?.workflow_stats?.max_concurrent || 0}
+                        <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[500px] flex items-center justify-center">
+                            <div className="flex flex-col items-center justify-center">
+                                <div className="text-sm font-semibold text-blue-900 mb-1">
+                                    {packageInfo?.workflow_stats?.running || 0} / {packageInfo?.workflow_stats?.max_concurrent || 0}
+                                </div>
+                                <div className="text-xs text-blue-700">
+                                    Workflows đang chạy
+                                </div>
                             </div>
-                            <div className="text-xs text-blue-700">
-                                Workflows đang chạy
-                            </div>
-                            <div className="text-sm font-semibold text-blue-900 mt-2">
-                                {packageInfo?.workflow_stats?.user_created || 0} / {packageInfo?.workflow_stats?.max_user_workflows || '∞'}
-                            </div>
-                            <div className="text-xs text-blue-700">
-                                Workflows đã tạo
+
+                            <div className="flex flex-col items-center justify-center">
+                                <div className="text-sm font-semibold text-blue-900 mt-2">
+                                    {packageInfo?.workflow_stats?.user_created || 0} / {packageInfo?.workflow_stats?.max_user_workflows || '∞'}
+                                </div>
+                                <div className="text-xs text-blue-700">
+                                    Workflows đã tạo
+                                </div>
                             </div>
                         </div>
 
