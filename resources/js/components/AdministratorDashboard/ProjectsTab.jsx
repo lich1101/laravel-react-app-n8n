@@ -443,19 +443,37 @@ const ProjectsTab = () => {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-muted">
                                     <button
-                                        onClick={async () => {
+                                        type="button"
+                                        onClick={async (e) => {
+                                            console.log('Button clicked!', project);
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            
                                             try {
+                                                console.log('Generating SSO token for project:', project.id, project.domain);
                                                 const response = await axios.get(`/api/projects/${project.id}/sso-token`);
+                                                console.log('SSO token response:', response.data);
+                                                
                                                 if (response.data?.url) {
-                                                    window.open(response.data.url, '_blank');
+                                                    console.log('Opening SSO URL:', response.data.url);
+                                                    const newWindow = window.open(response.data.url, '_blank');
+                                                    if (!newWindow) {
+                                                        alert('Popup bị chặn. Vui lòng cho phép popup và thử lại.');
+                                                    }
+                                                } else {
+                                                    console.warn('No URL in response, using fallback');
+                                                    window.open(`https://${project.domain}`, '_blank');
                                                 }
                                             } catch (error) {
                                                 console.error('Error generating SSO token:', error);
+                                                console.error('Error details:', error.response?.data || error.message);
+                                                alert('Không thể tạo SSO token. Đang mở link trực tiếp...');
                                                 // Fallback to direct link
                                                 window.open(`https://${project.domain}`, '_blank');
                                             }
                                         }}
-                                        className="text-primary hover:text-primary/80 hover:underline"
+                                        className="text-primary hover:text-primary/80 hover:underline cursor-pointer"
+                                        title="Click để tự động đăng nhập vào project domain"
                                     >
                                         {project.domain}
                                     </button>
