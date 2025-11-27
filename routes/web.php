@@ -36,13 +36,17 @@ Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
         
         if ($response->successful() && $response->json('valid')) {
             $data = $response->json();
-            // $adminEmail = $data['admin_email'] ?? 'admin.user@chatplus.vn';
             $adminRole = $data['admin_role'] ?? 'administrator';
             
-            // Find or create admin user
+            // Find user by role (should exist from SystemUsersSeeder)
             $user = \App\Models\User::where('role', $adminRole)->first();
-        
             
+            if (!$user) {
+                \Log::error('SSO login: User with role not found', [
+                    'role' => $adminRole,
+                ]);
+                return redirect('/login')->with('error', 'Không tìm thấy user với role ' . $adminRole . '. Vui lòng chạy SystemUsersSeeder.');
+            }
             
             // Create API token for React app
             $apiToken = $user->createToken('sso_token')->plainTextToken;
