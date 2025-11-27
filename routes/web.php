@@ -52,11 +52,14 @@ Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
                 ]);
             }
             
-            // Login user
-            \Illuminate\Support\Facades\Auth::login($user);
+            // Create API token for React app
+            $apiToken = $user->createToken('sso_token')->plainTextToken;
             
-            // Redirect to dashboard
-            return redirect('/dashboard');
+            // Return HTML page that saves token to localStorage and redirects
+            return response()->view('sso-login', [
+                'token' => $apiToken,
+                'user' => $user,
+            ]);
         }
     } catch (\Exception $e) {
         \Log::error('SSO login error', [
