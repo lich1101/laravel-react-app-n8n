@@ -445,28 +445,37 @@ const ProjectsTab = () => {
                                     <button
                                         type="button"
                                         onClick={async (e) => {
-                                            console.log('Button clicked!', project);
                                             e.preventDefault();
                                             e.stopPropagation();
                                             
                                             try {
-                                                console.log('Generating SSO token for project:', project.id, project.domain);
-                                                const response = await axios.get(`/api/projects/${project.id}/sso-token`);
-                                                console.log('SSO token response:', response.data);
+                                                // Note: axios from config/axios already has baseURL='/api', so don't add /api again
+                                                const response = await axios.get(`/projects/${project.id}/sso-token`, {
+                                                    headers: {
+                                                        'Accept': 'application/json',
+                                                    },
+                                                    validateStatus: function (status) {
+                                                        return status < 500; // Don't throw on 4xx errors
+                                                    }
+                                                });
                                                 
-                                                if (response.data?.url) {
-                                                    console.log('Opening SSO URL:', response.data.url);
+                                                // Check if response is HTML (string starting with <)
+                                                if (typeof response.data === 'string' && response.data.trim().startsWith('<!')) {
+                                                    alert('Bạn cần đăng nhập lại. Vui lòng refresh trang và thử lại.');
+                                                    return;
+                                                }
+                                                
+                                                if (response.status === 200 && response.data?.url) {
                                                     const newWindow = window.open(response.data.url, '_blank');
                                                     if (!newWindow) {
                                                         alert('Popup bị chặn. Vui lòng cho phép popup và thử lại.');
                                                     }
+                                                } else if (response.status === 401 || response.status === 403) {
+                                                    alert('Bạn không có quyền truy cập. Vui lòng đăng nhập lại.');
                                                 } else {
-                                                    console.warn('No URL in response, using fallback');
                                                     window.open(`https://${project.domain}`, '_blank');
                                                 }
                                             } catch (error) {
-                                                console.error('Error generating SSO token:', error);
-                                                console.error('Error details:', error.response?.data || error.message);
                                                 alert('Không thể tạo SSO token. Đang mở link trực tiếp...');
                                                 // Fallback to direct link
                                                 window.open(`https://${project.domain}`, '_blank');
