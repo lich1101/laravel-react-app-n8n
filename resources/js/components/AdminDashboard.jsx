@@ -211,7 +211,7 @@ const AdminDashboard = () => {
                                 path="automations/table/:tableId"
                                 element={<AutomationTableDetailRoute onStructureChange={handleAutomationStructureChange} />}
                             />
-                            <Route path="folders" element={<FoldersTab />} />
+                            <Route path="folders" element={<FoldersTab workflowBasePath="/admin/workflows" />} />
                             <Route path="users" element={<UsersTab />} />
                             <Route
                                 path="workflows"

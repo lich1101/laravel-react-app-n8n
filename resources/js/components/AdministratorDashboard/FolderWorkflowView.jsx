@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from '../../config/axios';
 import SyncModal from './SyncModal';
 
-const FolderWorkflowView = ({ folder, onBack }) => {
+const FolderWorkflowView = ({ folder, onBack, workflowBasePath = '/workflows' }) => {
     const [workflows, setWorkflows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -12,6 +12,9 @@ const FolderWorkflowView = ({ folder, onBack }) => {
     const [newWorkflowDescription, setNewWorkflowDescription] = useState('');
     const [showSyncModal, setShowSyncModal] = useState(false);
     const navigate = useNavigate();
+    const normalizedWorkflowBasePath = workflowBasePath.endsWith('/')
+        ? workflowBasePath.slice(0, -1)
+        : workflowBasePath;
 
     useEffect(() => {
         fetchFolderWorkflows();
@@ -42,7 +45,7 @@ const FolderWorkflowView = ({ folder, onBack }) => {
     );
 
     const handleWorkflowClick = (workflowId) => {
-        navigate(`/workflows/${workflowId}`);
+        navigate(`${normalizedWorkflowBasePath}/${workflowId}`);
     };
 
     const handleCreateWorkflow = async (e) => {

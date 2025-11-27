@@ -6,7 +6,7 @@ import SyncModal from './SyncModal';
 import CredentialsTab from '../CredentialsTab';
 import WorkflowLimitModal from '../WorkflowLimitModal';
 
-const FoldersTab = () => {
+const FoldersTab = ({ workflowBasePath = '/workflows' }) => {
     const [activeSubTab, setActiveSubTab] = useState('workflows');
     const [folders, setFolders] = useState([]);
     const [workflows, setWorkflows] = useState([]);
@@ -39,6 +39,10 @@ const FoldersTab = () => {
     const [editingFolder, setEditingFolder] = useState(null);
     const [draggedWorkflow, setDraggedWorkflow] = useState(null);
     const [dragOverFolder, setDragOverFolder] = useState(null);
+    const normalizedWorkflowBasePath = workflowBasePath.endsWith('/')
+        ? workflowBasePath.slice(0, -1)
+        : workflowBasePath;
+    const buildWorkflowPath = (workflowId) => `${normalizedWorkflowBasePath}/${workflowId}`;
 
     useEffect(() => {
         fetchData();
@@ -122,7 +126,7 @@ const FoldersTab = () => {
             window.dispatchEvent(new CustomEvent('workflow-created'));
             
             // Navigate to the newly created workflow
-            navigate(`/workflows/${response.data.id}`);
+            navigate(buildWorkflowPath(response.data.id));
         } catch (error) {
             console.error('Error creating workflow:', error);
             
@@ -267,6 +271,7 @@ const FoldersTab = () => {
                     setViewingFolder(null);
                     fetchData();
                 }}
+                workflowBasePath={workflowBasePath}
             />
         );
     }
@@ -459,7 +464,7 @@ const FoldersTab = () => {
                                                 draggable
                                                 onDragStart={(e) => handleDragStart(e, workflow, folder.id)}
                                                 onDragEnd={handleDragEnd}
-                                                onDoubleClick={() => navigate(`/workflows/${workflow.id}`)}
+                                                onDoubleClick={() => navigate(buildWorkflowPath(workflow.id))}
                                                 className="pl-12 py-2 text-sm text-secondary hover:bg-surface-elevated rounded-xl flex items-center justify-between cursor-move border border-transparent hover:border-subtle transition-colors"
                                             >
                                                 <div className="flex items-center space-x-2">
@@ -516,7 +521,7 @@ const FoldersTab = () => {
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, workflow, null)}
                                     onDragEnd={handleDragEnd}
-                                    onDoubleClick={() => navigate(`/workflows/${workflow.id}`)}
+                                    onDoubleClick={() => navigate(buildWorkflowPath(workflow.id))}
                                     className="rounded-2xl border border-subtle bg-surface-elevated p-3 hover:bg-surface-muted cursor-move flex items-center justify-between transition-colors shadow-sm"
                                 >
                                     <div className="flex items-center space-x-3">
