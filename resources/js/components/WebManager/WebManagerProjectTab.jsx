@@ -223,7 +223,7 @@ const WebManagerProjectTab = () => {
                             project.provisioning_status === 'failed' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                         }`}>
-                            {project.provisioning_status === 'completed' ? 'Hoàn thành' :
+                            {project.provisioning_status === 'completed' ? 'Có thể truy cập' :
                              project.provisioning_status === 'provisioning' ? 'Đang tạo...' :
                              project.provisioning_status === 'pending' ? 'Vui lòng đăng ký gói cước để tạo trang web' :
                              project.provisioning_status === 'failed' ? 'Thất bại' :
