@@ -86,8 +86,8 @@ class ProvisionProjectJob implements ShouldQueue
             $project->folders()->sync($this->folderIds);
         }
 
-        // Reload project with relationships
-        $project->load(['folders', 'subscriptionPackage']);
+        // Reload project with relationships to ensure we have latest data including expires_at
+        $project = Project::with(['folders', 'subscriptionPackage'])->findOrFail($this->projectId);
 
         // Wait a bit for project domain to be ready
         sleep(3);
@@ -143,6 +143,8 @@ class ProvisionProjectJob implements ShouldQueue
                 'description' => $project->subscriptionPackage->description,
                 'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
                 'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
+                'duration_days' => $project->subscriptionPackage->duration_days,
+                'price' => $project->subscriptionPackage->price,
             ];
         }
         
@@ -152,6 +154,28 @@ class ProvisionProjectJob implements ShouldQueue
             'project_name' => $project->name,
             'max_user_workflows' => $project->max_user_workflows,
         ];
+        
+        // Handle expires_at:
+        // 1. If project already has expires_at, send it
+        // 2. If project doesn't have expires_at but has subscription package with duration_days, calculate and send it
+        if ($project->expires_at) {
+            // Project already has expires_at, send it to sync
+            $configPayload['expires_at'] = $project->expires_at->toIso8601String();
+        } else if ($project->subscriptionPackage && $project->subscriptionPackage->duration_days) {
+            // Project doesn't have expires_at yet, but has subscription package with duration_days
+            // Calculate expires_at from now + duration_days
+            $expiresAt = now()->addDays($project->subscriptionPackage->duration_days);
+            $configPayload['expires_at'] = $expiresAt->toIso8601String();
+            
+            // Also update project in administrator database
+            $project->update(['expires_at' => $expiresAt]);
+            
+            Log::info("Calculated expires_at for project '{$project->name}' from subscription package during auto-sync", [
+                'duration_days' => $project->subscriptionPackage->duration_days,
+                'expires_at' => $expiresAt->toIso8601String(),
+            ]);
+        }
+        // If neither expires_at nor duration_days exists, don't send expires_at
         
         if ($subscriptionPackageData) {
             $configPayload['subscription_package'] = $subscriptionPackageData;
