@@ -70,6 +70,16 @@ class ProjectController extends Controller
             }
         }
 
+        // Calculate expires_at if subscription package has duration_days
+        $expiresAt = null;
+        if ($subscriptionPackage && $subscriptionPackage->duration_days) {
+            $expiresAt = now()->addDays($subscriptionPackage->duration_days);
+            \Log::info("Calculating expires_at for new project '{$request->name}'", [
+                'duration_days' => $subscriptionPackage->duration_days,
+                'expires_at' => $expiresAt->toIso8601String(),
+            ]);
+        }
+        
         // Create project with provisioning status
         $project = Project::create([
             'name' => $request->name,
@@ -81,6 +91,7 @@ class ProjectController extends Controller
             'max_user_workflows' => $maxUserWorkflows,
             'provisioning_status' => 'provisioning',
             'provisioning_error' => null,
+            'expires_at' => $expiresAt, // Set expires_at if calculated
         ]);
 
         // Trigger provisioning asynchronously - job will update project after completion
