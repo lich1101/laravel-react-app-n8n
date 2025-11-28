@@ -75,8 +75,15 @@ class ProjectController extends Controller
         if ($subscriptionPackage && $subscriptionPackage->duration_days) {
             $expiresAt = now()->addDays($subscriptionPackage->duration_days);
             \Log::info("Calculating expires_at for new project '{$request->name}'", [
+                'subscription_package_id' => $subscriptionPackage->id,
+                'package_name' => $subscriptionPackage->name,
                 'duration_days' => $subscriptionPackage->duration_days,
                 'expires_at' => $expiresAt->toIso8601String(),
+            ]);
+        } else {
+            \Log::info("No expires_at calculated for new project '{$request->name}'", [
+                'has_subscription_package' => $subscriptionPackage ? 'yes' : 'no',
+                'duration_days' => $subscriptionPackage?->duration_days ?? 'N/A',
             ]);
         }
         
