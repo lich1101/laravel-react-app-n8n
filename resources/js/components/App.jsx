@@ -37,6 +37,15 @@ function App() {
         />
         
         <Route
+          path="/dashboard/*"
+          element={
+            <ProtectedRoute>
+              <UserDashboard />
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
           path="/*"
           element={
             token && user ? (
