@@ -47,6 +47,8 @@ const UserSidebarNav = ({
     workflowManagePath = '/dashboard/workflows/manage',
     automationDetailPathBuilder = (tableId) => `/dashboard/automations/table/${tableId}`,
     workflowDetailPathBuilder = (workflowId) => `/dashboard/workflows/${workflowId}`,
+    hideAutomations = false,
+    hideWorkflows = false,
 }) => {
     // Preload logo and icon SVGs
     React.useEffect(() => {
@@ -232,14 +234,15 @@ const UserSidebarNav = ({
                 )}
             </div>
 
-            <div className="py-3">
-                <SectionHeader
-                    collapsed={collapsed}
-                    title="Automations"
-                    iconPath="/icons/table-automation.svg"
-                    isOpen={automationOpen}
-                    onToggle={() => setAutomationOpen((prev) => !prev)}
-                />
+            {!hideAutomations && (
+                <div className="py-3">
+                    <SectionHeader
+                        collapsed={collapsed}
+                        title="Automations"
+                        iconPath="/icons/table-automation.svg"
+                        isOpen={automationOpen}
+                        onToggle={() => setAutomationOpen((prev) => !prev)}
+                    />
                 {automationOpen && !collapsed && (
                     <div className="mt-1 space-y-2 pl-4">
                         {loading ? (
@@ -314,15 +317,17 @@ const UserSidebarNav = ({
                     </div>
                 )}
             </div>
+            )}
 
-            <div className="py-3">
-                <SectionHeader
-                    collapsed={collapsed}
-                    title="Workflows"
-                    iconPath="/icons/workflow.svg"
-                    isOpen={workflowsOpen}
-                    onToggle={() => setWorkflowsOpen((prev) => !prev)}
-                />
+            {!hideWorkflows && (
+                <div className="py-3">
+                    <SectionHeader
+                        collapsed={collapsed}
+                        title="Workflows"
+                        iconPath="/icons/workflow.svg"
+                        isOpen={workflowsOpen}
+                        onToggle={() => setWorkflowsOpen((prev) => !prev)}
+                    />
                 {workflowsOpen && !collapsed && (
                     <div className="mt-1 space-y-2 pl-4">
                         {loading ? (
@@ -455,6 +460,8 @@ const UserSidebarNav = ({
                     </div>
                 )}
             </div>
+            )}
+
         </div>
     );
 

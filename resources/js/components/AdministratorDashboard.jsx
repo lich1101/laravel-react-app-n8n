@@ -5,6 +5,7 @@ import AutomationTablesTab from './Automation/AutomationTablesTab';
 import ProjectsTab from './AdministratorDashboard/ProjectsTab';
 import UsersTab from './AdministratorDashboard/UsersTab';
 import SubscriptionPackagesTab from './AdministratorDashboard/SubscriptionPackagesTab';
+import SubscriptionRenewalsTab from './AdministratorDashboard/SubscriptionRenewalsTab';
 import Settings from '../pages/Settings';
 import WorkflowList from './WorkflowList';
 import WorkflowEditor from './WorkflowEditor';
@@ -168,6 +169,7 @@ const AdministratorDashboard = () => {
     const managementLinks = [
         { id: 'manage-projects', label: 'Projects', icon: '🏢', to: '/administrator/projects' },
         { id: 'manage-subscription-packages', label: 'Gói cước', icon: '📦', to: '/administrator/subscription-packages' },
+        { id: 'manage-subscription-renewals', label: 'Quản lý gia hạn', icon: '💳', to: '/administrator/subscription-renewals' },
         { id: 'manage-automation', label: 'Automation', icon: '🤖', to: '/administrator/automations' },
         { id: 'manage-workflows', label: 'Workflows', icon: '🔁', to: '/administrator/workflows' },
         { id: 'manage-users', label: 'Users', icon: '👥', to: '/administrator/users' },
@@ -202,6 +204,7 @@ const AdministratorDashboard = () => {
                             <Route index element={<Navigate to="/administrator/projects" replace />} />
                             <Route path="projects" element={<ProjectsTab />} />
                             <Route path="subscription-packages" element={<SubscriptionPackagesTab />} />
+                            <Route path="subscription-renewals" element={<SubscriptionRenewalsTab />} />
                             <Route
                                 path="automations"
                                 element={

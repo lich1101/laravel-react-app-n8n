@@ -23,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', [
             \App\Http\Middleware\CheckSubscriptionExpiry::class,
         ]);
+        
+        // Configure Authenticate middleware to redirect to /login instead of route('login')
+        $middleware->redirectGuestsTo(fn () => '/login');
     })
     ->withSchedule(function (Schedule $schedule): void {
         // Check scheduled workflows every minute

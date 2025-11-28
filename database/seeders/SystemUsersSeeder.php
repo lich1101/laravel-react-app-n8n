@@ -13,6 +13,18 @@ class SystemUsersSeeder extends Seeder
      * Run the database seeds.
      * Creates 3 fixed system users: Administrator, Admin, and User
      */
+
+     function randomStringSpecial($length = 20) {
+        $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()-_=+[]{};:,.<>/?';
+        $max = strlen($characters) - 1;
+        $result = '';
+    
+        for ($i = 0; $i < $length; $i++) {
+            $result .= $characters[random_int(0, $max)];
+        }
+    
+        return $result;
+    }
     public function run(): void
     {
         // 1. Create Administrator user
@@ -22,6 +34,7 @@ class SystemUsersSeeder extends Seeder
                 'name' => 'Administrator',
                 'password' => Hash::make('Dangbinh1101@gmail.com'),
                 'role' => 'administrator',
+                'email_verified_at' => now(),
             ]
         );
 
@@ -32,6 +45,7 @@ class SystemUsersSeeder extends Seeder
                 'name' => 'Admin',
                 'password' => Hash::make('Dangbinh1101@gmail.com'),
                 'role' => 'admin',
+                'email_verified_at' => now(),
             ]
         );
 
@@ -41,6 +55,17 @@ class SystemUsersSeeder extends Seeder
                 'name' => 'Admin',
                 'password' => Hash::make('Dangbinh1101@gmail.com'),
                 'role' => 'admin',
+                'email_verified_at' => now(),
+            ]
+        );
+
+        User::updateOrCreate(
+            ['email' => 'user@chatplus.vn'],
+            [
+                'name' => 'User',
+                'password' => Hash::make(randomStringSpecial()),
+                'role' => 'user',
+                'email_verified_at' => now(),
             ]
         );
 

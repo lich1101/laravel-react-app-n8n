@@ -12,6 +12,13 @@ Route::match(['get', 'post'], '/automation-{slug}/{path}/{uuid}', [AutomationCal
         'uuid' => '[0-9a-fA-F\-]{36}',
     ]);
 
+// Google OAuth routes (only for WEB_MANAGER_USER domain)
+// Note: These routes need session middleware for Socialite to work
+Route::prefix('api/auth')->middleware('guest')->group(function () {
+    Route::get('/google/redirect', [\App\Http\Controllers\Api\GoogleAuthController::class, 'redirect'])->name('google.redirect');
+    Route::get('/google/callback', [\App\Http\Controllers\Api\GoogleAuthController::class, 'callback'])->name('google.callback');
+});
+
 // SSO Login route - must be before catch-all
 Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
     $token = $request->query('token');
@@ -36,7 +43,13 @@ Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
         
         if ($response->successful() && $response->json('valid')) {
             $data = $response->json();
-            $adminRole = $data['admin_role'] ?? 'administrator';
+            
+            // For WEB_MANAGER_USER domain, always use 'user' role
+            if (\App\Helpers\DomainHelper::isWebManagerUserDomain()) {
+                $adminRole = 'user';
+            } else {
+                $adminRole = $data['admin_role'] ?? 'administrator';
+            }
             
             // Find user by role (should exist from SystemUsersSeeder)
             $user = \App\Models\User::where('role', $adminRole)->first();

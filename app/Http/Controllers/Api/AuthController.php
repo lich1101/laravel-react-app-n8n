@@ -16,6 +16,13 @@ class AuthController extends Controller
 {
     public function registrationStatus(): JsonResponse
     {
+        // For WEB_MANAGER_USER domain, allow unlimited user registrations
+        if (\App\Helpers\DomainHelper::isWebManagerUserDomain()) {
+            return response()->json([
+                'requires_registration' => false, // Always allow registration
+            ]);
+        }
+
         $hasUser = User::where('role', 'user')->exists();
 
         return response()->json([
@@ -25,11 +32,21 @@ class AuthController extends Controller
 
     public function register(Request $request): JsonResponse
     {
-        if (User::where('role', 'user')->exists()) {
-            return response()->json([
-                'message' => 'Tài khoản đã được đăng ký. Vui lòng đăng nhập.'
-            ], 403);
+        // For WEB_MANAGER_USER domain, allow unlimited user registrations
+        // For other domains, limit to only 1 user registration
+        $isWebManagerDomain = \App\Helpers\DomainHelper::isWebManagerUserDomain();
+        
+        // Only limit registration if NOT in WEB_MANAGER_USER domain
+        // In WEB_MANAGER_USER domain, allow unlimited registrations
+        if (!$isWebManagerDomain) {
+            // Check if a user with role 'user' already exists
+            if (User::where('role', 'user')->exists()) {
+                return response()->json([
+                    'message' => 'Tài khoản đã được đăng ký. Vui lòng đăng nhập.'
+                ], 403);
+            }
         }
+        // If isWebManagerDomain is true, skip the check and allow registration
 
         $request->validate([
             'name' => 'required|string|max:255',

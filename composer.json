@@ -9,6 +9,7 @@
         "php": "^8.2",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.2",
+        "laravel/socialite": "^5.23",
         "laravel/tinker": "^2.10.1",
         "phpoffice/phpspreadsheet": "^5.2"
     },
@@ -26,7 +27,10 @@
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
-        }
+        },
+        "files": [
+            "app/Helpers/DomainHelper.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

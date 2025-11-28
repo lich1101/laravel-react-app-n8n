@@ -19,8 +19,14 @@ use App\Http\Controllers\Api\AutomationStatusController;
 use App\Http\Controllers\Api\AutomationTableController;
 use App\Http\Controllers\Api\AutomationTopicController;
 use App\Http\Controllers\Api\SubscriptionPackageController;
+use App\Http\Controllers\Api\ManualPaymentController;
+use App\Http\Controllers\Api\WebManagerProjectController;
+use App\Http\Controllers\Api\SubscriptionRenewalController;
+use App\Http\Controllers\Api\WebManagerConfigController;
 
 // Public routes
+Route::get('/web-manager/domain-check', [WebManagerConfigController::class, 'checkDomain']);
+Route::get('/web-manager/subscription-packages', [WebManagerConfigController::class, 'getSubscriptionPackages']);
 Route::get('/registration-status', [AuthController::class, 'registrationStatus']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -106,6 +112,25 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Subscription package routes (administrator only)
     Route::apiResource('subscription-packages', SubscriptionPackageController::class);
+    
+    // Web Manager User routes (only for WEB_MANAGER_USER domain)
+    Route::prefix('web-manager')->group(function () {
+        Route::get('/project', [WebManagerProjectController::class, 'index']);
+        Route::post('/project', [WebManagerProjectController::class, 'store']);
+        Route::get('/payment-orders', [ManualPaymentController::class, 'myOrders']);
+        Route::post('/payment-orders', [ManualPaymentController::class, 'createOrder']);
+        Route::get('/payment-orders/{id}', [ManualPaymentController::class, 'show']);
+        Route::post('/payment-orders/{id}/submit-payment', [ManualPaymentController::class, 'submitPayment']);
+    });
+
+    
+    // Subscription renewal management routes (administrator only)
+    Route::prefix('subscription-renewals')->group(function () {
+        Route::get('/', [SubscriptionRenewalController::class, 'index']);
+        Route::get('/{id}', [SubscriptionRenewalController::class, 'show']);
+        Route::post('/{id}/approve', [SubscriptionRenewalController::class, 'approve']);
+        Route::post('/{id}/reject', [SubscriptionRenewalController::class, 'reject']);
+    });
     
     // Credential routes
     // IMPORTANT: Specific routes must come BEFORE apiResource
