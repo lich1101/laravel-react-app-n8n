@@ -80,10 +80,16 @@ class ProjectConfigController extends Controller
             $updateData['max_user_workflows'] = $request->max_user_workflows;
         }
         
-        // Update expires_at only if project doesn't have it yet (first time sync only)
-        // This allows future renewal/package change features to manage expires_at separately
-        if ($request->has('expires_at') && $request->expires_at && !$project->expires_at) {
-            $updateData['expires_at'] = $request->expires_at;
+        // Update expires_at:
+        // - If project doesn't have expires_at yet, set it (first time sync)
+        // - Always update SystemSetting to keep it in sync with administrator
+        if ($request->has('expires_at') && $request->expires_at) {
+            // Only update project.expires_at if it doesn't exist yet (first time sync)
+            // This allows future renewal/package change features to manage expires_at separately
+            if (!$project->expires_at) {
+                $updateData['expires_at'] = $request->expires_at;
+            }
+            // SystemSetting will always be updated below to keep it in sync
         }
         
         $project->update($updateData);

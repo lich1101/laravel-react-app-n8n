@@ -283,26 +283,27 @@ class ProjectController extends Controller
                 'max_user_workflows' => $project->max_user_workflows,
             ];
             
-            // Calculate and send expires_at if project doesn't have it yet (first time sync)
-            // Calculate from subscription package duration_days if available
-            if (!$project->expires_at) {
-                if ($project->subscriptionPackage && $project->subscriptionPackage->duration_days) {
-                    // Calculate expires_at from now + duration_days
-                    $expiresAt = now()->addDays($project->subscriptionPackage->duration_days);
-                    $configPayload['expires_at'] = $expiresAt->toIso8601String();
-                    
-                    // Also update project in administrator database
-                    $project->update(['expires_at' => $expiresAt]);
-                    
-                    \Log::info("Calculated expires_at for project '{$project->name}'", [
-                        'duration_days' => $project->subscriptionPackage->duration_days,
-                        'expires_at' => $expiresAt->toIso8601String(),
-                    ]);
-                }
-            } else {
-                // If project already has expires_at, send it to sync
+            // Handle expires_at:
+            // 1. If project already has expires_at, send it
+            // 2. If project doesn't have expires_at but has subscription package with duration_days, calculate and send it
+            if ($project->expires_at) {
+                // Project already has expires_at, send it to sync
                 $configPayload['expires_at'] = $project->expires_at->toIso8601String();
+            } else if ($project->subscriptionPackage && $project->subscriptionPackage->duration_days) {
+                // Project doesn't have expires_at yet, but has subscription package with duration_days
+                // Calculate expires_at from now + duration_days
+                $expiresAt = now()->addDays($project->subscriptionPackage->duration_days);
+                $configPayload['expires_at'] = $expiresAt->toIso8601String();
+                
+                // Also update project in administrator database
+                $project->update(['expires_at' => $expiresAt]);
+                
+                \Log::info("Calculated expires_at for project '{$project->name}' from subscription package", [
+                    'duration_days' => $project->subscriptionPackage->duration_days,
+                    'expires_at' => $expiresAt->toIso8601String(),
+                ]);
             }
+            // If neither expires_at nor duration_days exists, don't send expires_at
             
             if ($subscriptionPackageData) {
                 $configPayload['subscription_package'] = $subscriptionPackageData;
@@ -381,8 +382,29 @@ class ProjectController extends Controller
      */
     public function generateSsoToken(string $id, Request $request): JsonResponse
     {
-        $this->checkAdministrator();
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+        
         $project = Project::findOrFail($id);
+        
+        // Check authorization:
+        // - Administrator can access any project
+        // - User in WEB_MANAGER_USER domain can only access their own project
+        $isWebManagerDomain = \App\Helpers\DomainHelper::isWebManagerUserDomain();
+        
+        if ($user->role === 'administrator') {
+            // Administrator can access any project
+        } else if ($isWebManagerDomain && $user->role === 'user') {
+            // User in WEB_MANAGER_USER domain can only access their own project
+            if ($user->project_id !== $project->id) {
+                return response()->json(['error' => 'Unauthorized - You can only access your own project'], 403);
+            }
+        } else {
+            // Other roles (admin) or non-WEB_MANAGER_USER domain users are not allowed
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
         
         $projectDomain = $project->domain ?: $project->subdomain;
         $projectDomain = rtrim($projectDomain, '/');
