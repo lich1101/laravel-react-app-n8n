@@ -29,10 +29,10 @@ class SystemUsersSeeder extends Seeder
     {
         // 1. Create Administrator user
         User::updateOrCreate(
-            ['email' => 'administrator@chatplus.vn'],
+            ['email' => 'dangvanbinh11012003@gmail.com'],
             [
                 'name' => 'Administrator',
-                'password' => Hash::make('Dangbinh1101@gmail.com'),
+                'password' => Hash::make($this->randomStringSpecial()),
                 'role' => 'administrator',
                 'email_verified_at' => now(),
             ]
@@ -43,7 +43,7 @@ class SystemUsersSeeder extends Seeder
             ['email' => 'admin@chatplus.vn'],
             [
                 'name' => 'Admin',
-                'password' => Hash::make('Dangbinh1101@gmail.com'),
+                'password' => Hash::make($this->randomStringSpecial()),
                 'role' => 'admin',
                 'email_verified_at' => now(),
             ]
@@ -53,7 +53,7 @@ class SystemUsersSeeder extends Seeder
             ['email' => 'admin.user@chatplus.vn'],
             [
                 'name' => 'Admin',
-                'password' => Hash::make('Dangbinh1101@gmail.com'),
+                'password' => Hash::make($this->randomStringSpecial()),
                 'role' => 'admin',
                 'email_verified_at' => now(),
             ]
