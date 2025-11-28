@@ -279,13 +279,25 @@ class ProjectController extends Controller
                 'max_user_workflows' => $project->max_user_workflows,
             ];
             
-            // Only send expires_at if project doesn't have it yet (first time sync)
-            // This prevents overwriting expires_at that was set by renewal/package change features
+            // Calculate and send expires_at if project doesn't have it yet (first time sync)
+            // Calculate from subscription package duration_days if available
             if (!$project->expires_at) {
-                // expires_at will be set from subscription package duration_days if available
-                // For now, we don't auto-calculate it here, it should be set explicitly when needed
+                if ($project->subscriptionPackage && $project->subscriptionPackage->duration_days) {
+                    // Calculate expires_at from now + duration_days
+                    $expiresAt = now()->addDays($project->subscriptionPackage->duration_days);
+                    $configPayload['expires_at'] = $expiresAt->toIso8601String();
+                    
+                    // Also update project in administrator database
+                    $project->update(['expires_at' => $expiresAt]);
+                    
+                    \Log::info("Calculated expires_at for project '{$project->name}'", [
+                        'duration_days' => $project->subscriptionPackage->duration_days,
+                        'expires_at' => $expiresAt->toIso8601String(),
+                    ]);
+                }
             } else {
-                // If project already has expires_at, don't send it in sync to preserve it
+                // If project already has expires_at, send it to sync
+                $configPayload['expires_at'] = $project->expires_at->toIso8601String();
             }
             
             if ($subscriptionPackageData) {

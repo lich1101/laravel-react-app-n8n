@@ -104,14 +104,22 @@ class ProjectConfigController extends Controller
             );
         }
         
-        // Save expires_at to system settings only if it was actually set (first time sync)
-        // Don't update if project already has expires_at
-        if ($request->has('expires_at') && $request->expires_at && !$project->expires_at) {
+        // Save expires_at to system settings
+        // Always update SystemSetting to keep it in sync with administrator
+        if ($request->has('expires_at') && $request->expires_at) {
             SystemSetting::set(
                 'project_expires_at',
                 $request->expires_at,
                 'string'
             );
+            
+            \Log::info("Updated project_expires_at in SystemSetting", [
+                'expires_at' => $request->expires_at,
+                'project_name' => $project->name,
+            ]);
+        } else {
+            // Clear expires_at if not provided
+            SystemSetting::where('key', 'project_expires_at')->delete();
         }
         
         // Save subscription package info if provided
