@@ -14,6 +14,8 @@ class SubscriptionPackage extends Model
         'description',
         'duration_days',
         'price',
+        'badge_enabled',
+        'badge_text',
     ];
 
     protected $casts = [

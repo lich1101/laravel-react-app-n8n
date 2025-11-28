@@ -10,18 +10,21 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
     const [creatingOrder, setCreatingOrder] = useState(false);
     const [submittingPayment, setSubmittingPayment] = useState(false);
     const [order, setOrder] = useState(null);
+    const [pendingOrder, setPendingOrder] = useState(null);
+    const [skipPendingCheck, setSkipPendingCheck] = useState(false);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
 
     useEffect(() => {
         fetchData();
+        setSkipPendingCheck(false); // Reset skip flag when type changes
     }, [type]);
 
     const fetchData = async () => {
         try {
             setLoading(true);
             setError(null);
-            const [packagesRes, projectRes] = await Promise.all([
+            const [packagesRes, projectRes, ordersRes] = await Promise.all([
                 axios.get('/web-manager/subscription-packages'),
                 axios.get('/web-manager/project').catch((err) => {
                     if (err.response?.status === 404) {
@@ -29,11 +32,17 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
                     }
                     throw err;
                 }),
+                axios.get('/web-manager/payment-orders').catch(() => ({ data: [] })),
             ]);
             
             const allPackages = packagesRes.data || [];
             const projectData = projectRes?.data || null;
+            const orders = ordersRes?.data || [];
             setProject(projectData);
+
+            // Check for pending orders
+            const pending = orders.find(o => o.status === 'pending');
+            setPendingOrder(pending || null);
 
             // Filter packages based on type
             if (type === 'change') {
@@ -65,8 +74,9 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
         }
     };
 
-    const handleCreateOrder = async () => {
-        if (!selectedPackage) {
+    const handleCreateOrder = async (pkg = null) => {
+        const packageToUse = pkg || selectedPackage;
+        if (!packageToUse) {
             setError('Vui lòng chọn gói cước');
             return;
         }
@@ -74,6 +84,7 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
         try {
             setCreatingOrder(true);
             setError(null);
+            setSelectedPackage(packageToUse);
 
             // Xác định type:
             // - Nếu route là 'change': type = 'change'
@@ -87,7 +98,7 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
             }
             
             const response = await axios.post('/web-manager/payment-orders', {
-                subscription_package_id: selectedPackage.id,
+                subscription_package_id: packageToUse.id,
                 project_id: project?.id || null,
                 type: orderType,
             });
@@ -143,6 +154,52 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
                     >
                         Đăng ký gói
                     </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Check if there's a pending order - show waiting message
+    if (pendingOrder && !order && !skipPendingCheck) {
+        return (
+            <div className="p-8">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-8 max-w-2xl mx-auto text-center">
+                    <div className="mb-6">
+                        <svg className="mx-auto h-16 w-16 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-2xl font-bold text-blue-800 mb-4">Đơn hàng đang chờ duyệt</h3>
+                    <p className="text-blue-700 mb-6">
+                        Đơn hàng của bạn đang trong trạng thái chờ duyệt. Vui lòng liên hệ với quản trị viên để được duyệt thanh toán.
+                    </p>
+                    {pendingOrder.subscription_package && (
+                        <div className="bg-white rounded-lg p-4 mb-6 text-left">
+                            <p className="text-sm text-gray-600 mb-2">
+                                <strong>Gói cước:</strong> {pendingOrder.subscription_package.name}
+                            </p>
+                            <p className="text-sm text-gray-600 mb-2">
+                                <strong>Số tiền:</strong> {parseFloat(pendingOrder.amount).toLocaleString('vi-VN')} VNĐ
+                            </p>
+                            <p className="text-sm text-gray-600">
+                                <strong>Mã đơn hàng:</strong> {pendingOrder.uuid}
+                            </p>
+                        </div>
+                    )}
+                    <div className="flex justify-center gap-4">
+                        <button
+                            onClick={() => setSkipPendingCheck(true)}
+                            className="px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors shadow-card"
+                        >
+                            Tiếp tục tạo đơn
+                        </button>
+                        <button
+                            onClick={() => navigate('/dashboard/payment-history')}
+                            className="px-6 py-2 bg-surface-muted text-secondary rounded-xl hover:bg-surface-strong focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                        >
+                            Xem lịch sử thanh toán
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -240,39 +297,76 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
                     {packages.map((pkg) => (
                         <div
                             key={pkg.id}
-                            onClick={() => setSelectedPackage(pkg)}
-                            className={`bg-surface-elevated rounded-2xl border-2 shadow-card p-6 cursor-pointer transition-all ${
-                                selectedPackage?.id === pkg.id
-                                    ? 'border-primary bg-primary-soft'
-                                    : 'border-subtle hover:border-primary hover:shadow-lg'
-                            }`}
+                            className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border-2 border-indigo-200 shadow-xl hover:shadow-2xl p-6 transition-all hover:border-indigo-400 hover:scale-105 flex flex-col relative overflow-hidden"
                         >
-                            <h3 className="text-xl font-bold mb-2 text-primary">{pkg.name}</h3>
-                            <div className="text-2xl font-bold text-primary mb-2">
-                                {pkg.price ? `${pkg.price.toLocaleString('vi-VN')} VNĐ` : 'Liên hệ'}
-                            </div>
-                            {pkg.duration_days && (
-                                <div className="text-sm text-secondary mb-2">
-                                    Thời hạn: {pkg.duration_days} ngày
+                            {/* Badge */}
+                            {pkg.badge_enabled && pkg.badge_text && (
+                                <div className="absolute top-4 right-4 z-10">
+                                    <span className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full shadow-lg">
+                                        {pkg.badge_text}
+                                    </span>
                                 </div>
                             )}
+                            
+                            <h3 className="text-2xl font-bold mb-3 text-indigo-700">{pkg.name}</h3>
+                            
+                            <div className="space-y-3 mb-4 flex-grow">
+                                <div className="flex items-center justify-between bg-indigo-50 rounded-lg p-3">
+                                    <span className="text-sm font-semibold text-indigo-700">Giá:</span>
+                                    <span className="text-xl font-bold text-indigo-600">
+                                        {pkg.price ? `${parseFloat(pkg.price).toLocaleString('vi-VN')} VNĐ` : 'Liên hệ'}
+                                    </span>
+                                </div>
+                                
+                                {pkg.duration_days && (
+                                    <div className="flex items-center justify-between bg-blue-50 rounded-lg p-2">
+                                        <span className="text-sm font-medium text-gray-700">Thời hạn:</span>
+                                        <span className="text-sm font-bold text-blue-600">
+                                            {pkg.duration_days} ngày
+                                        </span>
+                                    </div>
+                                )}
+                                
+                                {pkg.max_concurrent_workflows !== undefined && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-600">Số workflows chạy song song:</span>
+                                        <span className="text-sm font-semibold text-indigo-600">
+                                            {pkg.max_concurrent_workflows}
+                                        </span>
+                                    </div>
+                                )}
+                                
+                                {pkg.max_user_workflows !== undefined && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-600">Số workflows có thể tạo thêm:</span>
+                                        <span className="text-sm font-semibold text-indigo-600">
+                                            {pkg.max_user_workflows}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                            
                             {pkg.description && (
-                                <div className="text-sm text-muted mt-2">{pkg.description}</div>
+                                <div className="mt-4 pt-4 border-t-2 border-indigo-200 mb-4">
+                                    <p className="text-sm text-gray-600 italic">{pkg.description}</p>
+                                </div>
                             )}
+                            
+                            <button
+                                onClick={() => handleCreateOrder(pkg)}
+                                disabled={creatingOrder && selectedPackage?.id === pkg.id}
+                                className="w-full px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl mt-auto font-semibold transform hover:scale-105"
+                            >
+                                {creatingOrder && selectedPackage?.id === pkg.id 
+                                    ? 'Đang tạo...' 
+                                    : type === 'change' 
+                                        ? 'Thay đổi ngay'
+                                        : project?.subscription_package_id 
+                                            ? 'Gia hạn ngay'
+                                            : 'Đăng ký ngay'}
+                            </button>
                         </div>
                     ))}
-                </div>
-            )}
-
-            {selectedPackage && (
-                <div className="flex justify-end">
-                    <button
-                        onClick={handleCreateOrder}
-                        disabled={creatingOrder}
-                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-card"
-                    >
-                        {creatingOrder ? 'Đang tạo...' : 'Tiếp tục thanh toán'}
-                    </button>
                 </div>
             )}
         </div>

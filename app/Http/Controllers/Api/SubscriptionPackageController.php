@@ -40,6 +40,8 @@ class SubscriptionPackageController extends Controller
             'description' => 'nullable|string',
             'duration_days' => 'nullable|integer|min:1',
             'price' => 'nullable|numeric|min:0',
+            'badge_enabled' => 'nullable|boolean',
+            'badge_text' => 'nullable|string|max:255',
             'folder_ids' => 'nullable|array',
             'folder_ids.*' => 'exists:folders,id',
         ]);
@@ -51,6 +53,8 @@ class SubscriptionPackageController extends Controller
             'description' => $request->description,
             'duration_days' => $request->duration_days,
             'price' => $request->price,
+            'badge_enabled' => $request->badge_enabled ?? false,
+            'badge_text' => $request->badge_text,
         ]);
 
         if ($request->has('folder_ids')) {
@@ -86,6 +90,8 @@ class SubscriptionPackageController extends Controller
             'description' => 'nullable|string',
             'duration_days' => 'nullable|integer|min:1',
             'price' => 'nullable|numeric|min:0',
+            'badge_enabled' => 'nullable|boolean',
+            'badge_text' => 'nullable|string|max:255',
             'folder_ids' => 'nullable|array',
             'folder_ids.*' => 'exists:folders,id',
         ]);
@@ -97,6 +103,8 @@ class SubscriptionPackageController extends Controller
             'description' => $request->description,
             'duration_days' => $request->duration_days,
             'price' => $request->price,
+            'badge_enabled' => $request->badge_enabled ?? false,
+            'badge_text' => $request->badge_text,
         ]);
 
         if ($request->has('folder_ids')) {

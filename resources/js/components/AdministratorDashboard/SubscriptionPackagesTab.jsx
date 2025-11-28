@@ -14,7 +14,9 @@ const SubscriptionPackagesTab = () => {
         folder_ids: [],
         duration_value: '',
         duration_unit: 'days', // 'days', 'months', 'years'
-        price: ''
+        price: '',
+        badge_enabled: false,
+        badge_text: ''
     });
     const [editingPackage, setEditingPackage] = useState(null);
 
@@ -73,6 +75,8 @@ const SubscriptionPackagesTab = () => {
             folder_ids: formData.folder_ids,
             duration_days: duration_days,
             price: formData.price ? parseFloat(formData.price) : null,
+            badge_enabled: formData.badge_enabled || false,
+            badge_text: formData.badge_text || null,
         };
 
         try {
@@ -118,7 +122,9 @@ const SubscriptionPackagesTab = () => {
             folder_ids: pkg.folders?.map(f => f.id) || [],
             duration_value: duration_value,
             duration_unit: duration_unit,
-            price: pkg.price ? pkg.price.toString() : ''
+            price: pkg.price ? pkg.price.toString() : '',
+            badge_enabled: pkg.badge_enabled || false,
+            badge_text: pkg.badge_text || ''
         });
         setShowForm(true);
     };
@@ -151,7 +157,7 @@ const SubscriptionPackagesTab = () => {
                     onClick={() => {
                         setShowForm(true);
                         setEditingPackage(null);
-                        setFormData({ name: '', max_concurrent_workflows: 5, max_user_workflows: 10, description: '', folder_ids: [], duration_value: '', duration_unit: 'days', price: '' });
+                        setFormData({ name: '', max_concurrent_workflows: 5, max_user_workflows: 10, description: '', folder_ids: [], duration_value: '', duration_unit: 'days', price: '', badge_enabled: false, badge_text: '' });
                     }}
                     className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium space-x-2"
                 >
@@ -270,6 +276,37 @@ const SubscriptionPackagesTab = () => {
                                     Giá của gói cước
                                 </p>
                             </div>
+                        </div>
+                        <div className="border-t pt-4">
+                            <div className="flex items-center space-x-2 mb-3">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.badge_enabled}
+                                    onChange={(e) => setFormData({ ...formData, badge_enabled: e.target.checked })}
+                                    className="rounded text-blue-600 focus:ring-blue-500"
+                                    id="badge_enabled"
+                                />
+                                <label htmlFor="badge_enabled" className="text-sm font-medium text-gray-700">
+                                    Bật băng rôn (Badge)
+                                </label>
+                            </div>
+                            {formData.badge_enabled && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Text băng rôn
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.badge_text}
+                                        onChange={(e) => setFormData({ ...formData, badge_text: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900"
+                                        placeholder="VD: PHỔ BIẾN, KHUYÊN DÙNG..."
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Text hiển thị trên băng rôn của gói cước
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">

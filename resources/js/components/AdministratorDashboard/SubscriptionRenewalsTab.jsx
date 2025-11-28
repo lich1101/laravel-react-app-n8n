@@ -3,26 +3,63 @@ import axios from '../../config/axios';
 
 const SubscriptionRenewalsTab = () => {
     const [orders, setOrders] = useState([]);
+    const [allOrders, setAllOrders] = useState([]); // Store all orders for filtering
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('all'); // all, pending, approved, rejected
+    const [searchFilter, setSearchFilter] = useState(''); // Search filter
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [processing, setProcessing] = useState(false);
 
     useEffect(() => {
         fetchOrders();
-    }, [statusFilter]);
+    }, []);
+
+    useEffect(() => {
+        // Apply both search and status filters
+        applyFilters();
+    }, [searchFilter, statusFilter, allOrders]);
 
     const fetchOrders = async () => {
         try {
             setLoading(true);
-            const params = statusFilter !== 'all' ? { status: statusFilter } : {};
-            const response = await axios.get('/subscription-renewals', { params });
-            setOrders(response.data);
+            // Always fetch all orders to enable search
+            const response = await axios.get('/subscription-renewals');
+            setAllOrders(response.data);
         } catch (error) {
             console.error('Error fetching orders:', error);
         } finally {
             setLoading(false);
         }
+    };
+
+    const applyFilters = () => {
+        let filtered = [...allOrders];
+
+        // Apply search filter
+        if (searchFilter.trim()) {
+            const searchTerm = searchFilter.toLowerCase().trim();
+            filtered = filtered.filter(order => {
+                // Search in all fields
+                const searchableText = [
+                    order.uuid || '',
+                    order.user?.name || '',
+                    order.user?.email || '',
+                    order.subscription_package?.name || '',
+                    order.amount?.toString() || '',
+                    order.status || '',
+                    formatDate(order.created_at) || '',
+                ].join(' ').toLowerCase();
+                
+                return searchableText.includes(searchTerm);
+            });
+        }
+
+        // Apply status filter
+        if (statusFilter !== 'all') {
+            filtered = filtered.filter(order => order.status === statusFilter);
+        }
+
+        setOrders(filtered);
     };
 
     const handleApprove = async (orderId) => {
@@ -77,10 +114,20 @@ const SubscriptionRenewalsTab = () => {
         );
     }
 
+    // Count pending orders
+    const pendingCount = allOrders.filter(order => order.status === 'pending').length;
+
     return (
         <div className="p-8">
             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Quản lý Gia hạn</h2>
+                <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold">Quản lý Gia hạn</h2>
+                    {pendingCount > 0 && (
+                        <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">
+                            {pendingCount} đơn chờ duyệt
+                        </span>
+                    )}
+                </div>
                 <div className="flex gap-2">
                     <button
                         onClick={() => setStatusFilter('all')}
@@ -117,6 +164,17 @@ const SubscriptionRenewalsTab = () => {
                 </div>
             </div>
 
+            {/* Search Filter */}
+            <div className="mb-6">
+                <input
+                    type="text"
+                    placeholder="Tìm kiếm theo mã đơn, tên, email, gói cước, số tiền, trạng thái..."
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+            </div>
+
             {orders.length === 0 ? (
                 <div className="text-center text-gray-500 py-8">
                     Không có đơn hàng nào
@@ -131,6 +189,9 @@ const SubscriptionRenewalsTab = () => {
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Người dùng
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Email
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Gói cước
@@ -156,7 +217,10 @@ const SubscriptionRenewalsTab = () => {
                                         {order.uuid.substring(0, 8)}...
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                        {order.user?.name || order.user?.email || '-'}
+                                        {order.user?.name || '-'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        {order.user?.email || '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                         {order.subscription_package?.name || '-'}

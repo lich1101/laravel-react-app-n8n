@@ -212,19 +212,9 @@ const WebManagerProjectTab = () => {
                     </div>
                 )}
 
+                
                 <div>
-                    <label className="block text-sm font-medium text-secondary mb-1">Trạng thái</label>
-                    <div className="text-lg">
-                        <span className={`px-3 py-1 rounded-full text-sm ${
-                            project.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                            {project.status === 'active' ? 'Hoạt động' : project.status}
-                        </span>
-                    </div>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-secondary mb-1">Trạng thái provisioning</label>
+                    <label className="block text-sm font-medium text-secondary mb-1">Trạng thái trang web</label>
                     <div className="text-lg">
                         <span className={`px-3 py-1 rounded-full text-sm ${
                             project.provisioning_status === 'completed' ? 'bg-green-100 text-green-800' :
@@ -235,7 +225,7 @@ const WebManagerProjectTab = () => {
                         }`}>
                             {project.provisioning_status === 'completed' ? 'Hoàn thành' :
                              project.provisioning_status === 'provisioning' ? 'Đang tạo...' :
-                             project.provisioning_status === 'pending' ? 'Chờ duyệt' :
+                             project.provisioning_status === 'pending' ? 'Vui lòng đăng ký gói cước để tạo trang web' :
                              project.provisioning_status === 'failed' ? 'Thất bại' :
                              project.provisioning_status || 'Chưa tạo'}
                         </span>
