@@ -279,9 +279,13 @@ class ProjectController extends Controller
                 'max_user_workflows' => $project->max_user_workflows,
             ];
             
-            // Add expires_at if set
-            if ($project->expires_at) {
-                $configPayload['expires_at'] = $project->expires_at->toIso8601String();
+            // Only send expires_at if project doesn't have it yet (first time sync)
+            // This prevents overwriting expires_at that was set by renewal/package change features
+            if (!$project->expires_at) {
+                // expires_at will be set from subscription package duration_days if available
+                // For now, we don't auto-calculate it here, it should be set explicitly when needed
+            } else {
+                // If project already has expires_at, don't send it in sync to preserve it
             }
             
             if ($subscriptionPackageData) {
