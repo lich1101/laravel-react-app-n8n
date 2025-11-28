@@ -166,6 +166,25 @@ class UserController extends Controller
         $packageDescription = SystemSetting::get('subscription_package_description', null);
         $maxConcurrentWorkflows = SystemSetting::get('max_concurrent_workflows', 5);
         $maxUserWorkflows = SystemSetting::get('max_user_workflows', null);
+        
+        // Get project expires_at from system_settings or project
+        $expiresAt = null;
+        $expiresAtStr = SystemSetting::get('project_expires_at', null);
+        if ($expiresAtStr) {
+            try {
+                $expiresAt = \Carbon\Carbon::parse($expiresAtStr);
+            } catch (\Exception $e) {
+                // Invalid date, ignore
+            }
+        }
+        
+        // If not in system_settings, try to get from project
+        if (!$expiresAt && $user->project_id) {
+            $project = \App\Models\Project::find($user->project_id);
+            if ($project && $project->expires_at) {
+                $expiresAt = $project->expires_at;
+            }
+        }
 
         // Count running workflows
         $runningWorkflowsCount = WorkflowExecution::where('status', 'running')->count();
@@ -183,6 +202,7 @@ class UserController extends Controller
                 'name' => $packageName,
                 'description' => $packageDescription,
             ],
+            'expires_at' => $expiresAt ? $expiresAt->toIso8601String() : null,
             'workflow_stats' => [
                 'running' => $runningWorkflowsCount,
                 'max_concurrent' => $maxConcurrentWorkflows,

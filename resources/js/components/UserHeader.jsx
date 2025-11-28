@@ -93,15 +93,46 @@ const UserHeader = () => {
 
                     {/* Package Info Cards */}
                     <div className="flex items-center space-x-4">
-                        {/* Package Name & Description */}
+                        {/* Package Name with Info Icon & Usage Time */}
                         {packageInfo?.subscription_package?.name && (
                             <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[200px]">
-                                <div className="text-sm font-semibold text-blue-900">
-                                    {packageInfo.subscription_package.name}
+                                <div className="flex items-center space-x-2">
+                                    <div className="text-sm font-semibold text-blue-900">
+                                        {packageInfo.subscription_package.name}
+                                    </div>
+                                    <div className="relative group">
+                                        <svg 
+                                            className="w-4 h-4 text-blue-500 cursor-help" 
+                                            fill="currentColor" 
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                                        </svg>
+                                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                            {packageInfo.subscription_package.name}
+                                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                                        </div>
+                                    </div>
                                 </div>
-                                {packageInfo.subscription_package.description && (
+                                {packageInfo.expires_at && (
                                     <div className="text-xs text-blue-700 mt-1">
-                                        {packageInfo.subscription_package.description}
+                                        {(() => {
+                                            const expiresAt = new Date(packageInfo.expires_at);
+                                            const now = new Date();
+                                            const diffMs = expiresAt - now;
+                                            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                                            const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                            
+                                            if (diffMs < 0) {
+                                                return 'Đã hết hạn';
+                                            } else if (diffDays > 0) {
+                                                return `Còn ${diffDays} ngày ${diffHours > 0 ? `${diffHours} giờ` : ''}`;
+                                            } else if (diffHours > 0) {
+                                                return `Còn ${diffHours} giờ`;
+                                            } else {
+                                                return 'Sắp hết hạn';
+                                            }
+                                        })()}
                                     </div>
                                 )}
                             </div>
