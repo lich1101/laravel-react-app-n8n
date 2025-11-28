@@ -299,16 +299,48 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
                             key={pkg.id}
                             className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border-2 border-indigo-200 shadow-xl hover:shadow-2xl p-6 transition-all hover:border-indigo-400 hover:scale-105 flex flex-col relative overflow-hidden"
                         >
-                            {/* Badge */}
-                            {pkg.badge_enabled && pkg.badge_text && (
-                                <div className="absolute top-4 right-4 z-10">
-                                    <span className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full shadow-lg">
-                                        {pkg.badge_text}
-                                    </span>
-                                </div>
-                            )}
+                            {/* Badge - Diagonal Ribbon */}
+                            {(() => {
+                                // Debug: log badge info
+                                if (pkg.name === 'advance') {
+                                    console.log('Advance package badge info:', {
+                                        badge_enabled: pkg.badge_enabled,
+                                        badge_text: pkg.badge_text,
+                                        badge_enabled_type: typeof pkg.badge_enabled,
+                                        badge_text_type: typeof pkg.badge_text,
+                                    });
+                                }
+                                
+                                const badgeEnabled = pkg.badge_enabled === true || pkg.badge_enabled === 1 || pkg.badge_enabled === '1';
+                                const badgeText = pkg.badge_text ? String(pkg.badge_text).trim() : '';
+                                const showBadge = badgeEnabled && badgeText !== '' && badgeText !== '0';
+                                
+                                if (pkg.name === 'advance') {
+                                    console.log('Advance badge check:', { badgeEnabled, badgeText, showBadge });
+                                }
+                                
+                                return showBadge ? (
+                                    <div className="absolute top-0 right-0 z-10 overflow-hidden" style={{ width: '120px', height: '120px' }}>
+                                        <div 
+                                            className="absolute bg-green-500 text-white text-xs font-bold shadow-lg flex items-center justify-center"
+                                            style={{
+                                                width: '160px',
+                                                height: '30px',
+                                                top: '20px',
+                                                right: '-40px',
+                                                transform: 'rotate(45deg)',
+                                                transformOrigin: 'center'
+                                            }}
+                                        >
+                                            {badgeText}
+                                        </div>
+                                    </div>
+                                ) : null;
+                            })()}
                             
-                            <h3 className="text-2xl font-bold mb-3 text-indigo-700">{pkg.name}</h3>
+                            <div className="relative">
+                                <h3 className="text-2xl font-bold mb-3 text-indigo-700">{pkg.name}</h3>
+                            </div>
                             
                             <div className="space-y-3 mb-4 flex-grow">
                                 <div className="flex items-center justify-between bg-indigo-50 rounded-lg p-3">
