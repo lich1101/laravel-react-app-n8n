@@ -154,6 +154,7 @@ class SubscriptionRenewalController extends Controller
         }
 
         // If project hasn't been provisioned yet, trigger provisioning now
+        // This is where the actual website cloning and package application happens
         if ($project->provisioning_status === 'pending' || !$project->provisioning_status) {
             // Get folder IDs from subscription package
             $folderIds = [];
@@ -164,30 +165,51 @@ class SubscriptionRenewalController extends Controller
             // Update provisioning status to 'provisioning'
             $project->update(['provisioning_status' => 'provisioning']);
             
-            // Trigger provisioning job
+            // IMPORTANT: This is where the actual website cloning happens
+            // ProvisionProjectJob will:
+            // 1. Clone the repository to /var/www/laravel-react-app-n8n-{subdomain}
+            // 2. Create database
+            // 3. Run migrations and setup
+            // 4. Configure Apache and SSL
+            // 5. Apply subscription package (folders/workflows)
+            // 6. Auto-sync config to the cloned website
             \App\Jobs\ProvisionProjectJob::dispatch($project->id, $folderIds);
             
-            \Log::info('SubscriptionRenewalController: Triggered provisioning after order approval', [
+            \Log::info('SubscriptionRenewalController: Triggered website provisioning after order approval', [
                 'project_id' => $project->id,
+                'project_name' => $project->name,
+                'subdomain' => $project->subdomain,
+                'order_id' => $order->id,
+                'order_type' => $orderType,
+                'folder_ids' => $folderIds,
+            ]);
+            
+            // Don't sync here - wait for provisioning to complete
+            // ProvisionProjectJob will handle sync after successful provisioning
+        } else if ($project->provisioning_status === 'completed') {
+            // Project already provisioned, sync now
+            // Reload project with relationships
+            $project = Project::with(['folders', 'subscriptionPackage'])->findOrFail($project->id);
+            $projectController = new ProjectController();
+            // Use reflection to call protected syncProject method
+            $reflection = new \ReflectionClass($projectController);
+            $method = $reflection->getMethod('syncProject');
+            $method->setAccessible(true);
+            $syncResult = $method->invoke($projectController, $project);
+            
+            // Restart queue if config synced
+            if ($syncResult['config_synced'] ?? false) {
+                $restartMethod = $reflection->getMethod('restartProjectQueue');
+                $restartMethod->setAccessible(true);
+                $restartMethod->invoke($projectController, $project);
+            }
+        } else {
+            // Project provisioning failed or in progress
+            \Log::warning('SubscriptionRenewalController: Cannot sync - project provisioning status is not completed', [
+                'project_id' => $project->id,
+                'provisioning_status' => $project->provisioning_status,
                 'order_id' => $order->id,
             ]);
-        }
-
-        // Sync project to web clone (only when approved)
-        // Reload project with relationships
-        $project = Project::with(['folders', 'subscriptionPackage'])->findOrFail($project->id);
-        $projectController = new ProjectController();
-        // Use reflection to call protected syncProject method
-        $reflection = new \ReflectionClass($projectController);
-        $method = $reflection->getMethod('syncProject');
-        $method->setAccessible(true);
-        $syncResult = $method->invoke($projectController, $project);
-        
-        // Restart queue if config synced
-        if ($syncResult['config_synced'] ?? false) {
-            $restartMethod = $reflection->getMethod('restartProjectQueue');
-            $restartMethod->setAccessible(true);
-            $restartMethod->invoke($projectController, $project);
         }
 
         return response()->json([

@@ -185,6 +185,10 @@ class ProjectController extends Controller
         $project = Project::findOrFail($id);
         $environment = $project->subdomain;
         $projectId = $project->id;
+        
+        // Update all users with this project_id to null before deleting
+        \App\Models\User::where('project_id', $projectId)->update(['project_id' => null]);
+        
         $project->delete();
 
         if ($environment) {

@@ -35,6 +35,39 @@ class CheckSubscriptionExpiry
             return $next($request);
         }
         
+        // Check if project is still being provisioned
+        if ($project->provisioning_status === 'pending' || $project->provisioning_status === 'provisioning') {
+            // Only allow specific API routes needed for provisioning
+            $allowedApiPaths = [
+                '/api/project-config/sync',  // Sync config from administrator
+                '/api/project-config',       // Get config
+                '/api/sso-verify',           // SSO verification
+            ];
+            
+            $isAllowedApi = false;
+            foreach ($allowedApiPaths as $allowedPath) {
+                if (str_starts_with($path, $allowedPath)) {
+                    $isAllowedApi = true;
+                    break;
+                }
+            }
+            
+            if ($isAllowedApi) {
+                return $next($request);
+            }
+            
+            // Block all other requests and show "Website đang được tạo" page
+            \Log::info("CheckSubscriptionExpiry: Project is being provisioned, showing provisioning page", [
+                'project_id' => $project->id,
+                'provisioning_status' => $project->provisioning_status,
+                'path' => $path,
+            ]);
+            
+            return response()->view('provisioning-in-progress', [
+                'project' => $project,
+            ]);
+        }
+        
         // Log project status for debugging
         \Log::info("CheckSubscriptionExpiry: Project found", [
             'project_id' => $project->id,

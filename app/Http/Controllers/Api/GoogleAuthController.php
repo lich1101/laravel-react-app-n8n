@@ -54,9 +54,21 @@ class GoogleAuthController extends Controller
             $user = User::where('email', $googleUser->email)->first();
 
             if ($user) {
+                // Check if user's project still exists, if not, reset project_id
+                // This allows user to create a new project after their old project was deleted
+                $projectId = null;
+                if ($user->project_id) {
+                    $projectExists = \App\Models\Project::find($user->project_id);
+                    if ($projectExists) {
+                        $projectId = $user->project_id;
+                    }
+                    // If project doesn't exist, projectId remains null
+                }
+                
                 // Update existing user
                 $user->update([
                     'name' => $googleUser->name ?? $user->name,
+                    'project_id' => $projectId, // Reset to null if project was deleted
                 ]);
             } else {
                 // Create new user with role 'user'

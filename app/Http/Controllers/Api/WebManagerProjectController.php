@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\SubscriptionPackage;
-use App\Jobs\ProvisionProjectJob;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -27,9 +26,15 @@ class WebManagerProjectController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $project = Project::whereHas('users', function($query) use ($user) {
-            $query->where('id', $user->id);
-        })->with(['subscriptionPackage'])->first();
+        // Get project directly from user.project_id (not via whereHas to avoid issues with deleted/recreated users)
+        $project = null;
+        if ($user->project_id) {
+            $project = Project::with(['subscriptionPackage'])->find($user->project_id);
+            // If project was deleted but user.project_id still points to it, reset it
+            if (!$project) {
+                $user->update(['project_id' => null]);
+            }
+        }
 
         if (!$project) {
             return response()->json(null, 404);
@@ -53,10 +58,22 @@ class WebManagerProjectController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // Check if user already has a project
-        $existingProject = Project::whereHas('users', function($query) use ($user) {
-            $query->where('id', $user->id);
-        })->first();
+        // Check if user already has a project (that still exists)
+        // Only check user.project_id - if it's null or points to non-existent project, allow creation
+        $existingProject = null;
+        if ($user->project_id) {
+            $existingProject = Project::find($user->project_id);
+            // If project was deleted but user.project_id still points to it, reset it
+            if (!$existingProject) {
+                $user->update(['project_id' => null]);
+                $existingProject = null; // Ensure it's null so user can create new project
+            }
+        }
+        
+        // Note: We don't check via whereHas('users') because:
+        // - If user was deleted and recreated, they have a new ID
+        // - Old projects won't be linked to the new user
+        // - We only care about the current user's project_id
 
         if ($existingProject) {
             return response()->json(['error' => 'Bạn đã có trang web. Mỗi tài khoản chỉ được tạo 1 trang web.'], 400);
@@ -75,7 +92,8 @@ class WebManagerProjectController extends Controller
         );
 
         // Create project (blank website, no package)
-        // Provisioning will only happen when administrator approves payment order
+        // IMPORTANT: This only creates a database record, does NOT provision/clone the website
+        // Provisioning will only happen when administrator approves payment order in SubscriptionRenewalController
         $project = Project::create([
             'name' => $request->name,
             'subdomain' => $subdomain,
@@ -84,14 +102,22 @@ class WebManagerProjectController extends Controller
             'subscription_package_id' => null, // No package yet
             'max_concurrent_workflows' => 5,
             'max_user_workflows' => null,
-            'provisioning_status' => 'pending', // Waiting for admin approval
+            'provisioning_status' => 'pending', // Waiting for admin approval - website not cloned yet
             'provisioning_error' => null,
         ]);
 
         // Assign user to project
         $user->update(['project_id' => $project->id]);
 
-        // Do NOT trigger provisioning here - it will be triggered when admin approves payment order
+        // Do NOT trigger ProvisionProjectJob here - it will be triggered when admin approves payment order
+        // The actual website cloning and package application happens in SubscriptionRenewalController::approve()
+
+        \Log::info('WebManagerProjectController: Created blank project (database only, no provisioning)', [
+            'project_id' => $project->id,
+            'project_name' => $project->name,
+            'subdomain' => $project->subdomain,
+            'user_id' => $user->id,
+        ]);
 
         $project->load(['users', 'subscriptionPackage']);
         return response()->json($project, 201);

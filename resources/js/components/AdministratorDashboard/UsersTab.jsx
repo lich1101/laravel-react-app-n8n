@@ -34,6 +34,7 @@ const UsersTab = () => {
             // Admin users don't have access to projects API
             if (user.role === 'admin') {
                 const usersRes = await axios.get('/users');
+                console.log('Fetched users (admin):', usersRes.data);
                 setUsers(usersRes.data);
                 setProjects([]); // No projects for admin users
             } else {
@@ -42,6 +43,8 @@ const UsersTab = () => {
                     axios.get('/users'),
                     axios.get('/projects')
                 ]);
+                console.log('Fetched users (administrator):', usersRes.data);
+                console.log('Total users count:', usersRes.data?.length || 0);
                 setUsers(usersRes.data);
                 setProjects(projectsRes.data);
             }
@@ -289,7 +292,14 @@ const UsersTab = () => {
                         </tr>
                     </thead>
                     <tbody className="bg-surface-elevated divide-y divide-subtle border-subtle">
-                        {users.map((user) => (
+                        {users.length === 0 ? (
+                            <tr>
+                                <td colSpan={isAdministrator ? 6 : 5} className="px-6 py-4 text-center text-sm text-muted">
+                                    Không có người dùng nào
+                                </td>
+                            </tr>
+                        ) : (
+                            users.map((user) => (
                             <tr key={user.id}>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
                                     {user.name}
@@ -365,7 +375,8 @@ const UsersTab = () => {
                                     )}
                                 </td>
                             </tr>
-                        ))}
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
