@@ -67,6 +67,18 @@ Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
     return redirect('/login')->with('error', 'Không thể đăng nhập tự động. Vui lòng đăng nhập thủ công.');
 })->name('sso-login');
 
+// Subscription expired page - must be before catch-all
+Route::get('/subscription-expired', function (\Illuminate\Http\Request $request) {
+    $domain = $request->getHost();
+    $project = \App\Models\Project::where('subdomain', $domain)
+        ->orWhere('domain', $domain)
+        ->first();
+    
+    return view('subscription-expired', [
+        'project' => $project,
+    ]);
+})->name('subscription.expired');
+
 // Serve static icons before catch-all route
 Route::get('/icons/{path}', function ($path) {
     $filePath = public_path('icons/' . $path);

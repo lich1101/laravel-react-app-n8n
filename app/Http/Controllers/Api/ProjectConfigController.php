@@ -29,12 +29,18 @@ class ProjectConfigController extends Controller
             'status' => $project->status,
         ];
         
+        if ($project->expires_at) {
+            $response['expires_at'] = $project->expires_at->toIso8601String();
+        }
+        
         if ($project->subscriptionPackage) {
             $response['subscription_package'] = [
                 'id' => $project->subscriptionPackage->id,
                 'name' => $project->subscriptionPackage->name,
                 'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
                 'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
+                'duration_days' => $project->subscriptionPackage->duration_days,
+                'price' => $project->subscriptionPackage->price,
             ];
         }
 
@@ -50,11 +56,14 @@ class ProjectConfigController extends Controller
         $request->validate([
             'max_concurrent_workflows' => 'required|integer|min:1|max:100',
             'max_user_workflows' => 'nullable|integer|min:0|max:1000',
+            'expires_at' => 'nullable|date',
             'subscription_package' => 'nullable|array',
             'subscription_package.id' => 'nullable|integer',
             'subscription_package.name' => 'nullable|string',
             'subscription_package.max_concurrent_workflows' => 'nullable|integer',
             'subscription_package.max_user_workflows' => 'nullable|integer',
+            'subscription_package.duration_days' => 'nullable|integer',
+            'subscription_package.price' => 'nullable|numeric',
         ]);
 
         // Get project from subdomain
@@ -69,6 +78,11 @@ class ProjectConfigController extends Controller
         
         if ($request->has('max_user_workflows')) {
             $updateData['max_user_workflows'] = $request->max_user_workflows;
+        }
+        
+        // Update expires_at if provided
+        if ($request->has('expires_at') && $request->expires_at) {
+            $updateData['expires_at'] = $request->expires_at;
         }
         
         $project->update($updateData);
@@ -87,6 +101,18 @@ class ProjectConfigController extends Controller
                 $request->max_user_workflows,
                 'integer'
             );
+        }
+        
+        // Save expires_at to system settings if provided
+        if ($request->has('expires_at') && $request->expires_at) {
+            SystemSetting::set(
+                'project_expires_at',
+                $request->expires_at,
+                'string'
+            );
+        } else {
+            // Clear expires_at if not provided
+            SystemSetting::where('key', 'project_expires_at')->delete();
         }
         
         // Save subscription package info if provided
@@ -126,6 +152,7 @@ class ProjectConfigController extends Controller
             'message' => 'Configuration updated successfully',
             'max_concurrent_workflows' => $project->max_concurrent_workflows,
             'max_user_workflows' => $project->max_user_workflows,
+            'expires_at' => $project->expires_at ? $project->expires_at->toIso8601String() : null,
             'subscription_package' => $request->subscription_package ?? null,
         ]);
     }
@@ -150,6 +177,8 @@ class ProjectConfigController extends Controller
                     'description' => $project->subscriptionPackage->description,
                     'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
                     'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
+                    'duration_days' => $project->subscriptionPackage->duration_days,
+                    'price' => $project->subscriptionPackage->price,
                 ];
             }
             
@@ -157,6 +186,11 @@ class ProjectConfigController extends Controller
                 'max_concurrent_workflows' => $project->max_concurrent_workflows,
                 'max_user_workflows' => $project->max_user_workflows,
             ];
+            
+            // Add expires_at if set
+            if ($project->expires_at) {
+                $payload['expires_at'] = $project->expires_at->toIso8601String();
+            }
             
             if ($subscriptionPackageData) {
                 $payload['subscription_package'] = $subscriptionPackageData;

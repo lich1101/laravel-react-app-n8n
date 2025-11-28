@@ -19,9 +19,11 @@ class Project extends Model
         'max_user_workflows',
         'provisioning_status',
         'provisioning_error',
+        'expires_at',
     ];
 
     protected $casts = [
+        'expires_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

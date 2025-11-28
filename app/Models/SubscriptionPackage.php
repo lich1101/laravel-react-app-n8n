@@ -12,11 +12,15 @@ class SubscriptionPackage extends Model
         'max_concurrent_workflows',
         'max_user_workflows',
         'description',
+        'duration_days',
+        'price',
     ];
 
     protected $casts = [
         'max_concurrent_workflows' => 'integer',
         'max_user_workflows' => 'integer',
+        'duration_days' => 'integer',
+        'price' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

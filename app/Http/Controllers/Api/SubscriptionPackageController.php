@@ -38,6 +38,8 @@ class SubscriptionPackageController extends Controller
             'max_concurrent_workflows' => 'required|integer|min:1|max:100',
             'max_user_workflows' => 'required|integer|min:0|max:1000',
             'description' => 'nullable|string',
+            'duration_days' => 'nullable|integer|min:1',
+            'price' => 'nullable|numeric|min:0',
             'folder_ids' => 'nullable|array',
             'folder_ids.*' => 'exists:folders,id',
         ]);
@@ -47,6 +49,8 @@ class SubscriptionPackageController extends Controller
             'max_concurrent_workflows' => $request->max_concurrent_workflows,
             'max_user_workflows' => $request->max_user_workflows,
             'description' => $request->description,
+            'duration_days' => $request->duration_days,
+            'price' => $request->price,
         ]);
 
         if ($request->has('folder_ids')) {
@@ -80,6 +84,8 @@ class SubscriptionPackageController extends Controller
             'max_concurrent_workflows' => 'required|integer|min:1|max:100',
             'max_user_workflows' => 'required|integer|min:0|max:1000',
             'description' => 'nullable|string',
+            'duration_days' => 'nullable|integer|min:1',
+            'price' => 'nullable|numeric|min:0',
             'folder_ids' => 'nullable|array',
             'folder_ids.*' => 'exists:folders,id',
         ]);
@@ -89,6 +95,8 @@ class SubscriptionPackageController extends Controller
             'max_concurrent_workflows' => $request->max_concurrent_workflows,
             'max_user_workflows' => $request->max_user_workflows,
             'description' => $request->description,
+            'duration_days' => $request->duration_days,
+            'price' => $request->price,
         ]);
 
         if ($request->has('folder_ids')) {

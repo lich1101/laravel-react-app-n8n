@@ -16,6 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register admin key authentication middleware
         $middleware->alias([
             'admin.key' => \App\Http\Middleware\AuthenticateWithAdminKey::class,
+            'check.subscription' => \App\Http\Middleware\CheckSubscriptionExpiry::class,
+        ]);
+        
+        // Apply subscription expiry check to web routes
+        $middleware->appendToGroup('web', [
+            \App\Http\Middleware\CheckSubscriptionExpiry::class,
         ]);
     })
     ->withSchedule(function (Schedule $schedule): void {

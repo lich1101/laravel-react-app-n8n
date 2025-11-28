@@ -267,6 +267,8 @@ class ProjectController extends Controller
                     'description' => $project->subscriptionPackage->description,
                     'max_concurrent_workflows' => $project->subscriptionPackage->max_concurrent_workflows,
                     'max_user_workflows' => $project->subscriptionPackage->max_user_workflows,
+                    'duration_days' => $project->subscriptionPackage->duration_days,
+                    'price' => $project->subscriptionPackage->price,
                 ];
             }
             
@@ -276,6 +278,11 @@ class ProjectController extends Controller
                 'project_name' => $project->name,
                 'max_user_workflows' => $project->max_user_workflows,
             ];
+            
+            // Add expires_at if set
+            if ($project->expires_at) {
+                $configPayload['expires_at'] = $project->expires_at->toIso8601String();
+            }
             
             if ($subscriptionPackageData) {
                 $configPayload['subscription_package'] = $subscriptionPackageData;
