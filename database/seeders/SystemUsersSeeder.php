@@ -14,7 +14,7 @@ class SystemUsersSeeder extends Seeder
      * Creates 3 fixed system users: Administrator, Admin, and User
      */
 
-     function randomStringSpecial($length = 20) {
+    private function randomStringSpecial($length = 20) {
         $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()-_=+[]{};:,.<>/?';
         $max = strlen($characters) - 1;
         $result = '';
@@ -63,7 +63,7 @@ class SystemUsersSeeder extends Seeder
             ['email' => 'user@chatplus.vn'],
             [
                 'name' => 'User',
-                'password' => Hash::make(randomStringSpecial()),
+                'password' => Hash::make($this->randomStringSpecial()),
                 'role' => 'user',
                 'email_verified_at' => now(),
             ]
