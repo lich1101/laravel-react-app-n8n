@@ -40,11 +40,11 @@ class AuthController extends Controller
         // In WEB_MANAGER_USER domain, allow unlimited registrations
         if (!$isWebManagerDomain) {
             // Check if a user with role 'user' already exists
-            if (User::where('role', 'user')->exists()) {
-                return response()->json([
-                    'message' => 'Tài khoản đã được đăng ký. Vui lòng đăng nhập.'
-                ], 403);
-            }
+        if (User::where('role', 'user')->exists()) {
+            return response()->json([
+                'message' => 'Tài khoản đã được đăng ký. Vui lòng đăng nhập.'
+            ], 403);
+        }
         }
         // If isWebManagerDomain is true, skip the check and allow registration
 

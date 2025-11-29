@@ -6,6 +6,8 @@ import ProjectsTab from './AdministratorDashboard/ProjectsTab';
 import UsersTab from './AdministratorDashboard/UsersTab';
 import SubscriptionPackagesTab from './AdministratorDashboard/SubscriptionPackagesTab';
 import SubscriptionRenewalsTab from './AdministratorDashboard/SubscriptionRenewalsTab';
+import PaymentOrderEmailsTab from './AdministratorDashboard/PaymentOrderEmailsTab';
+import EmailRecipientsTab from './AdministratorDashboard/EmailRecipientsTab';
 import Settings from '../pages/Settings';
 import WorkflowList from './WorkflowList';
 import WorkflowEditor from './WorkflowEditor';
@@ -45,6 +47,8 @@ const AdministratorDashboard = () => {
     const [loadingSidebar, setLoadingSidebar] = useState(true);
     const [selectedTopicId, setSelectedTopicId] = useState(null);
     const [selectedTableId, setSelectedTableId] = useState(null);
+    const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+    const [isWebManagerDomain, setIsWebManagerDomain] = useState(false);
 
     const fetchAutomationTopics = async ({ preferredTopicId = null, preferredTableId = null } = {}) => {
         try {
@@ -132,10 +136,37 @@ const AdministratorDashboard = () => {
         }
     };
 
+    const fetchPendingOrdersCount = async () => {
+        try {
+            const response = await axios.get('/subscription-renewals');
+            const allOrders = response.data || [];
+            const pendingCount = allOrders.filter(order => order.status === 'pending').length;
+            setPendingOrdersCount(pendingCount);
+        } catch (error) {
+            console.error('Error fetching pending orders count:', error);
+            setPendingOrdersCount(0);
+        }
+    };
+
     useEffect(() => {
+        const checkDomain = async () => {
+            try {
+                const response = await axios.get('/web-manager/domain-check');
+                setIsWebManagerDomain(response.data.is_web_manager_domain || false);
+            } catch (error) {
+                console.error('Domain check error:', error);
+                setIsWebManagerDomain(false);
+            }
+        };
+
         const loadSidebarData = async () => {
             setLoadingSidebar(true);
-            await Promise.all([fetchAutomationTopics(), fetchWorkflowFolders()]);
+            await Promise.all([
+                fetchAutomationTopics(), 
+                fetchWorkflowFolders(),
+                fetchPendingOrdersCount(),
+                checkDomain()
+            ]);
             setLoadingSidebar(false);
         };
 
@@ -165,11 +196,29 @@ const AdministratorDashboard = () => {
         localStorage.removeItem('user');
         navigate('/login');
     };
-
     const managementLinks = [
         { id: 'manage-projects', label: 'Projects', icon: '🏢', to: '/administrator/projects' },
         { id: 'manage-subscription-packages', label: 'Gói cước', icon: '📦', to: '/administrator/subscription-packages' },
-        { id: 'manage-subscription-renewals', label: 'Quản lý gia hạn', icon: '💳', to: '/administrator/subscription-renewals' },
+        { 
+            id: 'manage-subscription-renewals', 
+            label: pendingOrdersCount > 0 
+                ? (
+                    <span className="flex items-center gap-2">
+                        <span>Quản lý gia hạn</span>
+                        <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full min-w-[1.25rem] h-5">
+                            {pendingOrdersCount}
+                        </span>
+                    </span>
+                )
+                : 'Quản lý gia hạn',
+            icon: '💳', 
+            to: '/administrator/subscription-renewals' 
+        },
+        // Chỉ hiển thị "Quản lý emails" cho administrator trong WEB_MANAGER_USER domain
+        ...(user?.role === 'administrator' && isWebManagerDomain ? [
+            { id: 'manage-payment-emails', label: 'Quản lý Emails', icon: '📧', to: '/administrator/payment-order-emails' },
+            { id: 'manage-email-recipients', label: 'Danh sách Email', icon: '📬', to: '/administrator/email-recipients' }
+        ] : []),
         { id: 'manage-automation', label: 'Automation', icon: '🤖', to: '/administrator/automations' },
         { id: 'manage-workflows', label: 'Workflows', icon: '🔁', to: '/administrator/workflows' },
         { id: 'manage-users', label: 'Users', icon: '👥', to: '/administrator/users' },
@@ -205,6 +254,8 @@ const AdministratorDashboard = () => {
                             <Route path="projects" element={<ProjectsTab />} />
                             <Route path="subscription-packages" element={<SubscriptionPackagesTab />} />
                             <Route path="subscription-renewals" element={<SubscriptionRenewalsTab />} />
+                            <Route path="payment-order-emails" element={<PaymentOrderEmailsTab />} />
+                            <Route path="email-recipients" element={<EmailRecipientsTab />} />
                             <Route
                                 path="automations"
                                 element={

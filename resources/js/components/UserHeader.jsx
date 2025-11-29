@@ -110,12 +110,12 @@ const UserHeader = () => {
                         {!isWebManagerDomain && (
                             <>
                                 {/* Package Name with Info Icon & Usage Time */}
-                                {packageInfo?.subscription_package?.name && (
-                                    <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[200px]">
+                        {packageInfo?.subscription_package?.name && (
+                            <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[200px]">
                                         <div className="flex items-center space-x-2">
-                                            <div className="text-sm font-semibold text-blue-900">
-                                                {packageInfo.subscription_package.name}
-                                            </div>
+                                <div className="text-sm font-semibold text-blue-900">
+                                    {packageInfo.subscription_package.name}
+                                </div>
                                             <div className="relative group">
                                                 <svg 
                                                     className="w-4 h-4 text-blue-500 cursor-help" 
@@ -131,7 +131,7 @@ const UserHeader = () => {
                                             </div>
                                         </div>
                                         {packageInfo.expires_at && (
-                                            <div className="text-xs text-blue-700 mt-1">
+                                    <div className="text-xs text-blue-700 mt-1">
                                                 {(() => {
                                                     const expiresAt = new Date(packageInfo.expires_at);
                                                     const now = new Date();
@@ -149,37 +149,37 @@ const UserHeader = () => {
                                                         return 'Sắp hết hạn';
                                                     }
                                                 })()}
-                                            </div>
-                                        )}
                                     </div>
                                 )}
+                            </div>
+                        )}
 
-                                {/* Workflow Stats */}
-                                <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[200px] flex flex-col items-start justify-center space-y-2">
-                                    <div className="flex items-center justify-center">
-                                        <div className="text-xs font-semibold text-blue-900 ">
-                                            {packageInfo?.workflow_stats?.running || 0} / {packageInfo?.workflow_stats?.max_concurrent || 0}
-                                        </div>
-                                        <div className="text-xs text-blue-700">
-                                            : Workflows đang chạy
-                                        </div>
-                                    </div>
-
-                                    {showUserWorkflowQuota ? (
-                                        <div className="flex items-center justify-center">
-                                            <div className="text-xs font-semibold text-blue-900 ">
-                                                {packageInfo?.workflow_stats?.user_created || 0} / {packageInfo?.workflow_stats?.max_user_workflows || '∞'}
-                                            </div>
-                                            <div className="text-xs text-blue-700">
-                                                : Workflows đã tạo
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-xs text-blue-700 text-center">
-                                            Role {userRole} không bị giới hạn số workflows đã tạo.
-                                        </div>
-                                    )}
+                        {/* Workflow Stats */}
+                        <div className="bg-white border border-blue-200 rounded-lg px-4 py-3 min-w-[200px] flex flex-col items-start justify-center space-y-2">
+                            <div className="flex items-center justify-center">
+                                <div className="text-xs font-semibold text-blue-900 ">
+                                    {packageInfo?.workflow_stats?.running || 0} / {packageInfo?.workflow_stats?.max_concurrent || 0}
                                 </div>
+                                <div className="text-xs text-blue-700">
+                                    : Workflows đang chạy
+                                </div>
+                            </div>
+
+                            {showUserWorkflowQuota ? (
+                                <div className="flex items-center justify-center">
+                                    <div className="text-xs font-semibold text-blue-900 ">
+                                        {packageInfo?.workflow_stats?.user_created || 0} / {packageInfo?.workflow_stats?.max_user_workflows || '∞'}
+                                    </div>
+                                    <div className="text-xs text-blue-700">
+                                        : Workflows đã tạo
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-xs text-blue-700 text-center">
+                                    Role {userRole} không bị giới hạn số workflows đã tạo.
+                                </div>
+                            )}
+                        </div>
                             </>
                         )}
 

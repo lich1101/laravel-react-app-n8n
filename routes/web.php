@@ -48,7 +48,7 @@ Route::get('/sso-login', function (\Illuminate\Http\Request $request) {
             if (\App\Helpers\DomainHelper::isWebManagerUserDomain()) {
                 $adminRole = 'user';
             } else {
-                $adminRole = $data['admin_role'] ?? 'administrator';
+            $adminRole = $data['admin_role'] ?? 'administrator';
             }
             
             // Find user by role (should exist from SystemUsersSeeder)

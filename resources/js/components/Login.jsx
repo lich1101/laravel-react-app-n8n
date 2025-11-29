@@ -343,9 +343,9 @@ const Login = ({ onLoginSuccess }) => {
             </div>
 
             {!isWebManagerDomain && (
-                <p className="text-xs text-gray-500">
-                    * Hệ thống chỉ cho phép một tài khoản role "user". Sau khi đăng ký thành công, tính năng đăng ký sẽ bị khóa.
-                </p>
+            <p className="text-xs text-gray-500">
+                * Hệ thống chỉ cho phép một tài khoản role "user". Sau khi đăng ký thành công, tính năng đăng ký sẽ bị khóa.
+            </p>
             )}
             {isWebManagerDomain && (
                 <p className="text-xs text-gray-500">

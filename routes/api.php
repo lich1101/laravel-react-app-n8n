@@ -113,12 +113,21 @@ Route::middleware('auth:sanctum')->group(function () {
     // Subscription package routes (administrator only)
     Route::apiResource('subscription-packages', SubscriptionPackageController::class);
     
+    // Payment order email routes (administrator only in WEB_MANAGER_USER domain)
+    Route::get('/payment-order-emails', [\App\Http\Controllers\Api\PaymentOrderEmailController::class, 'index']);
+    Route::get('/payment-order-emails/{id}', [\App\Http\Controllers\Api\PaymentOrderEmailController::class, 'show']);
+    
+    // Email recipients routes (administrator only in WEB_MANAGER_USER domain)
+    Route::apiResource('email-recipients', \App\Http\Controllers\Api\EmailRecipientController::class);
+    
     // Web Manager User routes (only for WEB_MANAGER_USER domain)
     Route::prefix('web-manager')->group(function () {
         Route::get('/project', [WebManagerProjectController::class, 'index']);
         Route::post('/project', [WebManagerProjectController::class, 'store']);
         Route::get('/payment-orders', [ManualPaymentController::class, 'myOrders']);
         Route::post('/payment-orders', [ManualPaymentController::class, 'createOrder']);
+        Route::post('/payment-orders/send-email-and-create', [ManualPaymentController::class, 'sendEmailAndCreateOrder']);
+        Route::post('/payment-orders/generate-qr-preview', [ManualPaymentController::class, 'generateQrPreview']);
         Route::get('/payment-orders/{id}', [ManualPaymentController::class, 'show']);
         Route::post('/payment-orders/{id}/submit-payment', [ManualPaymentController::class, 'submitPayment']);
     });

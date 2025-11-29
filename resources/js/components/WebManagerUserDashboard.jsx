@@ -6,16 +6,67 @@ import UserHeader from './UserHeader';
 import WebManagerProjectTab from './WebManager/WebManagerProjectTab';
 import WebManagerSubscriptionTab from './WebManager/WebManagerSubscriptionTab';
 import WebManagerPaymentHistoryTab from './WebManager/WebManagerPaymentHistoryTab';
+import InputModal from './Common/InputModal';
 
 const WebManagerUserDashboard = () => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const navigate = useNavigate();
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
+    const [showPhoneModal, setShowPhoneModal] = useState(false);
+    const [updatingPhone, setUpdatingPhone] = useState(false);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         navigate('/login');
+    };
+
+    // Fetch user info từ API khi component mount
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const response = await axios.get('/me');
+                const userData = response.data;
+                localStorage.setItem('user', JSON.stringify(userData));
+                setUser(userData);
+                
+                // Kiểm tra và hiển thị modal yêu cầu nhập số điện thoại
+                // Chỉ kiểm tra trong WEB_MANAGER_USER domain và user có role 'user'
+                if (userData?.role === 'user' && !userData?.phone) {
+                    setShowPhoneModal(true);
+                }
+            } catch (err) {
+                console.error('Error fetching user:', err);
+            }
+        };
+
+        fetchUser();
+    }, []);
+
+    const handleUpdatePhone = async (phone) => {
+        if (!phone || !phone.trim()) {
+            return;
+        }
+
+        try {
+            setUpdatingPhone(true);
+            const response = await axios.put('/user/profile', {
+                name: user.name,
+                email: user.email,
+                phone: phone.trim(),
+            });
+
+            // Cập nhật user trong localStorage
+            const updatedUser = { ...user, phone: phone.trim() };
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+            setShowPhoneModal(false);
+        } catch (err) {
+            console.error('Error updating phone:', err);
+            alert(err.response?.data?.error || 'Không thể cập nhật số điện thoại');
+        } finally {
+            setUpdatingPhone(false);
+        }
     };
 
 
@@ -64,6 +115,18 @@ const WebManagerUserDashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Modal yêu cầu nhập số điện thoại */}
+            <InputModal
+                isOpen={showPhoneModal}
+                onClose={() => {}} // Không cho phép đóng modal nếu chưa nhập phone
+                onConfirm={handleUpdatePhone}
+                title="Yêu cầu số điện thoại"
+                message="Vui lòng để số điện thoại để được nhân viên Chatplus hỗ trợ và tư vấn"
+                placeholder="Nhập số điện thoại của bạn"
+                confirmText={updatingPhone ? 'Đang cập nhật...' : 'Xác nhận'}
+                cancelText=""
+            />
         </div>
     );
 };

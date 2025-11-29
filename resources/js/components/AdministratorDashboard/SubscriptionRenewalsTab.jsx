@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from '../../config/axios';
+import ConfirmModal from '../Common/ConfirmModal';
+import InputModal from '../Common/InputModal';
 
 const SubscriptionRenewalsTab = () => {
+    const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
     const [allOrders, setAllOrders] = useState([]); // Store all orders for filtering
     const [loading, setLoading] = useState(true);
@@ -9,6 +13,10 @@ const SubscriptionRenewalsTab = () => {
     const [searchFilter, setSearchFilter] = useState(''); // Search filter
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [processing, setProcessing] = useState(false);
+    const [redirecting, setRedirecting] = useState(false);
+    const [showApproveModal, setShowApproveModal] = useState(false);
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [orderToProcess, setOrderToProcess] = useState(null);
 
     useEffect(() => {
         fetchOrders();
@@ -62,36 +70,48 @@ const SubscriptionRenewalsTab = () => {
         setOrders(filtered);
     };
 
-    const handleApprove = async (orderId) => {
-        if (!window.confirm('Bạn có chắc chắn muốn duyệt đơn hàng này?')) {
-            return;
-        }
+    const handleApproveClick = (orderId) => {
+        setOrderToProcess(orderId);
+        setShowApproveModal(true);
+    };
+
+    const handleApprove = async () => {
+        if (!orderToProcess) return;
 
         try {
             setProcessing(true);
-            await axios.post(`/subscription-renewals/${orderId}/approve`);
-            alert('Đơn hàng đã được duyệt thành công');
-            fetchOrders();
-            setSelectedOrder(null);
+            setShowApproveModal(false);
+            await axios.post(`/subscription-renewals/${orderToProcess}/approve`);
+            
+            // Show loading and redirect to projects page
+            setRedirecting(true);
+            setTimeout(() => {
+                navigate('/administrator/projects');
+            }, 500);
         } catch (error) {
-            alert(error.response?.data?.error || 'Không thể duyệt đơn hàng');
-        } finally {
+            console.error('Error approving order:', error);
             setProcessing(false);
+            setOrderToProcess(null);
         }
     };
 
-    const handleReject = async (orderId) => {
-        const notes = window.prompt('Nhập lý do từ chối (nếu có):');
-        if (notes === null) return; // User cancelled
+    const handleRejectClick = (orderId) => {
+        setOrderToProcess(orderId);
+        setShowRejectModal(true);
+    };
+
+    const handleReject = async (notes) => {
+        if (!orderToProcess) return;
 
         try {
             setProcessing(true);
-            await axios.post(`/subscription-renewals/${orderId}/reject`, { notes });
-            alert('Đơn hàng đã bị từ chối');
+            setShowRejectModal(false);
+            await axios.post(`/subscription-renewals/${orderToProcess}/reject`, { notes: notes || null });
             fetchOrders();
             setSelectedOrder(null);
+            setOrderToProcess(null);
         } catch (error) {
-            alert(error.response?.data?.error || 'Không thể từ chối đơn hàng');
+            console.error('Error rejecting order:', error);
         } finally {
             setProcessing(false);
         }
@@ -106,10 +126,15 @@ const SubscriptionRenewalsTab = () => {
         return new Intl.NumberFormat('vi-VN').format(amount) + ' VNĐ';
     };
 
-    if (loading) {
+    if (loading || redirecting) {
         return (
             <div className="p-8">
-                <div className="text-center">Đang tải...</div>
+                <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                    <div className="text-gray-600">
+                        {redirecting ? 'Đang chuyển đến trang quản lý dự án...' : 'Đang tải...'}
+                    </div>
+                </div>
             </div>
         );
     }
@@ -252,14 +277,14 @@ const SubscriptionRenewalsTab = () => {
                                         {order.status === 'pending' && (
                                             <div className="flex gap-2">
                                                 <button
-                                                    onClick={() => handleApprove(order.id)}
+                                                    onClick={() => handleApproveClick(order.id)}
                                                     disabled={processing}
                                                     className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
                                                 >
                                                     Duyệt
                                                 </button>
                                                 <button
-                                                    onClick={() => handleReject(order.id)}
+                                                    onClick={() => handleRejectClick(order.id)}
                                                     disabled={processing}
                                                     className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
                                                 >
@@ -281,6 +306,36 @@ const SubscriptionRenewalsTab = () => {
                     </table>
                 </div>
             )}
+
+            {/* Confirm Approve Modal */}
+            <ConfirmModal
+                isOpen={showApproveModal}
+                onClose={() => {
+                    setShowApproveModal(false);
+                    setOrderToProcess(null);
+                }}
+                onConfirm={handleApprove}
+                title="Xác nhận duyệt đơn hàng"
+                message="Bạn có chắc chắn muốn duyệt đơn hàng này?"
+                confirmText="Duyệt"
+                cancelText="Hủy"
+                type="success"
+            />
+
+            {/* Reject Order Modal */}
+            <InputModal
+                isOpen={showRejectModal}
+                onClose={() => {
+                    setShowRejectModal(false);
+                    setOrderToProcess(null);
+                }}
+                onConfirm={(notes) => handleReject(notes)}
+                title="Từ chối đơn hàng"
+                message="Nhập lý do từ chối (nếu có):"
+                placeholder="Lý do từ chối..."
+                confirmText="Từ chối"
+                cancelText="Hủy"
+            />
         </div>
     );
 };

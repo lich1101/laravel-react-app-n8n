@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../config/axios';
+import ConfirmModal from '../Common/ConfirmModal';
 
 const WebManagerSubscriptionTab = ({ type = 'new' }) => {
     const [packages, setPackages] = useState([]);
@@ -13,12 +14,20 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
     const [pendingOrder, setPendingOrder] = useState(null);
     const [skipPendingCheck, setSkipPendingCheck] = useState(false);
     const [error, setError] = useState(null);
+    const [showSubmitPaymentModal, setShowSubmitPaymentModal] = useState(false);
+    const [qrPreview, setQrPreview] = useState(null); // QR code preview (chưa có order)
     const navigate = useNavigate();
 
     useEffect(() => {
         fetchData();
         setSkipPendingCheck(false); // Reset skip flag when type changes
     }, [type]);
+
+    // Debug: Log state changes
+    useEffect(() => {
+        console.log('showSubmitPaymentModal changed:', showSubmitPaymentModal);
+        console.log('order:', order);
+    }, [showSubmitPaymentModal, order]);
 
     const fetchData = async () => {
         try {
@@ -86,6 +95,34 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
             setError(null);
             setSelectedPackage(packageToUse);
 
+            // Generate QR code preview (chưa tạo đơn)
+            const response = await axios.post('/web-manager/payment-orders/generate-qr-preview', {
+                subscription_package_id: packageToUse.id,
+            });
+
+            setQrPreview({
+                qr_code_url: response.data.qr_code_url,
+                amount: response.data.amount,
+                package: response.data.package,
+            });
+        } catch (err) {
+            setError(err.response?.data?.error || 'Không thể tạo mã QR');
+        } finally {
+            setCreatingOrder(false);
+        }
+    };
+
+    const createOrderAndSubmitPayment = async () => {
+        if (!selectedPackage) {
+            setError('Vui lòng chọn gói cước');
+            return;
+        }
+
+        try {
+            setCreatingOrder(true);
+            setSubmittingPayment(true);
+            setError(null);
+
             // Xác định type:
             // - Nếu route là 'change': type = 'change'
             // - Nếu có project và route không phải 'change': type = 'renewal'
@@ -97,17 +134,27 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
                 orderType = 'renewal';
             }
             
-            const response = await axios.post('/web-manager/payment-orders', {
-                subscription_package_id: packageToUse.id,
+            // Gửi email và tạo đơn (gửi email trước, sau đó mới tạo đơn)
+            const createResponse = await axios.post('/web-manager/payment-orders/send-email-and-create', {
+                subscription_package_id: selectedPackage.id,
                 project_id: project?.id || null,
                 type: orderType,
             });
 
-            setOrder(response.data.order);
+            // Reset state
+            setOrder(null);
+            setQrPreview(null);
+            setSelectedPackage(null);
+            setShowSubmitPaymentModal(false);
+            
+            // Refresh data để hiển thị đơn pending
+            fetchData();
         } catch (err) {
-            setError(err.response?.data?.error || 'Không thể tạo đơn hàng');
+            setError(err.response?.data?.error || 'Không thể gửi email hoặc tạo đơn hàng');
+            setShowSubmitPaymentModal(false);
         } finally {
             setCreatingOrder(false);
+            setSubmittingPayment(false);
         }
     };
 
@@ -205,7 +252,8 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
         );
     }
 
-    if (order) {
+    // Hiển thị QR code preview (chưa có order)
+    if (qrPreview) {
         return (
             <div className="p-8">
                 <h2 className="text-2xl font-bold mb-6 text-primary">Thanh toán</h2>
@@ -214,17 +262,17 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
                     <div className="text-center mb-6">
                         <h3 className="text-xl font-semibold mb-2 text-primary">Quét mã QR để thanh toán</h3>
                         <p className="text-secondary mb-4">
-                            Số tiền: <span className="font-bold text-lg text-primary">{order.amount.toLocaleString('vi-VN')} VNĐ</span>
+                            Số tiền: <span className="font-bold text-lg text-primary">{parseFloat(qrPreview.amount).toLocaleString('vi-VN')} VNĐ</span>
                         </p>
                         <p className="text-sm text-muted mb-4">
-                            Mã đơn hàng: {order.uuid}
+                            Gói cước: {qrPreview.package?.name || selectedPackage?.name}
                         </p>
                     </div>
 
-                    {order.qr_code_url && (
+                    {qrPreview.qr_code_url && (
                         <div className="flex justify-center mb-6">
                             <img 
-                                src={order.qr_code_url} 
+                                src={qrPreview.qr_code_url} 
                                 alt="QR Code" 
                                 className="w-64 h-64 border-2 border-subtle rounded-xl"
                             />
@@ -233,43 +281,50 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
 
                     <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
                         <p className="text-sm text-yellow-800">
-                            <strong>Lưu ý:</strong> Sau khi thanh toán, đơn hàng của bạn sẽ được đưa vào hàng đợi chờ duyệt. 
-                            Vui lòng chờ quản trị viên duyệt đơn hàng.
+                            <strong>Lưu ý:</strong> Sau khi thanh toán, vui lòng nhấn nút "Đã thanh toán" để tạo đơn hàng. 
+                            Đơn hàng của bạn sẽ được đưa vào hàng đợi chờ quản trị viên duyệt.
                         </p>
                     </div>
 
                     <div className="flex justify-center gap-4">
                         <button
-                            onClick={async () => {
-                                try {
-                                    setSubmittingPayment(true);
-                                    await axios.post(`/web-manager/payment-orders/${order.id}/submit-payment`);
-                                    alert('Đơn hàng đã được gửi vào hàng đợi chờ duyệt. Vui lòng chờ quản trị viên duyệt.');
-                                    setOrder(null);
-                                    setSelectedPackage(null);
-                                    fetchData(); // Refresh to show updated order status
-                                } catch (err) {
-                                    alert(err.response?.data?.error || 'Không thể gửi đơn hàng');
-                                } finally {
-                                    setSubmittingPayment(false);
-                                }
+                            onClick={() => {
+                                console.log('Button clicked, qrPreview:', qrPreview);
+                                console.log('Setting showSubmitPaymentModal to true');
+                                setShowSubmitPaymentModal(true);
                             }}
-                            disabled={submittingPayment}
+                            disabled={submittingPayment || creatingOrder}
                             className="px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-card"
                         >
-                            {submittingPayment ? 'Đang gửi...' : 'Đã thanh toán'}
+                            {submittingPayment || creatingOrder ? 'Đang xử lý...' : 'Đã thanh toán'}
                         </button>
                         <button
                             onClick={() => {
-                                setOrder(null);
+                                setQrPreview(null);
                                 setSelectedPackage(null);
+                                setShowSubmitPaymentModal(false);
                             }}
-                            className="px-6 py-2 bg-surface-muted text-secondary rounded-xl hover:bg-surface-strong transition-colors"
+                            disabled={submittingPayment || creatingOrder}
+                            className="px-6 py-2 bg-surface-muted text-secondary rounded-xl hover:bg-surface-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Quay lại
                         </button>
                     </div>
                 </div>
+
+                {/* Xác nhận thanh toán và tạo đơn (bước cuối cùng) */}
+                <ConfirmModal
+                    isOpen={showSubmitPaymentModal && qrPreview !== null}
+                    onClose={() => {
+                        setShowSubmitPaymentModal(false);
+                    }}
+                    onConfirm={createOrderAndSubmitPayment}
+                    title="Xác nhận thanh toán"
+                    message={`Bạn đã thanh toán thành công? Đơn hàng sẽ được tạo và gửi vào hàng đợi chờ quản trị viên duyệt.`}
+                    confirmText="Xác nhận"
+                    cancelText="Hủy"
+                    type="success"
+                />
             </div>
         );
     }
@@ -401,6 +456,7 @@ const WebManagerSubscriptionTab = ({ type = 'new' }) => {
                     ))}
                 </div>
             )}
+
         </div>
     );
 };

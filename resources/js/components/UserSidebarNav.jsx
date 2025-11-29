@@ -235,14 +235,14 @@ const UserSidebarNav = ({
             </div>
 
             {!hideAutomations && (
-                <div className="py-3">
-                    <SectionHeader
-                        collapsed={collapsed}
-                        title="Automations"
-                        iconPath="/icons/table-automation.svg"
-                        isOpen={automationOpen}
-                        onToggle={() => setAutomationOpen((prev) => !prev)}
-                    />
+            <div className="py-3">
+                <SectionHeader
+                    collapsed={collapsed}
+                    title="Automations"
+                    iconPath="/icons/table-automation.svg"
+                    isOpen={automationOpen}
+                    onToggle={() => setAutomationOpen((prev) => !prev)}
+                />
                 {automationOpen && !collapsed && (
                     <div className="mt-1 space-y-2 pl-4">
                         {loading ? (
@@ -320,14 +320,14 @@ const UserSidebarNav = ({
             )}
 
             {!hideWorkflows && (
-                <div className="py-3">
-                    <SectionHeader
-                        collapsed={collapsed}
-                        title="Workflows"
-                        iconPath="/icons/workflow.svg"
-                        isOpen={workflowsOpen}
-                        onToggle={() => setWorkflowsOpen((prev) => !prev)}
-                    />
+            <div className="py-3">
+                <SectionHeader
+                    collapsed={collapsed}
+                    title="Workflows"
+                    iconPath="/icons/workflow.svg"
+                    isOpen={workflowsOpen}
+                    onToggle={() => setWorkflowsOpen((prev) => !prev)}
+                />
                 {workflowsOpen && !collapsed && (
                     <div className="mt-1 space-y-2 pl-4">
                         {loading ? (
