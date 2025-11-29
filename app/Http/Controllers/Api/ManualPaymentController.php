@@ -258,7 +258,21 @@ class ManualPaymentController extends Controller
         }
 
         try {
-            // BƯỚC 1: Gửi email thông báo cho administrator
+            // BƯỚC 1: Tạo đơn hàng trước để có mã đơn hàng
+            $order = ManualPaymentOrder::create([
+                'user_id' => $user->id,
+                'project_id' => $project?->id,
+                'subscription_package_id' => $subscriptionPackage->id,
+                'type' => $request->type,
+                'amount' => $subscriptionPackage->price,
+                'status' => 'pending',
+            ]);
+
+            // Generate QR code
+            $qrCodeUrl = $this->generateQrCode($order);
+            $order->update(['qr_code_url' => $qrCodeUrl]);
+
+            // BƯỚC 2: Gửi email thông báo cho administrator (sau khi đã có order ID)
             // Lấy danh sách email từ bảng email_recipients (active) hoặc fallback về users table
             $adminEmails = \App\Models\EmailRecipient::where('is_active', true)
                 ->pluck('email')
@@ -279,12 +293,14 @@ class ManualPaymentController extends Controller
                             $user,
                             $subscriptionPackage,
                             $request->type,
-                            $subscriptionPackage->price
+                            $subscriptionPackage->price,
+                            $order
                         ));
                     
                     // Lưu log email thành công cho mỗi recipient
                     foreach ($adminEmails as $recipientEmail) {
                         \App\Models\PaymentOrderEmail::create([
+                            'manual_payment_order_id' => $order->id,
                             'user_id' => $user->id,
                             'subscription_package_id' => $subscriptionPackage->id,
                             'recipient_email' => $recipientEmail,
@@ -303,12 +319,14 @@ class ManualPaymentController extends Controller
                         'user_id' => $user->id,
                         'user_email' => $user->email,
                         'package_id' => $subscriptionPackage->id,
+                        'order_id' => $order->id,
                         'admin_emails' => $adminEmails,
                     ]);
                 } catch (\Exception $emailException) {
                     // Lưu log email failed
                     foreach ($adminEmails as $recipientEmail) {
                         \App\Models\PaymentOrderEmail::create([
+                            'manual_payment_order_id' => $order->id,
                             'user_id' => $user->id,
                             'subscription_package_id' => $subscriptionPackage->id,
                             'recipient_email' => $recipientEmail,
@@ -326,34 +344,13 @@ class ManualPaymentController extends Controller
                     
                     Log::error('Payment order notification email failed', [
                         'user_id' => $user->id,
+                        'order_id' => $order->id,
                         'error' => $emailException->getMessage(),
                     ]);
                     
-                    // Vẫn tiếp tục tạo đơn dù email fail
+                    // Vẫn tiếp tục dù email fail
                 }
             }
-
-            // BƯỚC 2: Tạo đơn hàng sau khi gửi email thành công
-            $order = ManualPaymentOrder::create([
-                'user_id' => $user->id,
-                'project_id' => $project?->id,
-                'subscription_package_id' => $subscriptionPackage->id,
-                'type' => $request->type,
-                'amount' => $subscriptionPackage->price,
-                'status' => 'pending',
-            ]);
-
-            // Generate QR code
-            $qrCodeUrl = $this->generateQrCode($order);
-            $order->update(['qr_code_url' => $qrCodeUrl]);
-
-            // BƯỚC 3: Cập nhật email logs với order_id
-            \App\Models\PaymentOrderEmail::whereNull('manual_payment_order_id')
-                ->where('user_id', $user->id)
-                ->where('subscription_package_id', $subscriptionPackage->id)
-                ->where('order_type', $request->type)
-                ->where('created_at', '>=', now()->subMinutes(5)) // Chỉ update emails gần đây (5 phút)
-                ->update(['manual_payment_order_id' => $order->id]);
 
             // BƯỚC 4: Submit payment (đơn đã được tạo, chỉ cần update status)
             $order->update([

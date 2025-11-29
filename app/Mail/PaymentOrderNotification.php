@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\ManualPaymentOrder;
 use App\Models\SubscriptionPackage;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
@@ -21,7 +22,8 @@ class PaymentOrderNotification extends Mailable
         public User $user,
         public SubscriptionPackage $package,
         public string $orderType,
-        public float $amount
+        public float $amount,
+        public ManualPaymentOrder $order
     ) {
         //
     }

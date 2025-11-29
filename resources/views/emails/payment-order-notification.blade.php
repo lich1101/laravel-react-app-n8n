@@ -19,6 +19,7 @@ Khách hàng đã xác nhận thanh toán và yêu cầu tạo đơn hàng với
 - **Số workflows có thể tạo thêm:** {{ $package->max_user_workflows ?? 'Không giới hạn' }}
 
 ## Thông tin đơn hàng
+- **Mã đơn hàng:** #{{ $order->id }}
 - **Loại đơn:** {{ $orderType === 'new' ? 'Đăng ký mới' : ($orderType === 'renewal' ? 'Gia hạn' : 'Thay đổi gói') }}
 - **Số tiền:** {{ number_format($amount, 0, ',', '.') }} VNĐ
 
