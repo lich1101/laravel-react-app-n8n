@@ -145,4 +145,28 @@ class EmailRecipientController extends Controller
 
         return response()->json(['message' => 'Email recipient deleted successfully']);
     }
+
+    /**
+     * Delete all email recipients (only for administrator in WEB_MANAGER_USER domain)
+     */
+    public function destroyAll(): JsonResponse
+    {
+        // Only allow in WEB_MANAGER_USER domain
+        if (!\App\Helpers\DomainHelper::isWebManagerUserDomain()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $user = auth()->user();
+        if (!$user || $user->role !== 'administrator') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $deletedCount = EmailRecipient::count();
+        EmailRecipient::truncate();
+
+        return response()->json([
+            'message' => 'Đã xóa tất cả email recipients',
+            'deleted_count' => $deletedCount,
+        ]);
+    }
 }

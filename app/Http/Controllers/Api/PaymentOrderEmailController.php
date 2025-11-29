@@ -51,4 +51,28 @@ class PaymentOrderEmailController extends Controller
 
         return response()->json($email);
     }
+
+    /**
+     * Delete all payment order emails (only for administrator in WEB_MANAGER_USER domain)
+     */
+    public function destroyAll(): JsonResponse
+    {
+        // Only allow in WEB_MANAGER_USER domain
+        if (!\App\Helpers\DomainHelper::isWebManagerUserDomain()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $user = auth()->user();
+        if (!$user || $user->role !== 'administrator') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $deletedCount = PaymentOrderEmail::count();
+        PaymentOrderEmail::truncate();
+
+        return response()->json([
+            'message' => 'Đã xóa tất cả email logs',
+            'deleted_count' => $deletedCount,
+        ]);
+    }
 }

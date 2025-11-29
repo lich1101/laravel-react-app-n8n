@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../config/axios';
 import InputModal from '../Common/InputModal';
+import ConfirmModal from '../Common/ConfirmModal';
 
 const EmailRecipientsTab = () => {
     const [recipients, setRecipients] = useState([]);
@@ -18,6 +19,8 @@ const EmailRecipientsTab = () => {
         is_active: true,
     });
     const [submitting, setSubmitting] = useState(false);
+    const [showClearModal, setShowClearModal] = useState(false);
+    const [clearing, setClearing] = useState(false);
 
     useEffect(() => {
         fetchRecipients();
@@ -136,16 +139,42 @@ const EmailRecipientsTab = () => {
         }
     };
 
+    const handleClearAll = async () => {
+        try {
+            setClearing(true);
+            await axios.delete('/email-recipients');
+            setShowClearModal(false);
+            setCurrentPage(1);
+            fetchRecipients();
+        } catch (err) {
+            console.error('Error clearing recipients:', err);
+            alert(err.response?.data?.error || 'Không thể xóa tất cả email');
+        } finally {
+            setClearing(false);
+        }
+    };
+
     return (
         <div className="p-6">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-800">Quản lý Danh sách Email Nhận Thông Báo</h2>
-                <button
-                    onClick={handleAdd}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-                >
-                    <span>+</span> Thêm Email
-                </button>
+                <div className="flex gap-3">
+                    {recipients.length > 0 && (
+                        <button
+                            onClick={() => setShowClearModal(true)}
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                        >
+                            
+                            Xóa tất cả
+                        </button>
+                    )}
+                    <button
+                        onClick={handleAdd}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                    >
+                        <span>+</span> Thêm Email
+                    </button>
+                </div>
             </div>
 
             {error && (
@@ -403,6 +432,18 @@ const EmailRecipientsTab = () => {
                     </div>
                 </div>
             )}
+
+            {/* Clear All Confirmation Modal */}
+            <ConfirmModal
+                isOpen={showClearModal}
+                title="Xác nhận xóa tất cả"
+                message="Bạn có chắc chắn muốn xóa tất cả email recipients? Hành động này không thể hoàn tác."
+                confirmText={clearing ? 'Đang xóa...' : 'Xóa tất cả'}
+                cancelText="Hủy"
+                onConfirm={handleClearAll}
+                onClose={() => setShowClearModal(false)}
+                type="danger"
+            />
         </div>
     );
 };

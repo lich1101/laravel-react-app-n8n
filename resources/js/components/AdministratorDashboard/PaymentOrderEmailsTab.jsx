@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../config/axios';
+import ConfirmModal from '../Common/ConfirmModal';
 
 const PaymentOrderEmailsTab = () => {
     const [emails, setEmails] = useState([]);
@@ -7,6 +8,8 @@ const PaymentOrderEmailsTab = () => {
     const [error, setError] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [showClearModal, setShowClearModal] = useState(false);
+    const [clearing, setClearing] = useState(false);
 
     useEffect(() => {
         fetchEmails();
@@ -77,6 +80,21 @@ const PaymentOrderEmailsTab = () => {
         }
     };
 
+    const handleClearAll = async () => {
+        try {
+            setClearing(true);
+            await axios.delete('/payment-order-emails');
+            setShowClearModal(false);
+            setCurrentPage(1);
+            fetchEmails();
+        } catch (err) {
+            console.error('Error clearing emails:', err);
+            alert(err.response?.data?.error || 'Không thể xóa tất cả emails');
+        } finally {
+            setClearing(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="p-8">
@@ -87,7 +105,18 @@ const PaymentOrderEmailsTab = () => {
 
     return (
         <div className="p-8">
-            <h2 className="text-2xl font-bold mb-6 text-primary">Quản lý Emails Đơn Hàng</h2>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-primary">Quản lý Emails Đơn Hàng</h2>
+                {emails.length > 0 && (
+                    <button
+                        onClick={() => setShowClearModal(true)}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center gap-2"
+                    >
+                        <span>🗑️</span>
+                        Xóa tất cả
+                    </button>
+                )}
+            </div>
 
             {error && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-red-800">
@@ -192,6 +221,18 @@ const PaymentOrderEmailsTab = () => {
                     )}
                 </>
             )}
+
+            {/* Clear All Confirmation Modal */}
+            <ConfirmModal
+                isOpen={showClearModal}
+                title="Xác nhận xóa tất cả"
+                message="Bạn có chắc chắn muốn xóa tất cả email logs? Hành động này không thể hoàn tác."
+                confirmText={clearing ? 'Đang xóa...' : 'Xóa tất cả'}
+                cancelText="Hủy"
+                onConfirm={handleClearAll}
+                onClose={() => setShowClearModal(false)}
+                type="danger"
+            />
         </div>
     );
 };

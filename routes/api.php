@@ -116,8 +116,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Payment order email routes (administrator only in WEB_MANAGER_USER domain)
     Route::get('/payment-order-emails', [\App\Http\Controllers\Api\PaymentOrderEmailController::class, 'index']);
     Route::get('/payment-order-emails/{id}', [\App\Http\Controllers\Api\PaymentOrderEmailController::class, 'show']);
+    Route::delete('/payment-order-emails', [\App\Http\Controllers\Api\PaymentOrderEmailController::class, 'destroyAll']);
     
     // Email recipients routes (administrator only in WEB_MANAGER_USER domain)
+    Route::delete('/email-recipients', [\App\Http\Controllers\Api\EmailRecipientController::class, 'destroyAll']);
     Route::apiResource('email-recipients', \App\Http\Controllers\Api\EmailRecipientController::class);
     
     // Web Manager User routes (only for WEB_MANAGER_USER domain)
