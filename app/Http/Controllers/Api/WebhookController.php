@@ -4529,12 +4529,37 @@ JS;
                 // Check if data was already received (prevent duplicate processing)
                 $receivedDataKey = "webhook_test_received_{$testRunId}";
                 if (!\Illuminate\Support\Facades\Cache::has($receivedDataKey)) {
-                    // Store received data for test
+                    // Parse request body - handle JSON and form data (same as handle())
+                    $body = [];
+                    $contentType = $request->header('Content-Type', '');
+                    
+                    // Try to get all data first (works for form data)
+                    $allData = $request->all();
+                    
+                    // If Content-Type is JSON, parse JSON body separately
+                    if (strpos($contentType, 'application/json') !== false) {
+                        $rawContent = $request->getContent();
+                        if (!empty($rawContent)) {
+                            $jsonBody = json_decode($rawContent, true);
+                            if (json_last_error() === JSON_ERROR_NONE && is_array($jsonBody)) {
+                                $body = $jsonBody;
+                                // Merge JSON body into allData
+                                $allData = array_merge($allData, $body);
+                            }
+                        }
+                    } else {
+                        // For form data, body is already in all()
+                        $body = $allData;
+                    }
+                    
+                    // Store received data for test - format same as handle()
                     $webhookData = [
                         'method' => $request->method(),
                         'headers' => $request->headers->all(),
-                        'body' => $request->all(),
-                        'query' => $request->query(),
+                        'body' => $body,  // Only body data, not query params
+                        'query' => $request->query(),  // Keep query separate for reference
+                        'all' => $allData,  // All data (query + body merged)
+                        'url' => $request->url(),
                         'received_at' => now(),
                     ];
                     
@@ -4605,18 +4630,19 @@ JS;
                 'webhook_data' => $webhookData,
             ]);
 
-            // Format webhook data similar to how handleTest receives it
+            // Format webhook data similar to how handle() and handleTest() format it
             // Allow empty webhook data for workflows without webhook trigger
+            // If 'all' field is already present (from handleTest), use it; otherwise merge query + body
             $formattedWebhookData = [
                 'method' => $webhookData['method'] ?? 'POST',
                 'headers' => $webhookData['headers'] ?? [],
                 'body' => $webhookData['body'] ?? [],
                 'query' => $webhookData['query'] ?? [],
-                'all' => array_merge(
+                'all' => $webhookData['all'] ?? array_merge(
                     $webhookData['query'] ?? [],
                     $webhookData['body'] ?? []
                 ),
-                'url' => '/',
+                'url' => $webhookData['url'] ?? '/',
             ];
             
             Log::info('Formatted webhook data for test execution', [

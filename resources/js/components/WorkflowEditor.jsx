@@ -1673,11 +1673,14 @@ function WorkflowEditor() {
             
             // Ensure webhook data has required fields
             // If webhookData is null/undefined, use empty data (for workflows without webhook)
+            // Include 'all' field if present (from handleTest), otherwise backend will create it
             const formattedWebhookData = webhookData ? {
                 method: webhookData.method || 'POST',
                 headers: webhookData.headers || {},
                 body: webhookData.body || {},
                 query: webhookData.query || {},
+                ...(webhookData.all && { all: webhookData.all }), // Include 'all' if present
+                ...(webhookData.url && { url: webhookData.url }), // Include 'url' if present
             } : {
                 method: 'POST',
                 headers: {},

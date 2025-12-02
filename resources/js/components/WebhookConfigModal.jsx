@@ -271,11 +271,14 @@ const WebhookConfigModal = ({ node, onSave, onClose, workflowId, onTestResult, o
                         // Save test result to node output data (so downstream nodes can use it)
                         if (onTestResult && node?.id) {
                             // Format the data similar to actual webhook execution
+                            // Include 'all' and 'url' fields if present (from handleTest)
                             const formattedOutput = {
                                 method: receivedData.method,
                                 headers: receivedData.headers,
                                 body: receivedData.body,
                                 query: receivedData.query,
+                                ...(receivedData.all && { all: receivedData.all }),
+                                ...(receivedData.url && { url: receivedData.url }),
                             };
                             onTestResult(node.id, formattedOutput);
                         }
