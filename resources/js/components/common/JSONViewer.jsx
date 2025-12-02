@@ -12,12 +12,6 @@ export default function JSONViewer({
     onToggleCollapse,
     className = ''
 }) {
-    const truncateText = (text, maxLength = 150) => {
-        if (typeof text !== 'string') return text;
-        if (text.length <= maxLength) return text;
-        return text.substring(0, maxLength) + '...';
-    };
-
     const getTypeInfo = (value) => {
         if (value === null) return { icon: '∅', color: 'gray', label: 'null' };
         if (Array.isArray(value)) return { icon: '[]', color: 'purple', label: 'array' };
@@ -118,11 +112,11 @@ export default function JSONViewer({
                                                 }}
                                                 title={`Kéo thả để sử dụng {{${variablePath}}}`}
                                             >
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 min-w-0">
                                                     <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono flex-shrink-0`}>
                                                         {typeInfo.icon}
                                                     </span>
-                                                    <span className="text-sm font-medium text-gray-700 truncate">
+                                                    <span className="text-sm font-medium text-gray-700 truncate min-w-0" title={key}>
                                                         {key}
                                                     </span>
                                                     {!isPrimitive && childCollapsed && (
@@ -134,15 +128,16 @@ export default function JSONViewer({
                                                 
                                                 {isPrimitive && (
                                                     <div 
-                                                        className="mt-1 text-xs text-gray-600 font-mono break-all cursor-move"
+                                                        className="mt-1 text-xs text-gray-600 font-mono truncate cursor-move min-w-0"
                                                         draggable="true"
                                                         onDragStart={(e) => {
                                                             e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
                                                             e.dataTransfer.effectAllowed = 'copy';
                                                         }}
+                                                        title={typeof value === 'string' ? `"${value}"` : String(value)}
                                                     >
                                                         {typeof value === 'string' 
-                                                            ? `"${truncateText(value)}"`
+                                                            ? `"${value}"`
                                                             : String(value)
                                                         }
                                                     </div>
@@ -178,12 +173,12 @@ export default function JSONViewer({
 
         const typeInfo = getTypeInfo(obj);
         return (
-            <div className="flex items-center gap-2">
-                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono`}>
+            <div className="flex items-center gap-2 min-w-0">
+                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono flex-shrink-0`}>
                     {typeInfo.icon}
                 </span>
-                <span className="text-xs text-gray-600 font-mono">
-                    {typeof obj === 'string' ? `"${truncateText(obj)}"` : String(obj)}
+                <span className="text-xs text-gray-600 font-mono truncate min-w-0" title={typeof obj === 'string' ? `"${obj}"` : String(obj)}>
+                    {typeof obj === 'string' ? `"${obj}"` : String(obj)}
                 </span>
             </div>
         );

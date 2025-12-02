@@ -259,11 +259,13 @@ function ExpandableTextarea({
         }
 
         return (
-            <div className="space-y-3">
+            <div className="space-y-3 min-w-0">
                 {Object.entries(inputData).filter(([key]) => !key.match(/^\d+$/)).map(([nodeName, data]) => (
-                    <div key={nodeName}>
-                        <div className="text-xs font-semibold text-gray-700 mb-1">{nodeName}:</div>
-                        <div className="bg-gray-50 p-2 rounded border border-gray-200">
+                    <div key={nodeName} className="min-w-0">
+                        <div className="text-xs font-semibold text-gray-700 mb-1 truncate min-w-0" title={nodeName}>
+                            {nodeName}:
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded border border-gray-200 min-w-0 overflow-hidden">
                             {renderDraggableData(data, nodeName)}
                         </div>
                     </div>
@@ -307,14 +309,15 @@ function ExpandableTextarea({
         }
 
         if (typeof obj !== 'object') {
+            const displayValue = typeof obj === 'string' ? `"${obj}"` : String(obj);
             return (
                 <div 
-                    className="text-xs text-gray-700 cursor-move p-1 hover:bg-blue-50 rounded"
+                    className="text-xs text-gray-700 cursor-move p-1 hover:bg-blue-50 rounded truncate min-w-0"
                     draggable="true"
                     onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${currentPrefix}}}`)}
                     title={`Drag {{${currentPrefix}}}`}
                 >
-                    {typeof obj === 'string' ? `"${obj.substring(0, 50)}${obj.length > 50 ? '...' : ''}"` : String(obj)}
+                    {displayValue}
                 </div>
             );
         }
@@ -355,7 +358,7 @@ function ExpandableTextarea({
         const keys = Object.keys(obj);
         
         return (
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
                 {keys.map(key => {
                     const variablePath = buildVariablePath(basePrefix, key);
                     const isPrimitive = typeof obj[key] !== 'object' || obj[key] === null;
@@ -365,32 +368,34 @@ function ExpandableTextarea({
                     return (
                         <div key={key}>
                             <div 
-                                className="text-xs p-1 hover:bg-blue-50 rounded flex items-start gap-1"
+                                className="text-xs p-1 hover:bg-blue-50 rounded flex items-start gap-1 min-w-0"
                             >
                                 {hasChildren && (
                                     <span 
-                                        className="text-gray-500 cursor-pointer"
+                                        className="text-gray-500 cursor-pointer flex-shrink-0"
                                         onClick={() => toggleCollapse(variablePath)}
                                     >
                                         {isChildCollapsed ? '▶' : '▼'}
                                     </span>
                                 )}
                                 <div
-                                    className="flex-1 cursor-move"
+                                    className="flex-1 cursor-move min-w-0"
                                     draggable="true"
                                     onDragStart={(e) => e.dataTransfer.setData('text/plain', `{{${variablePath}}}`)}
                                     title={`Drag {{${variablePath}}}`}
                                 >
-                                    <span className="text-blue-600 font-medium">{key}:</span>{' '}
+                                    <span className="text-blue-600 font-medium truncate min-w-0 inline-block" title={key}>
+                                        {key}:
+                                    </span>{' '}
                                     {isPrimitive && (
-                                        <span className="text-gray-700">
+                                        <span className="text-gray-700 truncate min-w-0 inline-block" title={typeof obj[key] === 'string' ? `"${obj[key]}"` : String(obj[key])}>
                                             {typeof obj[key] === 'string' 
-                                                ? `"${obj[key].substring(0, 50)}${obj[key].length > 50 ? '...' : ''}"`
+                                                ? `"${obj[key]}"`
                                                 : String(obj[key])}
                                         </span>
                                     )}
                                     {!isPrimitive && (
-                                        <span className="text-gray-500">
+                                        <span className="text-gray-500 flex-shrink-0">
                                             {Array.isArray(obj[key]) ? `[${obj[key].length}]` : `{${Object.keys(obj[key]).length}}`}
                                         </span>
                                     )}

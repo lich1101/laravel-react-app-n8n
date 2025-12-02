@@ -77,18 +77,18 @@ export default function TestResultViewer({
             // If it looks like inputData format (nodeName -> data mapping)
             if (typeof data[firstKey] === 'object' && !Array.isArray(data[firstKey])) {
                 return (
-                    <div className="space-y-4">
+                    <div className="space-y-4 min-w-0">
                         {Object.entries(data).map(([nodeName, nodeData]) => (
-                            <div key={nodeName}>
-                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
-                                    <span className="text-xs font-semibold text-gray-700">
+                            <div key={nodeName} className="min-w-0">
+                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200 min-w-0">
+                                    <span className="text-xs font-semibold text-gray-700 truncate min-w-0" title={nodeName}>
                                         {nodeName}
                                     </span>
-                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded flex-shrink-0">
                                         {Object.keys(nodeData || {}).length} fields
                                     </span>
                                 </div>
-                                <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                <div className="bg-white p-3 rounded-lg border border-gray-200 min-w-0 overflow-hidden">
                                     <JSONViewer
                                         data={nodeData}
                                         prefix={nodeName}
@@ -105,7 +105,7 @@ export default function TestResultViewer({
 
         // Single data object schema view
         return (
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
+            <div className="bg-white p-3 rounded-lg border border-gray-200 min-w-0 overflow-hidden">
                 <JSONViewer
                     data={data}
                     collapsedPaths={collapsedPaths}
