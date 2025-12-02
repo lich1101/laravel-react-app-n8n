@@ -22,6 +22,9 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         functions: [],
         functionCall: 'auto',
         advancedOptions: {},
+        memoryEnabled: false,
+        memoryId: '',
+        memoryLimit: 10,
     });
 
     const availableOptions = [
@@ -616,6 +619,67 @@ function GeminiConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                         />
                                     </div>
                                 )}
+
+                                {/* Memory Settings */}
+                                <div className="border-t border-gray-200 pt-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Memory (Lưu trữ lịch sử chat)
+                                        </label>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={config.memoryEnabled || false}
+                                                onChange={(e) => setConfig({ ...config, memoryEnabled: e.target.checked })}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                                        </label>
+                                    </div>
+                                    {config.memoryEnabled && (
+                                        <div className="space-y-3 mt-3 bg-gray-50 p-3 rounded-md border border-gray-200">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Memory ID (Mã nhận diện) *
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={config.memoryId || ''}
+                                                    onChange={(e) => setConfig({ ...config, memoryId: e.target.value })}
+                                                    placeholder="vd: user-123, session-abc"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                                />
+                                                <p className="mt-1 text-xs text-gray-500">
+                                                    ID để nhận diện memory, ví dụ: user-123, session-abc
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Số lượng messages lấy từ memory
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    value={config.memoryLimit || 10}
+                                                    onChange={(e) => setConfig({ ...config, memoryLimit: parseInt(e.target.value) || 10 })}
+                                                    min="1"
+                                                    max="50"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                                />
+                                                <p className="mt-1 text-xs text-gray-500">
+                                                    Số lượng đoạn chat (user + assistant) sẽ được lấy từ memory và thêm vào messages
+                                                </p>
+                                            </div>
+                                            <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded border border-blue-200">
+                                                <strong>ℹ️ Cách hoạt động:</strong>
+                                                <ul className="list-disc list-inside mt-1 space-y-1">
+                                                    <li>Khi bật memory, hệ thống sẽ lấy các messages từ cache theo ID và số lượng đã cấu hình</li>
+                                                    <li>Sau khi node AI chạy xong, câu hỏi và câu trả lời sẽ được tóm tắt và lưu vào cache</li>
+                                                    <li>Memory sẽ tự động xóa các messages cũ khi vượt quá số lượng đã cấu hình</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Advanced Options */}
                                 <div>

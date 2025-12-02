@@ -8,6 +8,7 @@ use App\Models\WorkflowNode;
 use App\Models\WorkflowExecution;
 use App\Models\SystemSetting;
 use App\Jobs\ExecuteWorkflowJob;
+use App\Services\MemoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -2268,7 +2269,24 @@ JS;
             // Build messages array (Claude không hỗ trợ system trong messages array)
             $messages = [];
             
-            // Add all user/assistant messages
+            // Load memory from cache if enabled
+            $memoryService = app(MemoryService::class);
+            if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                $memories = $memoryService->getMemory($config['memoryId'], $memoryLimit);
+                $memoryMessages = $memoryService->memoriesToMessages($memories);
+                
+                // Thêm memory messages vào đầu
+                $messages = array_merge($messages, $memoryMessages);
+                
+                Log::info('Claude memory loaded', [
+                    'memory_id' => $config['memoryId'],
+                    'memory_count' => count($memories),
+                    'memory_messages_count' => count($memoryMessages),
+                ]);
+            }
+            
+            // Add all user/assistant messages from config
             if (!empty($config['messages']) && is_array($config['messages'])) {
                 foreach ($config['messages'] as $msg) {
                     $content = $this->resolveVariables($msg['content'] ?? '', $inputData);
@@ -2422,6 +2440,70 @@ JS;
                 'has_content' => isset($result['content']),
             ]);
 
+            // Save memory if enabled (run in background)
+            if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                try {
+                    // Extract user message and assistant response
+                    $userMessage = '';
+                    $assistantMessage = '';
+                    
+                    // Get last user message from config messages
+                    if (!empty($config['messages']) && is_array($config['messages'])) {
+                        $lastUserMsg = null;
+                        foreach (array_reverse($config['messages']) as $msg) {
+                            if (($msg['role'] ?? '') === 'user') {
+                                $lastUserMsg = $this->resolveVariables($msg['content'] ?? '', $inputData);
+                                break;
+                            }
+                        }
+                        if ($lastUserMsg) {
+                            $userMessage = $lastUserMsg;
+                        }
+                    }
+                    
+                    // Get assistant response from result (Claude format)
+                    if (isset($result['content'][0]['text'])) {
+                        $assistantMessage = $result['content'][0]['text'];
+                    }
+                    
+                    // Save memory in background (async)
+                    if (!empty($userMessage) && !empty($assistantMessage)) {
+                        $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                        $credentialId = $config['credentialId'] ?? null;
+                        $modelName = $config['model'] ?? null;
+                        
+                        // Summarize before saving using the same AI model
+                        $summarized = $memoryService->summarizeMemory(
+                            $userMessage, 
+                            $assistantMessage,
+                            'claude',
+                            $credentialId,
+                            $modelName
+                        );
+                        
+                        // Save to cache (non-blocking)
+                        dispatch(function () use ($memoryService, $config, $summarized, $memoryLimit) {
+                            $memoryService->saveMemory(
+                                $config['memoryId'],
+                                $summarized['user'],
+                                $summarized['assistant'],
+                                $memoryLimit
+                            );
+                        })->afterResponse();
+                        
+                        Log::info('Claude memory saved (background)', [
+                            'memory_id' => $config['memoryId'],
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    // Don't fail the request if memory save fails
+                    Log::error('Failed to save Claude memory', [
+                        'error' => $e->getMessage(),
+                        'memory_id' => $config['memoryId'] ?? null,
+                    ]);
+                }
+            }
+
             return $result;
         } catch (\Exception $e) {
             Log::error('Claude node execution failed', [
@@ -2453,7 +2535,24 @@ JS;
                 }
             }
 
-            // Add all user/assistant messages
+            // Load memory from cache if enabled
+            $memoryService = app(MemoryService::class);
+            if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                $memories = $memoryService->getMemory($config['memoryId'], $memoryLimit);
+                $memoryMessages = $memoryService->memoriesToMessages($memories);
+                
+                // Thêm memory messages vào đầu (sau system message)
+                $messages = array_merge($messages, $memoryMessages);
+                
+                Log::info('Perplexity memory loaded', [
+                    'memory_id' => $config['memoryId'],
+                    'memory_count' => count($memories),
+                    'memory_messages_count' => count($memoryMessages),
+                ]);
+            }
+
+            // Add all user/assistant messages from config
             if (!empty($config['messages']) && is_array($config['messages'])) {
                 foreach ($config['messages'] as $msg) {
                     $content = $this->resolveVariables($msg['content'] ?? '', $inputData);
@@ -2582,6 +2681,70 @@ JS;
                 'choices_count' => isset($result['choices']) ? count($result['choices']) : 0,
             ]);
 
+            // Save memory if enabled (run in background)
+            if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                try {
+                    // Extract user message and assistant response
+                    $userMessage = '';
+                    $assistantMessage = '';
+                    
+                    // Get last user message from config messages
+                    if (!empty($config['messages']) && is_array($config['messages'])) {
+                        $lastUserMsg = null;
+                        foreach (array_reverse($config['messages']) as $msg) {
+                            if (($msg['role'] ?? '') === 'user') {
+                                $lastUserMsg = $this->resolveVariables($msg['content'] ?? '', $inputData);
+                                break;
+                            }
+                        }
+                        if ($lastUserMsg) {
+                            $userMessage = $lastUserMsg;
+                        }
+                    }
+                    
+                    // Get assistant response from result (Perplexity format)
+                    if (isset($result['choices'][0]['message']['content'])) {
+                        $assistantMessage = $result['choices'][0]['message']['content'];
+                    }
+                    
+                    // Save memory in background (async)
+                    if (!empty($userMessage) && !empty($assistantMessage)) {
+                        $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                        $credentialId = $config['credentialId'] ?? null;
+                        $modelName = $config['model'] ?? null;
+                        
+                        // Summarize before saving using the same AI model
+                        $summarized = $memoryService->summarizeMemory(
+                            $userMessage, 
+                            $assistantMessage,
+                            'perplexity',
+                            $credentialId,
+                            $modelName
+                        );
+                        
+                        // Save to cache (non-blocking)
+                        dispatch(function () use ($memoryService, $config, $summarized, $memoryLimit) {
+                            $memoryService->saveMemory(
+                                $config['memoryId'],
+                                $summarized['user'],
+                                $summarized['assistant'],
+                                $memoryLimit
+                            );
+                        })->afterResponse();
+                        
+                        Log::info('Perplexity memory saved (background)', [
+                            'memory_id' => $config['memoryId'],
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    // Don't fail the request if memory save fails
+                    Log::error('Failed to save Perplexity memory', [
+                        'error' => $e->getMessage(),
+                        'memory_id' => $config['memoryId'] ?? null,
+                    ]);
+                }
+            }
+
             return $result;
         } catch (\Exception $e) {
             Log::error('Perplexity node execution failed', [
@@ -2613,7 +2776,24 @@ JS;
                 }
             }
 
-            // Add all user/assistant messages
+            // Load memory from cache if enabled
+            $memoryService = app(MemoryService::class);
+            if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                $memories = $memoryService->getMemory($config['memoryId'], $memoryLimit);
+                $memoryMessages = $memoryService->memoriesToMessages($memories);
+                
+                // Thêm memory messages vào đầu (sau system message)
+                $messages = array_merge($messages, $memoryMessages);
+                
+                Log::info('OpenAI memory loaded', [
+                    'memory_id' => $config['memoryId'],
+                    'memory_count' => count($memories),
+                    'memory_messages_count' => count($memoryMessages),
+                ]);
+            }
+
+            // Add all user/assistant messages from config
             if (!empty($config['messages']) && is_array($config['messages'])) {
                 foreach ($config['messages'] as $msg) {
                     $content = $this->resolveVariables($msg['content'] ?? '', $inputData);
@@ -2852,6 +3032,70 @@ JS;
                 'has_choices' => isset($result['choices']),
             ]);
 
+            // Save memory if enabled (run in background)
+            if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                try {
+                    // Extract user message and assistant response
+                    $userMessage = '';
+                    $assistantMessage = '';
+                    
+                    // Get last user message from config messages
+                    if (!empty($config['messages']) && is_array($config['messages'])) {
+                        $lastUserMsg = null;
+                        foreach (array_reverse($config['messages']) as $msg) {
+                            if (($msg['role'] ?? '') === 'user') {
+                                $lastUserMsg = $this->resolveVariables($msg['content'] ?? '', $inputData);
+                                break;
+                            }
+                        }
+                        if ($lastUserMsg) {
+                            $userMessage = $lastUserMsg;
+                        }
+                    }
+                    
+                    // Get assistant response from result
+                    if (isset($result['choices'][0]['message']['content'])) {
+                        $assistantMessage = $result['choices'][0]['message']['content'];
+                    }
+                    
+                    // Save memory in background (async)
+                    if (!empty($userMessage) && !empty($assistantMessage)) {
+                        $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                        $credentialId = $config['credentialId'] ?? null;
+                        $modelName = $config['model'] ?? null;
+                        
+                        // Summarize before saving using the same AI model
+                        $summarized = $memoryService->summarizeMemory(
+                            $userMessage, 
+                            $assistantMessage,
+                            'openai',
+                            $credentialId,
+                            $modelName
+                        );
+                        
+                        // Save to cache (non-blocking)
+                        dispatch(function () use ($memoryService, $config, $summarized, $memoryLimit) {
+                            $memoryService->saveMemory(
+                                $config['memoryId'],
+                                $summarized['user'],
+                                $summarized['assistant'],
+                                $memoryLimit
+                            );
+                        })->afterResponse();
+                        
+                        Log::info('OpenAI memory saved (background)', [
+                            'memory_id' => $config['memoryId'],
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    // Don't fail the request if memory save fails
+                    Log::error('Failed to save OpenAI memory', [
+                        'error' => $e->getMessage(),
+                        'memory_id' => $config['memoryId'] ?? null,
+                    ]);
+                }
+            }
+
             return $result;
         } catch (\Exception $e) {
             Log::error('OpenAI node execution failed', [
@@ -2883,7 +3127,24 @@ JS;
                 }
             }
 
-            // Add all user/assistant messages
+            // Load memory from cache if enabled
+            $memoryService = app(MemoryService::class);
+            if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                $memories = $memoryService->getMemory($config['memoryId'], $memoryLimit);
+                $memoryMessages = $memoryService->memoriesToMessages($memories);
+                
+                // Thêm memory messages vào đầu (sau system message)
+                $messages = array_merge($messages, $memoryMessages);
+                
+                Log::info('Gemini memory loaded', [
+                    'memory_id' => $config['memoryId'],
+                    'memory_count' => count($memories),
+                    'memory_messages_count' => count($memoryMessages),
+                ]);
+            }
+
+            // Add all user/assistant messages from config
             if (!empty($config['messages']) && is_array($config['messages'])) {
                 foreach ($config['messages'] as $msg) {
                     $content = $this->resolveVariables($msg['content'] ?? '', $inputData);
@@ -3063,6 +3324,72 @@ JS;
                 'has_choices' => isset($result['choices']),
                 'choices_count' => isset($result['choices']) ? count($result['choices']) : 0,
             ]);
+
+            // Save memory if enabled (run in background)
+            if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                try {
+                    // Extract user message and assistant response
+                    $userMessage = '';
+                    $assistantMessage = '';
+                    
+                    // Get last user message from config messages
+                    if (!empty($config['messages']) && is_array($config['messages'])) {
+                        $lastUserMsg = null;
+                        foreach (array_reverse($config['messages']) as $msg) {
+                            if (($msg['role'] ?? '') === 'user') {
+                                $lastUserMsg = $this->resolveVariables($msg['content'] ?? '', $inputData);
+                                break;
+                            }
+                        }
+                        if ($lastUserMsg) {
+                            $userMessage = $lastUserMsg;
+                        }
+                    }
+                    
+                    // Get assistant response from result (Gemini format)
+                    if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+                        $assistantMessage = $result['candidates'][0]['content']['parts'][0]['text'];
+                    } elseif (isset($result['choices'][0]['message']['content'])) {
+                        $assistantMessage = $result['choices'][0]['message']['content'];
+                    }
+                    
+                    // Save memory in background (async)
+                    if (!empty($userMessage) && !empty($assistantMessage)) {
+                        $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                        $credentialId = $config['credentialId'] ?? null;
+                        $modelName = $config['model'] ?? null;
+                        
+                        // Summarize before saving using the same AI model
+                        $summarized = $memoryService->summarizeMemory(
+                            $userMessage, 
+                            $assistantMessage,
+                            'gemini',
+                            $credentialId,
+                            $modelName
+                        );
+                        
+                        // Save to cache (non-blocking)
+                        dispatch(function () use ($memoryService, $config, $summarized, $memoryLimit) {
+                            $memoryService->saveMemory(
+                                $config['memoryId'],
+                                $summarized['user'],
+                                $summarized['assistant'],
+                                $memoryLimit
+                            );
+                        })->afterResponse();
+                        
+                        Log::info('Gemini memory saved (background)', [
+                            'memory_id' => $config['memoryId'],
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    // Don't fail the request if memory save fails
+                    Log::error('Failed to save Gemini memory', [
+                        'error' => $e->getMessage(),
+                        'memory_id' => $config['memoryId'] ?? null,
+                    ]);
+                }
+            }
 
             return $result;
         } catch (\Exception $e) {
