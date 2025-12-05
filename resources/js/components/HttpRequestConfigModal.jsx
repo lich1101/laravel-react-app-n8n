@@ -874,27 +874,6 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
                                         📖 Viewing execution history (Read-only)
                                     </span>
                                 )}
-                                {/* Test/Stop Button */}
-                                {onTest && !readOnly && (
-                                    <>
-                                        {isTesting ? (
-                                            <button
-                                                onClick={handleStopTest}
-                                                className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-1.5 rounded text-sm font-medium"
-                                            >
-                                                Stop step
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={handleTest}
-                                                disabled={!config.url}
-                                                className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-sm font-medium"
-                                            >
-                                                Test step
-                                            </button>
-                                        )}
-                                    </>
-                                )}
                             </div>
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto">

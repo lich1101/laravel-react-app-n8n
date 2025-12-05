@@ -29,6 +29,8 @@ import SwitchConfigModal from './SwitchConfigModal';
 import GoogleDocsConfigModal from './GoogleDocsConfigModal';
 import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
 import GeminiConfigModal from './GeminiConfigModal';
+import KlingConfigModal from './KlingConfigModal';
+import ConvertConfigModal from './ConvertConfigModal';
 import WorkflowHistory from './WorkflowHistory';
 import RenameNodeModal from './RenameNodeModal';
 import { splitVariablePath, traverseVariableSegments, resolveVariableValue } from '../utils/variablePath';
@@ -863,6 +865,34 @@ const nodeTypes = {
             isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
+    kling: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="kling"
+            iconPath="/icons/nodes/kling-color.svg"
+            color="cyan"
+            handles={{ input: true, outputs: [{ id: null }] }}
+            onQuickAdd={props.data.onQuickAdd}
+            connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
+        />
+    ),
+    convert: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="convert"
+            iconPath="/icons/nodes/convert.svg"
+            color="blue"
+            handles={{ input: true, outputs: [{ id: null }] }}
+            onQuickAdd={props.data.onQuickAdd}
+            connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
+        />
+    ),
 };
 
 const ADD_NODE_OPTIONS = [
@@ -873,6 +903,8 @@ const ADD_NODE_OPTIONS = [
     { type: 'claude', label: 'Claude AI', iconPath: '/icons/nodes/claude.svg' },
     { type: 'openai', label: 'OpenAI', iconPath: '/icons/nodes/open_ai.svg' },
     { type: 'gemini', label: 'Gemini AI', iconPath: '/icons/nodes/gemini.svg' },
+    { type: 'convert', label: 'Convert', iconPath: '/icons/nodes/convert.svg' },
+    { type: 'kling', label: 'Kling AI', iconPath: '/icons/nodes/kling-color.svg' },
     { type: 'code', label: 'Code', iconPath: '/icons/nodes/code.svg' },
     { type: 'escape', label: 'Escape & Set', iconPath: '/icons/nodes/escape.svg' },
     { type: 'if', label: 'If', iconPath: '/icons/nodes/if.svg' },
@@ -2334,7 +2366,7 @@ function WorkflowEditor() {
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
-        if (node.type === 'webhook' || node.type === 'schedule' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'openai' || node.type === 'gemini' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
+        if (node.type === 'webhook' || node.type === 'schedule' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'openai' || node.type === 'gemini' || node.type === 'kling' || node.type === 'convert' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
             setShowConfigModal(true);
         }
     };
@@ -2675,6 +2707,11 @@ function WorkflowEditor() {
         console.log('Testing Claude with config:', config);
         return await callTestNodeAPI('claude', config);
     };
+    const handleTestConvertNode = async (config) => {
+        console.log('Testing Convert with config:', config);
+        return await callTestNodeAPI('convert', config);
+    };
+
 
     // Test OpenAI node (via backend API)
     const handleTestOpenAINode = async (config) => {
@@ -2687,6 +2724,12 @@ function WorkflowEditor() {
         console.log('Testing Gemini with config:', config);
         return await callTestNodeAPI('gemini', config);
     };
+    const handleTestKlingNode = async (config) => {
+        console.log('Testing Kling with config:', config);
+        return await callTestNodeAPI('kling', config);
+    };
+
+
 
     // Test If node (via backend API)
     const handleTestIfNode = async (config) => {
@@ -3693,6 +3736,21 @@ function WorkflowEditor() {
                     />
                 )}
 
+                {showConfigModal && selectedNode && selectedNode.type === 'kling' && (
+                    <KlingConfigModal
+                        node={selectedNode}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onTest={handleTestKlingNode}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
+                        outputData={nodeOutputData[selectedNode.id]}
+                        onTestResult={handleTestResult}
+                        allEdges={edges}
+                        allNodes={nodes}
+                    />
+                )}
+
                 {showConfigModal && selectedNode && selectedNode.type === 'code' && (
                     <CodeConfigModal
                         node={selectedNode}
@@ -3782,6 +3840,22 @@ function WorkflowEditor() {
                         allNodes={nodes}
                     />
                 )}
+                {showConfigModal && selectedNode && selectedNode.type === 'convert' && (
+                    <ConvertConfigModal
+                        node={selectedNode}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onTest={handleTestConvertNode}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
+                        outputData={nodeOutputData[selectedNode.id]}
+                        onTestResult={handleTestResult}
+                        allEdges={edges}
+                        allNodes={nodes}
+                    />
+                )}
+
+
 
                 {/* Rename Node Modal */}
                 <RenameNodeModal

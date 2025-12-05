@@ -950,6 +950,12 @@ class WebhookController extends Controller
             case 'gemini':
                 return $this->executeGeminiNode($config, $inputData);
 
+            case 'kling':
+                return $this->executeKlingNode($config, $inputData);
+
+            case 'convert':
+                return $this->executeConvertNode($config, $inputData);
+
             default:
                 // Pass through input data
                 return $inputData[0] ?? [];
@@ -2245,6 +2251,18 @@ JS;
     {
         return $this->executeGeminiNode($config, $inputData);
     }
+    // Public wrapper for testing Kling node
+    public function testKlingNode($config, $inputData)
+    {
+        return $this->executeKlingNode($config, $inputData);
+    }
+
+    // Public wrapper for testing Convert node
+    public function testConvertNode($config, $inputData)
+    {
+        return $this->executeConvertNode($config, $inputData);
+    }
+
 
     // Public wrapper for testing OpenAI node
     public function testOpenAINode($config, $inputData)
@@ -2461,8 +2479,12 @@ JS;
                         }
                     }
                     
-                    // Get assistant response from result (Claude format)
-                    if (isset($result['content'][0]['text'])) {
+                    // Get assistant response from result using dynamic path
+                    $assistantPath = $config['assistantMessagePath'] ?? 'content[0].text';
+                    $assistantMessage = $this->extractValueFromPath($result, $assistantPath);
+                    
+                    // Fallback if custom path doesn't work
+                    if (empty($assistantMessage) && isset($result['content'][0]['text'])) {
                         $assistantMessage = $result['content'][0]['text'];
                     }
                     
@@ -2473,12 +2495,14 @@ JS;
                         $modelName = $config['model'] ?? null;
                         
                         // Summarize before saving using the same AI model
+                        $assistantPath = $config['assistantMessagePath'] ?? 'content[0].text';
                         $summarized = $memoryService->summarizeMemory(
                             $userMessage, 
                             $assistantMessage,
                             'claude',
                             $credentialId,
-                            $modelName
+                            $modelName,
+                            $assistantPath
                         );
                         
                         // Save to cache (non-blocking)
@@ -2702,8 +2726,12 @@ JS;
                         }
                     }
                     
-                    // Get assistant response from result (Perplexity format)
-                    if (isset($result['choices'][0]['message']['content'])) {
+                    // Get assistant response from result using dynamic path
+                    $assistantPath = $config['assistantMessagePath'] ?? 'choices[0].message.content';
+                    $assistantMessage = $this->extractValueFromPath($result, $assistantPath);
+                    
+                    // Fallback if custom path doesn't work
+                    if (empty($assistantMessage) && isset($result['choices'][0]['message']['content'])) {
                         $assistantMessage = $result['choices'][0]['message']['content'];
                     }
                     
@@ -2714,12 +2742,14 @@ JS;
                         $modelName = $config['model'] ?? null;
                         
                         // Summarize before saving using the same AI model
+                        $assistantPath = $config['assistantMessagePath'] ?? 'choices[0].message.content';
                         $summarized = $memoryService->summarizeMemory(
                             $userMessage, 
                             $assistantMessage,
                             'perplexity',
                             $credentialId,
-                            $modelName
+                            $modelName,
+                            $assistantPath
                         );
                         
                         // Save to cache (non-blocking)
@@ -3053,8 +3083,12 @@ JS;
                         }
                     }
                     
-                    // Get assistant response from result
-                    if (isset($result['choices'][0]['message']['content'])) {
+                    // Get assistant response from result using dynamic path
+                    $assistantPath = $config['assistantMessagePath'] ?? 'choices[0].message.content';
+                    $assistantMessage = $this->extractValueFromPath($result, $assistantPath);
+                    
+                    // Fallback if custom path doesn't work
+                    if (empty($assistantMessage) && isset($result['choices'][0]['message']['content'])) {
                         $assistantMessage = $result['choices'][0]['message']['content'];
                     }
                     
@@ -3065,12 +3099,14 @@ JS;
                         $modelName = $config['model'] ?? null;
                         
                         // Summarize before saving using the same AI model
+                        $assistantPath = $config['assistantMessagePath'] ?? 'choices[0].message.content';
                         $summarized = $memoryService->summarizeMemory(
                             $userMessage, 
                             $assistantMessage,
                             'openai',
                             $credentialId,
-                            $modelName
+                            $modelName,
+                            $assistantPath
                         );
                         
                         // Save to cache (non-blocking)
@@ -3346,11 +3382,17 @@ JS;
                         }
                     }
                     
-                    // Get assistant response from result (Gemini format)
-                    if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-                        $assistantMessage = $result['candidates'][0]['content']['parts'][0]['text'];
-                    } elseif (isset($result['choices'][0]['message']['content'])) {
-                        $assistantMessage = $result['choices'][0]['message']['content'];
+                    // Get assistant response from result using dynamic path
+                    $assistantPath = $config['assistantMessagePath'] ?? 'candidates[0].content.parts[0].text';
+                    $assistantMessage = $this->extractValueFromPath($result, $assistantPath);
+                    
+                    // Fallback to common paths if custom path doesn't work
+                    if (empty($assistantMessage)) {
+                        if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+                            $assistantMessage = $result['candidates'][0]['content']['parts'][0]['text'];
+                        } elseif (isset($result['choices'][0]['message']['content'])) {
+                            $assistantMessage = $result['choices'][0]['message']['content'];
+                        }
                     }
                     
                     // Save memory in background (async)
@@ -3360,12 +3402,14 @@ JS;
                         $modelName = $config['model'] ?? null;
                         
                         // Summarize before saving using the same AI model
+                        $assistantPath = $config['assistantMessagePath'] ?? 'candidates[0].content.parts[0].text';
                         $summarized = $memoryService->summarizeMemory(
                             $userMessage, 
                             $assistantMessage,
                             'gemini',
                             $credentialId,
-                            $modelName
+                            $modelName,
+                            $assistantPath
                         );
                         
                         // Save to cache (non-blocking)
@@ -5727,5 +5771,730 @@ JS;
         Log::info('Access token refreshed successfully', ['credential_id' => $credential->id]);
 
         return $newAccessToken;
+    }
+
+    /**
+     * Extract value from JSON using dynamic path
+     * Supports: field, field[0], field[0].nested, field[0].nested[1].deep
+     * 
+     * @param array $data The JSON data
+     * @param string $path Path like "choices[0].message.content"
+     * @return mixed|null The extracted value or null if not found
+     */
+    private function extractValueFromPath($data, $path)
+    {
+        if (empty($path) || !is_array($data)) {
+            return null;
+        }
+
+        // Parse path: "candidates[0].content.parts[0].text"
+        // Split by . but keep array indices together
+        $segments = [];
+        $currentSegment = '';
+        $inBracket = false;
+        
+        for ($i = 0; $i < strlen($path); $i++) {
+            $char = $path[$i];
+            
+            if ($char === '[') {
+                $inBracket = true;
+                $currentSegment .= $char;
+            } elseif ($char === ']') {
+                $inBracket = false;
+                $currentSegment .= $char;
+            } elseif ($char === '.' && !$inBracket) {
+                if ($currentSegment !== '') {
+                    $segments[] = $currentSegment;
+                    $currentSegment = '';
+                }
+            } else {
+                $currentSegment .= $char;
+            }
+        }
+        
+        if ($currentSegment !== '') {
+            $segments[] = $currentSegment;
+        }
+
+        // Traverse through segments
+        $current = $data;
+        
+        foreach ($segments as $segment) {
+            // Check if segment has array index: field[0] or field[0][1]
+            if (preg_match('/^([^\[]+)(.*)$/', $segment, $matches)) {
+                $field = $matches[1];
+                $indices = $matches[2];
+                
+                // Get field first
+                if (is_array($current) && isset($current[$field])) {
+                    $current = $current[$field];
+                } else {
+                    return null;
+                }
+                
+                // Process array indices if any
+                if (!empty($indices)) {
+                    preg_match_all('/\[(\d+)\]/', $indices, $indexMatches);
+                    foreach ($indexMatches[1] as $index) {
+                        $index = (int)$index;
+                        if (is_array($current) && isset($current[$index])) {
+                            $current = $current[$index];
+                        } else {
+                            return null;
+                        }
+                    }
+                }
+            } else {
+                return null;
+            }
+        }
+        
+        return $current;
+    }
+
+    private function executeKlingNode($config, $inputData)
+    {
+        try {
+            // Get operation type
+            $operation = $config['operation'] ?? 'textToVideo';
+            
+            // Get credential
+            $credentialId = $config['credentialId'] ?? null;
+            if (!$credentialId) {
+                throw new \Exception('Kling API credential is required');
+            }
+
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential) {
+                throw new \Exception('Kling credential not found');
+            }
+
+            // Get API key from credential
+            $apiKey = null;
+            if ($credential->type === 'kling') {
+                $apiKey = $credential->data['key'] ?? null;
+            } elseif ($credential->type === 'bearer' && isset($credential->data['token'])) {
+                $apiKey = $credential->data['token'];
+            }
+
+            if (!$apiKey) {
+                throw new \Exception('Invalid Kling credential configuration: API key is missing');
+            }
+
+            // Base URL for Kling API
+            $baseUrl = 'https://api.klingai.com/v1';
+
+            // Execute based on operation
+            switch ($operation) {
+                case 'textToVideo':
+                    return $this->executeKlingTextToVideo($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'imageToVideo':
+                    return $this->executeKlingImageToVideo($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'multiImageToVideo':
+                    return $this->executeKlingMultiImageToVideo($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'multimodalToVideo':
+                    return $this->executeKlingMultimodalToVideo($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'videoDuration':
+                    return $this->executeKlingVideoDuration($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'avatar':
+                    return $this->executeKlingAvatar($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'videoToLip':
+                    return $this->executeKlingVideoToLip($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'videoEffects':
+                    return $this->executeKlingVideoEffects($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'textToAudio':
+                    return $this->executeKlingTextToAudio($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'videoToAudio':
+                    return $this->executeKlingVideoToAudio($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'tts':
+                    return $this->executeKlingTTS($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'imageGeneration':
+                    return $this->executeKlingImageGeneration($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'multiImageToImage':
+                    return $this->executeKlingMultiImageToImage($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'imageExpand':
+                    return $this->executeKlingImageExpand($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'imageRecognize':
+                    return $this->executeKlingImageRecognize($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'skillsMap':
+                    return $this->executeKlingSkillsMap($config, $inputData, $apiKey, $baseUrl);
+                    
+                case 'functionalityTry':
+                    return $this->executeKlingFunctionalityTry($config, $inputData, $apiKey, $baseUrl);
+                    
+                default:
+                    throw new \Exception('Unknown Kling operation: ' . $operation);
+            }
+        } catch (\Exception $e) {
+            Log::error('Kling API error', [
+                'operation' => $operation ?? 'unknown',
+                'error' => $e->getMessage(),
+            ]);
+            
+            return [
+                'error' => $e->getMessage(),
+                'operation' => $operation ?? 'unknown',
+            ];
+        }
+    }
+
+    private function executeKlingTextToVideo($config, $inputData, $apiKey, $baseUrl)
+    {
+        $prompt = $this->resolveVariables($config['prompt'] ?? '', $inputData);
+        
+        $requestBody = [
+            'model_name' => $config['modelName'] ?? 'kling-v1',
+            'prompt' => $prompt,
+            'negative_prompt' => $this->resolveVariables($config['negativePrompt'] ?? '', $inputData),
+            'cfg_scale' => $config['cfgScale'] ?? 0.5,
+            'mode' => $config['mode'] ?? 'std',
+            'duration' => $config['duration'] ?? '5',
+        ];
+
+        // Optional parameters
+        if (!empty($config['aspectRatio'])) {
+            $requestBody['aspect_ratio'] = $config['aspectRatio'];
+        }
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/videos/text2video', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingImageToVideo($config, $inputData, $apiKey, $baseUrl)
+    {
+        $image = $this->resolveVariables($config['image'] ?? '', $inputData);
+        $prompt = $this->resolveVariables($config['prompt'] ?? '', $inputData);
+        
+        $requestBody = [
+            'model_name' => $config['modelName'] ?? 'kling-v1',
+            'image' => $image,
+            'prompt' => $prompt,
+            'negative_prompt' => $this->resolveVariables($config['negativePrompt'] ?? '', $inputData),
+            'cfg_scale' => $config['cfgScale'] ?? 0.5,
+            'mode' => $config['mode'] ?? 'std',
+            'duration' => $config['duration'] ?? '5',
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/videos/image2video', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingMultiImageToVideo($config, $inputData, $apiKey, $baseUrl)
+    {
+        $images = [];
+        if (!empty($config['images']) && is_array($config['images'])) {
+            foreach ($config['images'] as $img) {
+                $images[] = $this->resolveVariables($img, $inputData);
+            }
+        }
+        
+        $requestBody = [
+            'model_name' => $config['modelName'] ?? 'kling-v1',
+            'images' => $images,
+            'prompt' => $this->resolveVariables($config['prompt'] ?? '', $inputData),
+            'cfg_scale' => $config['cfgScale'] ?? 0.5,
+            'duration' => $config['duration'] ?? '5',
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/videos/multi-image2video', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingMultimodalToVideo($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'model_name' => $config['modelName'] ?? 'kling-v1',
+            'prompt' => $this->resolveVariables($config['prompt'] ?? '', $inputData),
+        ];
+
+        if (!empty($config['image'])) {
+            $requestBody['image'] = $this->resolveVariables($config['image'], $inputData);
+        }
+
+        if (!empty($config['tailImage'])) {
+            $requestBody['tail_image'] = $this->resolveVariables($config['tailImage'], $inputData);
+        }
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/videos/multimodal2video', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingVideoDuration($config, $inputData, $apiKey, $baseUrl)
+    {
+        $videoUrl = $this->resolveVariables($config['videoUrl'] ?? '', $inputData);
+        
+        $requestBody = [
+            'video_url' => $videoUrl,
+            'duration' => $config['targetDuration'] ?? 10,
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/videos/duration', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingAvatar($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'model_name' => $config['modelName'] ?? 'kling-avatar-v1',
+            'image' => $this->resolveVariables($config['image'] ?? '', $inputData),
+            'audio' => $this->resolveVariables($config['audio'] ?? '', $inputData),
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/videos/avatar', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingVideoToLip($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'video_url' => $this->resolveVariables($config['videoUrl'] ?? '', $inputData),
+            'audio_url' => $this->resolveVariables($config['audioUrl'] ?? '', $inputData),
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/videos/video2lip', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingVideoEffects($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'video_url' => $this->resolveVariables($config['videoUrl'] ?? '', $inputData),
+            'effect_type' => $config['effectType'] ?? 'enhance',
+        ];
+
+        if (!empty($config['effectParams'])) {
+            $requestBody['params'] = json_decode($this->resolveVariables($config['effectParams'], $inputData), true);
+        }
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/videos/effects', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingTextToAudio($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'prompt' => $this->resolveVariables($config['prompt'] ?? '', $inputData),
+            'duration' => $config['duration'] ?? 5,
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/audio/text2audio', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingVideoToAudio($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'video_url' => $this->resolveVariables($config['videoUrl'] ?? '', $inputData),
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/audio/video2audio', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingTTS($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'text' => $this->resolveVariables($config['text'] ?? '', $inputData),
+            'voice' => $config['voice'] ?? 'default',
+            'language' => $config['language'] ?? 'en',
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/audio/tts', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingImageGeneration($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'model_name' => $config['modelName'] ?? 'kling-image-v1',
+            'prompt' => $this->resolveVariables($config['prompt'] ?? '', $inputData),
+            'negative_prompt' => $this->resolveVariables($config['negativePrompt'] ?? '', $inputData),
+            'n' => $config['n'] ?? 1,
+        ];
+
+        if (!empty($config['aspectRatio'])) {
+            $requestBody['aspect_ratio'] = $config['aspectRatio'];
+        }
+
+        if (!empty($config['imageCount'])) {
+            $requestBody['image_count'] = (int)$config['imageCount'];
+        }
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/images/generations', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingMultiImageToImage($config, $inputData, $apiKey, $baseUrl)
+    {
+        $images = [];
+        if (!empty($config['images']) && is_array($config['images'])) {
+            foreach ($config['images'] as $img) {
+                $images[] = $this->resolveVariables($img, $inputData);
+            }
+        }
+        
+        $requestBody = [
+            'images' => $images,
+            'prompt' => $this->resolveVariables($config['prompt'] ?? '', $inputData),
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/images/multi-image2image', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingImageExpand($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'image' => $this->resolveVariables($config['image'] ?? '', $inputData),
+            'expand_direction' => $config['expandDirection'] ?? 'all',
+        ];
+
+        if (!empty($config['expandRatio'])) {
+            $requestBody['expand_ratio'] = (float)$config['expandRatio'];
+        }
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/images/expand', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingImageRecognize($config, $inputData, $apiKey, $baseUrl)
+    {
+        $requestBody = [
+            'image' => $this->resolveVariables($config['image'] ?? '', $inputData),
+        ];
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/images/recognize', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingSkillsMap($config, $inputData, $apiKey, $baseUrl)
+    {
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+        ])->get($baseUrl . '/models/skills');
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeKlingFunctionalityTry($config, $inputData, $apiKey, $baseUrl)
+    {
+        // FunctionalityTry - Test/Try functionality
+        $requestBody = [];
+        
+        // Add any config parameters
+        if (!empty($config['functionality'])) {
+            $requestBody['functionality'] = $config['functionality'];
+        }
+        
+        if (!empty($config['parameters'])) {
+            $requestBody['parameters'] = json_decode($this->resolveVariables($config['parameters'], $inputData), true);
+        }
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->post($baseUrl . '/functionality/try', $requestBody);
+
+        if (!$response->successful()) {
+            throw new \Exception('Kling API request failed: ' . $response->body());
+        }
+
+        return $response->json();
+    }
+
+    private function executeConvertNode($config, $inputData)
+    {
+        try {
+            $operation = $config['operation'] ?? 'toBase64';
+            
+            switch ($operation) {
+                case 'toBase64':
+                    return $this->convertToBase64($config, $inputData);
+                    
+                case 'fromBase64':
+                    return $this->convertFromBase64($config, $inputData);
+                    
+                default:
+                    throw new \Exception('Unknown Convert operation: ' . $operation);
+            }
+        } catch (\Exception $e) {
+            Log::error('Convert node error', [
+                'operation' => $operation ?? 'unknown',
+                'error' => $e->getMessage(),
+            ]);
+            
+            return [
+                'error' => $e->getMessage(),
+                'operation' => $operation ?? 'unknown',
+            ];
+        }
+    }
+
+    private function convertToBase64($config, $inputData)
+    {
+        $source = $this->resolveVariables($config['source'] ?? '', $inputData);
+        
+        if (empty($source)) {
+            throw new \Exception('Source URL or file path is required');
+        }
+        
+        try {
+            // Check if it's a URL or file path
+            if (filter_var($source, FILTER_VALIDATE_URL)) {
+                // Download from URL
+                $response = Http::timeout(60)->get($source);
+                
+                if (!$response->successful()) {
+                    throw new \Exception('Failed to download file from URL: ' . $response->status());
+                }
+                
+                $fileContent = $response->body();
+                $mimeType = $response->header('Content-Type');
+            } else {
+                // Read from file path
+                if (!file_exists($source)) {
+                    throw new \Exception('File not found: ' . $source);
+                }
+                
+                $fileContent = file_get_contents($source);
+                $mimeType = mime_content_type($source);
+            }
+            
+            // Convert to base64
+            $base64 = base64_encode($fileContent);
+            
+            // Create data URI if needed
+            $dataUri = 'data:' . $mimeType . ';base64,' . $base64;
+            
+            return [
+                'base64' => $base64,
+                'dataUri' => $dataUri,
+                'mimeType' => $mimeType,
+                'size' => strlen($fileContent),
+                'source' => $source,
+            ];
+        } catch (\Exception $e) {
+            throw new \Exception('Failed to convert to base64: ' . $e->getMessage());
+        }
+    }
+
+    private function convertFromBase64($config, $inputData)
+    {
+        $base64Data = $this->resolveVariables($config['base64Data'] ?? '', $inputData);
+        
+        if (empty($base64Data)) {
+            throw new \Exception('Base64 data is required');
+        }
+        
+        try {
+            // Check if it's a data URI and extract base64
+            if (preg_match('/^data:([^;]+);base64,(.+)$/', $base64Data, $matches)) {
+                $mimeType = $matches[1];
+                $base64 = $matches[2];
+            } else {
+                // Pure base64 string
+                $base64 = $base64Data;
+                $mimeType = $config['mimeType'] ?? 'application/octet-stream';
+            }
+            
+            // Decode base64
+            $fileContent = base64_decode($base64, true);
+            
+            if ($fileContent === false) {
+                throw new \Exception('Invalid base64 data');
+            }
+            
+            // Generate filename
+            $extension = $this->getExtensionFromMimeType($mimeType);
+            $filename = ($config['filename'] ?? 'file_' . time()) . '.' . $extension;
+            
+            // Save to public storage
+            $storagePath = storage_path('app/public/converts');
+            if (!file_exists($storagePath)) {
+                mkdir($storagePath, 0755, true);
+            }
+            
+            $filePath = $storagePath . '/' . $filename;
+            file_put_contents($filePath, $fileContent);
+            
+            // Generate public URL
+            $publicUrl = url('storage/converts/' . $filename);
+            
+            return [
+                'success' => true,
+                'filename' => $filename,
+                'filePath' => $filePath,
+                'publicUrl' => $publicUrl,
+                'mimeType' => $mimeType,
+                'size' => strlen($fileContent),
+            ];
+        } catch (\Exception $e) {
+            throw new \Exception('Failed to convert from base64: ' . $e->getMessage());
+        }
+    }
+
+    private function getExtensionFromMimeType($mimeType)
+    {
+        $mimeMap = [
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+            'image/svg+xml' => 'svg',
+            'application/pdf' => 'pdf',
+            'text/plain' => 'txt',
+            'text/html' => 'html',
+            'application/json' => 'json',
+            'application/xml' => 'xml',
+            'video/mp4' => 'mp4',
+            'video/mpeg' => 'mpeg',
+            'video/webm' => 'webm',
+            'audio/mpeg' => 'mp3',
+            'audio/wav' => 'wav',
+            'audio/webm' => 'webm',
+            'application/zip' => 'zip',
+        ];
+        
+        return $mimeMap[$mimeType] ?? 'bin';
     }
 }

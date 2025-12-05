@@ -10,6 +10,8 @@ import PerplexityConfigModal from './PerplexityConfigModal';
 import ClaudeConfigModal from './ClaudeConfigModal';
 import OpenAIConfigModal from './OpenAIConfigModal';
 import GeminiConfigModal from './GeminiConfigModal';
+import KlingConfigModal from './KlingConfigModal';
+import ConvertConfigModal from './ConvertConfigModal';
 import GoogleDocsConfigModal from './GoogleDocsConfigModal';
 import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
 import CodeConfigModal from './CodeConfigModal';
@@ -335,6 +337,24 @@ const nodeTypes = {
             nodeType="gemini"
             iconPath="/icons/nodes/gemini.svg"
             color="purple"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    kling: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="kling"
+            iconPath="/icons/nodes/kling-color.svg"
+            color="cyan"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
+    convert: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="convert"
+            iconPath="/icons/nodes/convert.svg"
+            color="blue"
             handles={{ input: true, outputs: [{ id: null }] }}
         />
     ),
@@ -1225,6 +1245,22 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
                                         />
                                     )}
 
+                                    {showConfigModal && selectedNode && selectedNode.type === 'kling' && (
+                                        <KlingConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
+
                                     {showConfigModal && selectedNode && selectedNode.type === 'googledocs' && (
                                         <GoogleDocsConfigModal
                                             node={selectedNode}
@@ -1255,6 +1291,25 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
                                             allNodes={workflowNodes}
                                             readOnly={true}
                                         />
+                                    )}
+
+                                    {showConfigModal && selectedNode && selectedNode.type === 'convert' && (
+                                        <ConvertConfigModal
+                                            node={selectedNode}
+                                            onSave={() => {}} // No-op
+                                            onClose={() => setShowConfigModal(false)}
+                                            onTest={() => {}} // No-op
+                                            onRename={() => {}} // No-op
+                                            inputData={getNodeInputData(selectedNode.id)}
+                                            outputData={getNodeOutputData(selectedNode.id)}
+                                            onTestResult={() => {}} // No-op
+                                            allEdges={workflowEdges}
+                                            allNodes={workflowNodes}
+                                            readOnly={true}
+                                        />
+                                    )}
+
+
                                     )}
                                 </>
                             )}

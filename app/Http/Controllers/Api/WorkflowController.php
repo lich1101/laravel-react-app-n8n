@@ -8,6 +8,7 @@ use App\Models\WorkflowNode;
 use App\Models\WorkflowExecution;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\MemoryService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -162,6 +163,11 @@ class WorkflowController extends Controller
         }
         if ($request->has('folder_id')) {
             $updateData['folder_id'] = $request->folder_id;
+        }
+
+        // Cleanup memories when nodes are deleted or memoryId changed
+        if ($request->has('nodes')) {
+            $this->cleanupMemoriesOnNodeChange($workflow, $request->nodes);
         }
 
         $workflow->update($updateData);
@@ -520,6 +526,12 @@ class WorkflowController extends Controller
                     break;
                 case 'gemini':
                     $result = $webhookController->testGeminiNode($config, $inputData);
+                case 'kling':
+                    $result = $webhookController->testKlingNode($config, $inputData);
+                case 'convert':
+                    $result = $webhookController->testConvertNode($config, $inputData);
+                    break;
+                    break;
                     break;
                 case 'openai':
                     $result = $webhookController->testOpenAINode($config, $inputData);
@@ -577,6 +589,86 @@ class WorkflowController extends Controller
         }
 
         return $upstream;
+    }
+
+    /**
+     * Cleanup memories when nodes are deleted or memoryId changed
+     */
+    private function cleanupMemoriesOnNodeChange($workflow, $newNodes)
+    {
+        try {
+            $memoryService = app(MemoryService::class);
+            $oldNodes = $workflow->nodes ?? [];
+            $deletedCount = 0;
+            
+            // Build map of old nodes: nodeId => memoryId
+            $oldMemoryMap = [];
+            foreach ($oldNodes as $oldNode) {
+                $oldConfig = $oldNode['data']['config'] ?? [];
+                if (!empty($oldConfig['memoryEnabled']) && !empty($oldConfig['memoryId'])) {
+                    $oldMemoryMap[$oldNode['id']] = $oldConfig['memoryId'];
+                }
+            }
+            
+            // Build map of new nodes: nodeId => memoryId
+            $newMemoryMap = [];
+            foreach ($newNodes as $newNode) {
+                $newConfig = $newNode['data']['config'] ?? [];
+                if (!empty($newConfig['memoryEnabled']) && !empty($newConfig['memoryId'])) {
+                    $newMemoryMap[$newNode['id']] = $newConfig['memoryId'];
+                }
+            }
+            
+            // Find memories to delete:
+            // 1. Nodes that were deleted (in old but not in new)
+            // 2. Nodes with memoryId changed
+            foreach ($oldMemoryMap as $nodeId => $oldMemoryId) {
+                $shouldDelete = false;
+                
+                // Check if node still exists
+                $nodeStillExists = isset($newMemoryMap[$nodeId]);
+                
+                if (!$nodeStillExists) {
+                    // Node deleted
+                    $shouldDelete = true;
+                    Log::info('Node deleted, cleaning memory', [
+                        'workflow_id' => $workflow->id,
+                        'node_id' => $nodeId,
+                        'memory_id' => $oldMemoryId,
+                    ]);
+                } else {
+                    $newMemoryId = $newMemoryMap[$nodeId];
+                    if ($newMemoryId !== $oldMemoryId) {
+                        // memoryId changed
+                        $shouldDelete = true;
+                        Log::info('MemoryId changed, cleaning old memory', [
+                            'workflow_id' => $workflow->id,
+                            'node_id' => $nodeId,
+                            'old_memory_id' => $oldMemoryId,
+                            'new_memory_id' => $newMemoryId,
+                        ]);
+                    }
+                }
+                
+                if ($shouldDelete) {
+                    $memoryService->deleteMemory($oldMemoryId);
+                    $deletedCount++;
+                }
+            }
+            
+            if ($deletedCount > 0) {
+                Log::info('Memories cleaned up on workflow update', [
+                    'workflow_id' => $workflow->id,
+                    'deleted_count' => $deletedCount,
+                ]);
+            }
+        } catch (\Exception $e) {
+            // Don't block update if cleanup fails
+            Log::error('Failed to cleanup memories on workflow update', [
+                'workflow_id' => $workflow->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
 }

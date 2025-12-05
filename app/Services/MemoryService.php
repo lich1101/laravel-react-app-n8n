@@ -97,9 +97,10 @@ class MemoryService
      * @param string $modelType Loại model: 'openai', 'claude', 'perplexity', 'gemini'
      * @param int|null $credentialId ID của credential
      * @param string|null $modelName Tên model cụ thể (vd: 'gpt-4o', 'claude-3-5-sonnet-20241022')
+     * @param string|null $assistantMessagePath Path động để extract assistant message (vd: 'choices[0].message.content')
      * @return array ['user' => string, 'assistant' => string]
      */
-    public function summarizeMemory(string $userMessage, string $assistantMessage, string $modelType = null, ?int $credentialId = null, ?string $modelName = null): array
+    public function summarizeMemory(string $userMessage, string $assistantMessage, string $modelType = null, ?int $credentialId = null, ?string $modelName = null, ?string $assistantMessagePath = null): array
     {
         // Nếu không có thông tin model hoặc credential, fallback về cách tóm tắt đơn giản
         if (empty($modelType) || empty($credentialId)) {
@@ -113,7 +114,7 @@ class MemoryService
             $summarizePrompt .= "Câu trả lời: " . $assistantMessage;
 
             // Gọi API tương ứng
-            $summarized = $this->callAISummarize($modelType, $credentialId, $modelName, $summarizePrompt);
+            $summarized = $this->callAISummarize($modelType, $credentialId, $modelName, $summarizePrompt, $assistantMessagePath);
             
             if ($summarized && isset($summarized['user']) && isset($summarized['assistant'])) {
                 return $summarized;
@@ -153,7 +154,7 @@ class MemoryService
     /**
      * Gọi API AI để tóm tắt
      */
-    private function callAISummarize(string $modelType, int $credentialId, ?string $modelName, string $prompt): ?array
+    private function callAISummarize(string $modelType, int $credentialId, ?string $modelName, string $prompt, ?string $assistantMessagePath = null): ?array
     {
         $credential = \App\Models\Credential::find($credentialId);
         if (!$credential) {
@@ -162,22 +163,90 @@ class MemoryService
 
         switch ($modelType) {
             case 'openai':
-                return $this->summarizeWithOpenAI($credential, $modelName, $prompt);
+                return $this->summarizeWithOpenAI($credential, $modelName, $prompt, $assistantMessagePath);
             case 'claude':
-                return $this->summarizeWithClaude($credential, $modelName, $prompt);
+                return $this->summarizeWithClaude($credential, $modelName, $prompt, $assistantMessagePath);
             case 'perplexity':
-                return $this->summarizeWithPerplexity($credential, $modelName, $prompt);
+                return $this->summarizeWithPerplexity($credential, $modelName, $prompt, $assistantMessagePath);
             case 'gemini':
-                return $this->summarizeWithGemini($credential, $modelName, $prompt);
+                return $this->summarizeWithGemini($credential, $modelName, $prompt, $assistantMessagePath);
             default:
                 throw new \Exception("Unsupported model type: {$modelType}");
         }
     }
 
     /**
+     * Extract value from JSON using dynamic path
+     */
+    private function extractValueFromPath($data, $path)
+    {
+        if (empty($path) || !is_array($data)) {
+            return null;
+        }
+
+        $segments = [];
+        $currentSegment = '';
+        $inBracket = false;
+        
+        for ($i = 0; $i < strlen($path); $i++) {
+            $char = $path[$i];
+            
+            if ($char === '[') {
+                $inBracket = true;
+                $currentSegment .= $char;
+            } elseif ($char === ']') {
+                $inBracket = false;
+                $currentSegment .= $char;
+            } elseif ($char === '.' && !$inBracket) {
+                if ($currentSegment !== '') {
+                    $segments[] = $currentSegment;
+                    $currentSegment = '';
+                }
+            } else {
+                $currentSegment .= $char;
+            }
+        }
+        
+        if ($currentSegment !== '') {
+            $segments[] = $currentSegment;
+        }
+
+        $current = $data;
+        
+        foreach ($segments as $segment) {
+            if (preg_match('/^([^\[]+)(.*)$/', $segment, $matches)) {
+                $field = $matches[1];
+                $indices = $matches[2];
+                
+                if (is_array($current) && isset($current[$field])) {
+                    $current = $current[$field];
+                } else {
+                    return null;
+                }
+                
+                if (!empty($indices)) {
+                    preg_match_all('/\[(\d+)\]/', $indices, $indexMatches);
+                    foreach ($indexMatches[1] as $index) {
+                        $index = (int)$index;
+                        if (is_array($current) && isset($current[$index])) {
+                            $current = $current[$index];
+                        } else {
+                            return null;
+                        }
+                    }
+                }
+            } else {
+                return null;
+            }
+        }
+        
+        return $current;
+    }
+
+    /**
      * Tóm tắt bằng OpenAI
      */
-    private function summarizeWithOpenAI($credential, ?string $modelName, string $prompt): ?array
+    private function summarizeWithOpenAI($credential, ?string $modelName, string $prompt, ?string $assistantMessagePath = null): ?array
     {
         $apiKey = null;
         if ($credential->type === 'openai') {
@@ -223,7 +292,15 @@ class MemoryService
         }
 
         $result = $response->json();
-        $content = $result['choices'][0]['message']['content'] ?? null;
+        
+        // Use dynamic path if provided
+        $path = $assistantMessagePath ?: 'choices[0].message.content';
+        $content = $this->extractValueFromPath($result, $path);
+        
+        // Fallback to default path
+        if (empty($content)) {
+            $content = $result['choices'][0]['message']['content'] ?? null;
+        }
         
         if ($content) {
             $decoded = json_decode($content, true);
@@ -238,7 +315,7 @@ class MemoryService
     /**
      * Tóm tắt bằng Claude
      */
-    private function summarizeWithClaude($credential, ?string $modelName, string $prompt): ?array
+    private function summarizeWithClaude($credential, ?string $modelName, string $prompt, ?string $assistantMessagePath = null): ?array
     {
         $apiKey = null;
         if ($credential->type === 'claude') {
@@ -276,7 +353,15 @@ class MemoryService
         }
 
         $result = $response->json();
-        $content = $result['content'][0]['text'] ?? null;
+        
+        // Use dynamic path if provided
+        $path = $assistantMessagePath ?: 'content[0].text';
+        $content = $this->extractValueFromPath($result, $path);
+        
+        // Fallback to default path
+        if (empty($content)) {
+            $content = $result['content'][0]['text'] ?? null;
+        }
         
         if ($content) {
             $decoded = json_decode($content, true);
@@ -291,7 +376,7 @@ class MemoryService
     /**
      * Tóm tắt bằng Perplexity
      */
-    private function summarizeWithPerplexity($credential, ?string $modelName, string $prompt): ?array
+    private function summarizeWithPerplexity($credential, ?string $modelName, string $prompt, ?string $assistantMessagePath = null): ?array
     {
         $apiKey = null;
         if ($credential->type === 'perplexity') {
@@ -334,7 +419,15 @@ class MemoryService
         }
 
         $result = $response->json();
-        $content = $result['choices'][0]['message']['content'] ?? null;
+        
+        // Use dynamic path if provided
+        $path = $assistantMessagePath ?: 'choices[0].message.content';
+        $content = $this->extractValueFromPath($result, $path);
+        
+        // Fallback to default path
+        if (empty($content)) {
+            $content = $result['choices'][0]['message']['content'] ?? null;
+        }
         
         if ($content) {
             $decoded = json_decode($content, true);
@@ -349,7 +442,7 @@ class MemoryService
     /**
      * Tóm tắt bằng Gemini
      */
-    private function summarizeWithGemini($credential, ?string $modelName, string $prompt): ?array
+    private function summarizeWithGemini($credential, ?string $modelName, string $prompt, ?string $assistantMessagePath = null): ?array
     {
         $apiKey = null;
         if ($credential->type === 'gemini') {
@@ -389,7 +482,15 @@ class MemoryService
         }
 
         $result = $response->json();
-        $content = $result['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        
+        // Use dynamic path if provided
+        $path = $assistantMessagePath ?: 'candidates[0].content.parts[0].text';
+        $content = $this->extractValueFromPath($result, $path);
+        
+        // Fallback to default path
+        if (empty($content)) {
+            $content = $result['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        }
         
         if ($content) {
             $decoded = json_decode($content, true);

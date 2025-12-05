@@ -20,6 +20,7 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
         memoryEnabled: false,
         memoryId: '',
         memoryLimit: 10,
+        assistantMessagePath: 'choices[0].message.content', // Default for OpenAI
     });
 
     const availableOptions = [
@@ -1054,6 +1055,30 @@ function OpenAIConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
                                             </p>
                                         </div>
                                         <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded border border-blue-200">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Assistant Message Path *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={config.assistantMessagePath || ''}
+                                                onChange={(e) => setConfig({ ...config, assistantMessagePath: e.target.value })}
+                                                placeholder="choices[0].message.content"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 font-mono text-xs"
+                                            />
+                                            <p className="mt-1 text-xs text-gray-500">
+                                                💡 <strong>Cách dùng:</strong> Test node trước → Click vào field trong OUTPUT panel → Path sẽ tự động điền vào đây
+                                            </p>
+                                            <div className="mt-2 text-xs bg-amber-50 border border-amber-200 rounded p-2">
+                                                <strong>📌 Examples:</strong>
+                                                <ul className="list-disc list-inside mt-1 space-y-0.5 text-gray-600">
+                                                    <li><code className="bg-white px-1 rounded">choices[0].message.content</code> - OpenAI</li>
+                                                    <li><code className="bg-white px-1 rounded">content[0].text</code> - Claude</li>
+                                                    <li><code className="bg-white px-1 rounded">candidates[0].content.parts[0].text</code> - Gemini</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+
                                             <strong>ℹ️ Cách hoạt động:</strong>
                                             <ul className="list-disc list-inside mt-1 space-y-1">
                                                 <li>Khi bật memory, hệ thống sẽ lấy các messages từ cache theo ID và số lượng đã cấu hình</li>
