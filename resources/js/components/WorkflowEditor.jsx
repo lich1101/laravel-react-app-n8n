@@ -921,14 +921,26 @@ function WorkflowEditor() {
     const navigate = useNavigate();
     const location = useLocation();
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const workflowBasePath = location.pathname.startsWith('/dashboard/workflows') ? '/dashboard/workflows' : '/workflows';
+    
+    // Determine correct workflow base path based on current location
+    const getWorkflowBasePath = () => {
+        if (location.pathname.startsWith('/administrator/workflows')) {
+            return '/administrator/workflows';
+        } else if (location.pathname.startsWith('/admin/workflows')) {
+            return '/admin/workflows';
+        } else if (location.pathname.startsWith('/dashboard/workflows')) {
+            return '/dashboard/workflows';
+        }
+        return '/workflows';
+    };
+    const workflowBasePath = getWorkflowBasePath();
     
     // Get back URL based on user role
     const getBackUrl = () => {
         if (currentUser.role === 'administrator') {
-            return '/administrator';
+            return '/administrator/workflows';
         } else if (currentUser.role === 'admin') {
-            return '/admin';
+            return '/admin/workflows';
         }
         return '/dashboard/workflows/manage';
     };
