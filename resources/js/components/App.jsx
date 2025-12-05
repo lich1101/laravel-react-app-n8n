@@ -10,6 +10,7 @@ import Settings from '../pages/Settings';
 import ProtectedRoute from './ProtectedRoute';
 import UserDashboard from './UserDashboard';
 import WebManagerUserDashboard from './WebManagerUserDashboard';
+import TitleUpdater from './TitleUpdater';
 
 function App() {
   const token = localStorage.getItem('token');
@@ -36,6 +37,7 @@ function App() {
 
   return (
     <Router>
+      <TitleUpdater />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />

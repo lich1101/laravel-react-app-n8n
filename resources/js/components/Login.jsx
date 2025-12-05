@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import usePageTitle from '../hooks/usePageTitle';
 
 const Login = ({ onLoginSuccess }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
     const [mode, setMode] = useState('login'); // login | register | forgot
+    
+    // Dynamic page title based on mode
+    const titleMap = {
+        login: 'Đăng nhập',
+        register: 'Đăng ký',
+        forgot: 'Quên mật khẩu'
+    };
+    usePageTitle(titleMap[mode] || 'Đăng nhập');
     const [requiresRegistration, setRequiresRegistration] = useState(false);
     const [isWebManagerDomain, setIsWebManagerDomain] = useState(false);
 

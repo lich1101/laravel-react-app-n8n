@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
+import usePageTitle from '../hooks/usePageTitle';
 
 const Settings = () => {
+    usePageTitle('Settings');
+    
     const [settings, setSettings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState({});

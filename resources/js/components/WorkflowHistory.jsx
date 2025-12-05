@@ -1308,9 +1308,6 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
                                             readOnly={true}
                                         />
                                     )}
-
-
-                                    )}
                                 </>
                             )}
                         </>

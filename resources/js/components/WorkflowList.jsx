@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from '../config/axios';
 import { useNavigate } from 'react-router-dom';
 import CredentialsTab from './CredentialsTab';
+import usePageTitle from '../hooks/usePageTitle';
 
 const WorkflowList = ({ basePath = '/workflows', onStructureChange }) => {
     const [workflows, setWorkflows] = useState([]);
@@ -10,6 +11,9 @@ const WorkflowList = ({ basePath = '/workflows', onStructureChange }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedFolders, setExpandedFolders] = useState({});
     const [activeTab, setActiveTab] = useState('workflows'); // 'workflows' or 'credentials'
+    
+    // Dynamic page title based on active tab
+    usePageTitle(activeTab === 'credentials' ? 'Credentials' : 'Workflows');
     const [draggedWorkflow, setDraggedWorkflow] = useState(null);
     const [dragOverFolderId, setDragOverFolderId] = useState(null);
     const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);

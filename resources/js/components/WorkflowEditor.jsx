@@ -16,6 +16,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import axios from '../config/axios';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import usePageTitle from '../hooks/usePageTitle';
 import WebhookConfigModal from './WebhookConfigModal';
 import ScheduleTriggerConfigModal from './ScheduleTriggerConfigModal';
 import HttpRequestConfigModal from './HttpRequestConfigModal';
@@ -938,6 +939,9 @@ function WorkflowEditor() {
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
+    
+    // Dynamic page title based on workflow name
+    usePageTitle(workflow?.name || 'Workflow Editor');
     const [showNodeMenu, setShowNodeMenu] = useState(false);
     const [quickAddContext, setQuickAddContext] = useState(null);
     const [selectedNode, setSelectedNode] = useState(null);
