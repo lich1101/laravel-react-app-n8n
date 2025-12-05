@@ -53,9 +53,9 @@ const UserSidebarNav = ({
     // Preload logo and icon SVGs
     React.useEffect(() => {
         const img1 = new Image();
-        img1.src = '/icons/logo-light.svg';
+        img1.src = '/icons/Logo-full.svg';
         const img2 = new Image();
-        img2.src = '/icons/logo-icon.svg';
+        img2.src = '/icons/Logo-mini.svg';
         const img3 = new Image();
         img3.src = '/icons/chevron-left.svg';
         const img4 = new Image();
@@ -515,7 +515,7 @@ const UserSidebarNav = ({
                 {/* Logo for expanded sidebar */}
                 {!collapsed && (
                     <img 
-                        src="/icons/logo-light.svg" 
+                        src="/icons/Logo-full.svg" 
                         alt="ChatPlus" 
                         className="h-10 object-contain transition-opacity duration-200"
                         style={{ 
@@ -528,7 +528,7 @@ const UserSidebarNav = ({
                 {/* Logo icon for collapsed sidebar */}
                 {collapsed && (
                     <img 
-                        src="/icons/logo-icon.svg" 
+                        src="/icons/Logo-mini.svg" 
                         alt="ChatPlus" 
                         className="h-10 w-10 object-contain absolute left-1/2 transform -translate-x-1/2 transition-opacity duration-200"
                         style={{ 
