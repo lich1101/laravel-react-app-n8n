@@ -686,24 +686,42 @@ class WorkflowController extends Controller
     {
         try {
             $memoryService = app(MemoryService::class);
-            $oldNodes = $workflow->nodes ?? [];
             $deletedCount = 0;
             
-            // Build map of old nodes: nodeId => memoryId
+            // Build map of old nodes from workflow_nodes table (priority) and workflow.nodes (fallback)
             $oldMemoryMap = [];
+            
+            // First, check workflow_nodes table (where config is actually stored)
+            $workflowNodes = \App\Models\WorkflowNode::where('workflow_id', $workflow->id)->get();
+            foreach ($workflowNodes as $workflowNode) {
+                $config = $workflowNode->config ?? [];
+                if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                    $oldMemoryMap[$workflowNode->node_id] = $config['memoryId'];
+                }
+            }
+            
+            // Fallback: also check workflow.nodes JSON (for backward compatibility)
+            $oldNodes = $workflow->nodes ?? [];
             foreach ($oldNodes as $oldNode) {
-                $oldConfig = $oldNode['data']['config'] ?? [];
-                if (!empty($oldConfig['memoryEnabled']) && !empty($oldConfig['memoryId'])) {
-                    $oldMemoryMap[$oldNode['id']] = $oldConfig['memoryId'];
+                $nodeId = $oldNode['id'] ?? null;
+                // Only use JSON if not already in map from workflow_nodes table
+                if ($nodeId && !isset($oldMemoryMap[$nodeId])) {
+                    $oldConfig = $oldNode['data']['config'] ?? [];
+                    if (!empty($oldConfig['memoryEnabled']) && !empty($oldConfig['memoryId'])) {
+                        $oldMemoryMap[$nodeId] = $oldConfig['memoryId'];
+                    }
                 }
             }
             
             // Build map of new nodes: nodeId => memoryId
             $newMemoryMap = [];
             foreach ($newNodes as $newNode) {
-                $newConfig = $newNode['data']['config'] ?? [];
-                if (!empty($newConfig['memoryEnabled']) && !empty($newConfig['memoryId'])) {
-                    $newMemoryMap[$newNode['id']] = $newConfig['memoryId'];
+                $nodeId = $newNode['id'] ?? null;
+                if ($nodeId) {
+                    $newConfig = $newNode['data']['config'] ?? [];
+                    if (!empty($newConfig['memoryEnabled']) && !empty($newConfig['memoryId'])) {
+                        $newMemoryMap[$nodeId] = $newConfig['memoryId'];
+                    }
                 }
             }
             

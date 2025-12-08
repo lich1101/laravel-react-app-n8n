@@ -41,8 +41,31 @@ class Workflow extends Model
             try {
                 $memoryService = app(MemoryService::class);
                 $deletedCount = 0;
+                $memoryIdsProcessed = []; // Track processed memory IDs to avoid duplicates
                 
-                // Extract all memory IDs from nodes
+                // First, check workflow_nodes table (where config is actually stored)
+                $workflowNodes = \App\Models\WorkflowNode::where('workflow_id', $workflow->id)->get();
+                foreach ($workflowNodes as $workflowNode) {
+                    $config = $workflowNode->config ?? [];
+                    if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
+                        $memoryId = $config['memoryId'];
+                        
+                        // Skip if already processed
+                        if (!in_array($memoryId, $memoryIdsProcessed)) {
+                            $memoryService->deleteMemory($memoryId);
+                            $memoryIdsProcessed[] = $memoryId;
+                            $deletedCount++;
+                            
+                            Log::info('Memory cleaned up on workflow deletion (from workflow_nodes)', [
+                                'workflow_id' => $workflow->id,
+                                'memory_id' => $memoryId,
+                                'node_id' => $workflowNode->node_id,
+                            ]);
+                        }
+                    }
+                }
+                
+                // Fallback: also check workflow.nodes JSON (for backward compatibility)
                 $nodes = $workflow->nodes ?? [];
                 foreach ($nodes as $node) {
                     $config = $node['data']['config'] ?? [];
@@ -51,20 +74,23 @@ class Workflow extends Model
                     if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
                         $memoryId = $config['memoryId'];
                         
-                        // Delete memory from cache
-                        $memoryService->deleteMemory($memoryId);
-                        $deletedCount++;
-                        
-                        Log::info('Memory cleaned up on workflow deletion', [
-                            'workflow_id' => $workflow->id,
-                            'memory_id' => $memoryId,
-                            'node_id' => $node['id'] ?? 'unknown',
-                        ]);
+                        // Skip if already processed
+                        if (!in_array($memoryId, $memoryIdsProcessed)) {
+                            $memoryService->deleteMemory($memoryId);
+                            $memoryIdsProcessed[] = $memoryId;
+                            $deletedCount++;
+                            
+                            Log::info('Memory cleaned up on workflow deletion (from nodes JSON)', [
+                                'workflow_id' => $workflow->id,
+                                'memory_id' => $memoryId,
+                                'node_id' => $node['id'] ?? 'unknown',
+                            ]);
+                        }
                     }
                 }
                 
                 if ($deletedCount > 0) {
-                    Log::info('Total memories cleaned up', [
+                    Log::info('Total memories cleaned up on workflow deletion', [
                         'workflow_id' => $workflow->id,
                         'deleted_count' => $deletedCount,
                     ]);
