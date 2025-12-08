@@ -184,6 +184,15 @@ class MemoryService
             return null;
         }
 
+        // Remove template variable syntax: {{"choices"[0].message.content}} -> "choices"[0].message.content
+        // or {{choices[0].message.content}} -> choices[0].message.content
+        $path = preg_replace('/^\{\{|\}\}$/', '', $path);
+        $path = trim($path);
+        
+        // Remove quotes around first key if present: "choices"[0].message.content -> choices[0].message.content
+        // Handle both single and double quotes
+        $path = preg_replace('/^["\']([^"\']+)["\'](\[.*)$/', '$1$2', $path);
+
         $segments = [];
         $currentSegment = '';
         $inBracket = false;
@@ -214,6 +223,9 @@ class MemoryService
         $current = $data;
         
         foreach ($segments as $segment) {
+            // Also handle quoted field names: "field"[0] -> field[0]
+            $segment = preg_replace('/^["\']([^"\']+)["\'](\[.*)$/', '$1$2', $segment);
+            
             if (preg_match('/^([^\[]+)(.*)$/', $segment, $matches)) {
                 $field = $matches[1];
                 $indices = $matches[2];

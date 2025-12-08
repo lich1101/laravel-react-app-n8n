@@ -471,9 +471,9 @@ class WorkflowController extends Controller
                 $nodeMap[$node['id']] = $node['data']['customName'] ?? $node['data']['label'] ?? $node['type'];
             }
             
-            // Collect ALL upstream nodes using BFS
+            // Collect upstream nodes using BFS, but respect If/Switch branch routing
             $namedInputs = [];
-            $allUpstreamIds = $this->collectAllUpstreamNodesForTest($nodeId, $edges);
+            $allUpstreamIds = $this->collectAllUpstreamNodesForTestWithBranchFilter($nodeId, $edges, $nodes, $nodeOutputs);
             
             foreach ($allUpstreamIds as $upstreamId) {
                 if (isset($nodeOutputs[$upstreamId]) && isset($nodeMap[$upstreamId])) {
@@ -584,6 +584,94 @@ class WorkflowController extends Controller
                 $upstream[] = $source;
                 if (!isset($visited[$source])) {
                     $queue[] = $source;
+                }
+            }
+        }
+
+        return $upstream;
+    }
+
+    /**
+     * Collect upstream nodes with branch filtering (respect If/Switch routing)
+     * Only collect nodes from branches that have been tested (have output data)
+     */
+    private function collectAllUpstreamNodesForTestWithBranchFilter($nodeId, $edges, $nodes, $nodeOutputs)
+    {
+        $upstream = [];
+        $visited = [];
+        $queue = [$nodeId];
+        $ifResults = [];
+        $switchResults = [];
+
+        while (!empty($queue)) {
+            $current = array_shift($queue);
+
+            if (isset($visited[$current])) {
+                continue;
+            }
+
+            $visited[$current] = true;
+
+            // Find all edges that point to current node
+            $incomingEdges = collect($edges)
+                ->filter(function ($edge) use ($current) {
+                    return $edge['target'] === $current;
+                })
+                ->toArray();
+
+            foreach ($incomingEdges as $edge) {
+                $sourceId = $edge['source'];
+                $sourceHandle = $edge['sourceHandle'] ?? null;
+                $targetHandle = $edge['targetHandle'] ?? null;
+
+                // Find source node
+                $sourceNode = collect($nodes)->firstWhere('id', $sourceId);
+                if (!$sourceNode) {
+                    continue;
+                }
+
+                // Check if source node is If or Switch and filter by branch
+                if ($sourceNode['type'] === 'if') {
+                    // Check if If node has been tested and get result
+                    if (isset($nodeOutputs[$sourceId]) && isset($nodeOutputs[$sourceId]['result'])) {
+                        $ifResult = $nodeOutputs[$sourceId]['result'];
+                        $ifResults[$sourceId] = $ifResult;
+                        
+                        // Only include if sourceHandle matches the If result
+                        $expectedHandle = $ifResult ? 'true' : 'false';
+                        if ($sourceHandle !== $expectedHandle) {
+                            // Skip this branch
+                            continue;
+                        }
+                    } else {
+                        // If node not tested yet, skip this branch to avoid collecting wrong nodes
+                        continue;
+                    }
+                } elseif ($sourceNode['type'] === 'switch') {
+                    // Check if Switch node has been tested and get matched output
+                    if (isset($nodeOutputs[$sourceId]) && isset($nodeOutputs[$sourceId]['matchedOutput'])) {
+                        $matchedOutput = $nodeOutputs[$sourceId]['matchedOutput'];
+                        $switchResults[$sourceId] = $matchedOutput;
+                        
+                        // Determine expected handle
+                        $expectedHandle = $matchedOutput >= 0 ? "output{$matchedOutput}" : 'fallback';
+                        if ($sourceHandle !== $expectedHandle) {
+                            // Skip this branch
+                            continue;
+                        }
+                    } else {
+                        // Switch node not tested yet, skip this branch
+                        continue;
+                    }
+                }
+
+                // Add to upstream if it has output data (has been tested)
+                // This ensures we only collect nodes from tested branches
+                if (isset($nodeOutputs[$sourceId])) {
+                    $upstream[] = $sourceId;
+                    if (!isset($visited[$sourceId])) {
+                        $queue[] = $sourceId;
+                    }
                 }
             }
         }

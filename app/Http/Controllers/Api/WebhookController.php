@@ -312,17 +312,53 @@ class WebhookController extends Controller
         $edges = $workflow->edges ?? [];
 
         // Load node configurations from database
-        $nodeConfigs = WorkflowNode::where('workflow_id', $workflow->id)
-            ->get()
-            ->keyBy('node_id')
-            ->toArray();
+        // Lấy record mới nhất cho TẤT CẢ các node nếu có duplicate node_id
+        // Sắp xếp theo updated_at DESC để record mới nhất lên đầu
+        // Chỉ lấy record đầu tiên cho mỗi node_id (record mới nhất)
+        $allNodes = WorkflowNode::where('workflow_id', $workflow->id)
+            ->orderBy('updated_at', 'desc')
+            ->get();
+        
+        $nodeConfigs = collect();
+        foreach ($allNodes as $node) {
+            // Chỉ lấy record đầu tiên (mới nhất) cho mỗi node_id
+            if (!$nodeConfigs->has($node->node_id)) {
+                $nodeConfigs->put($node->node_id, $node);
+            }
+        }
 
         $nodeTypeMap = [];
         foreach ($nodes as &$node) {
-            if (isset($nodeConfigs[$node['id']])) {
-                $node['data']['config'] = $nodeConfigs[$node['id']]['config'];
+            $nodeId = $node['id'] ?? null;
+            
+            // Chỉ dùng config từ workflow_nodes table
+            if ($nodeId && $nodeConfigs->has($nodeId)) {
+                $workflowNode = $nodeConfigs->get($nodeId);
+                
+                // DEBUG: Log để kiểm tra config có được load không
+                if ($node['type'] === 'gemini') {
+                    Log::error('Gemini: DEBUG - Loading config from DB', [
+                        'node_id' => $nodeId,
+                        'workflow_node_id' => $workflowNode->id ?? 'N/A',
+                        'config_is_null' => is_null($workflowNode->config),
+                        'config_is_array' => is_array($workflowNode->config),
+                        'config_type' => gettype($workflowNode->config),
+                        'config_keys' => is_array($workflowNode->config) ? array_keys($workflowNode->config) : 'NOT_ARRAY',
+                        'has_credentialId' => is_array($workflowNode->config) && isset($workflowNode->config['credentialId']),
+                        'credentialId_value' => is_array($workflowNode->config) ? ($workflowNode->config['credentialId'] ?? 'NOT_SET') : 'NOT_ARRAY',
+                        'has_messages' => is_array($workflowNode->config) && isset($workflowNode->config['messages']),
+                        'messages_count' => is_array($workflowNode->config) && isset($workflowNode->config['messages']) ? count($workflowNode->config['messages']) : 0,
+                        'raw_config' => $workflowNode->config,
+                    ]);
+                }
+                
+                $config = $workflowNode->config ?? [];
+                $node['data']['config'] = $config;
+            } else {
+                // Không có trong DB
+                $node['data']['config'] = [];
             }
-            $nodeTypeMap[$node['id']] = $node['type'] ?? null;
+            $nodeTypeMap[$nodeId] = $node['type'] ?? null;
         }
         unset($node);
 
@@ -948,6 +984,11 @@ class WebhookController extends Controller
                 return $this->executeGoogleSheetsNode($config, $inputData);
 
             case 'gemini':
+                Log::error('Gemini: DEBUG - About to call executeGeminiNode', [
+                    'node_id' => $node['id'] ?? 'unknown',
+                    'config_keys' => array_keys($config),
+                    'credentialId_in_config' => $config['credentialId'] ?? 'NOT_SET',
+                ]);
                 return $this->executeGeminiNode($config, $inputData);
 
             case 'kling':
@@ -2621,36 +2662,52 @@ JS;
                         $assistantMessage = $result['content'][0]['text'];
                     }
                     
-                    // Save memory in background (async)
+                    // Save memory - lưu trực tiếp (không dispatch) để đảm bảo memory được lưu
                     if (!empty($userMessage) && !empty($assistantMessage)) {
-                        $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
-                        $credentialId = $config['credentialId'] ?? null;
-                        $modelName = $config['model'] ?? null;
+                        // Resolve memoryId before saving (it might be a variable template)
+                        $resolvedMemoryId = $this->resolveVariables($config['memoryId'], $inputData);
                         
-                        // Summarize before saving using the same AI model
-                        $assistantPath = $config['assistantMessagePath'] ?? 'content[0].text';
-                        $summarized = $memoryService->summarizeMemory(
-                            $userMessage, 
-                            $assistantMessage,
-                            'claude',
-                            $credentialId,
-                            $modelName,
-                            $assistantPath
-                        );
-                        
-                        // Save to cache (non-blocking)
-                        dispatch(function () use ($memoryService, $config, $summarized, $memoryLimit) {
-                            $memoryService->saveMemory(
-                                $config['memoryId'],
-                                $summarized['user'],
-                                $summarized['assistant'],
-                                $memoryLimit
+                        if (empty($resolvedMemoryId)) {
+                            Log::warning('Claude: Cannot save memory - memoryId resolved to empty', [
+                                'original_memoryId' => $config['memoryId'],
+                            ]);
+                        } else {
+                            $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                            $credentialId = $config['credentialId'] ?? null;
+                            $modelName = $config['model'] ?? null;
+                            
+                            // Summarize before saving using the same AI model
+                            $assistantPath = $config['assistantMessagePath'] ?? 'content[0].text';
+                            $summarized = $memoryService->summarizeMemory(
+                                $userMessage, 
+                                $assistantMessage,
+                                'claude',
+                                $credentialId,
+                                $modelName,
+                                $assistantPath
                             );
-                        })->afterResponse();
-                        
-                        Log::info('Claude memory saved (background)', [
-                            'memory_id' => $config['memoryId'],
-                        ]);
+                            
+                            // Save to cache - lưu trực tiếp
+                            try {
+                                $result = $memoryService->saveMemory(
+                                    $resolvedMemoryId,
+                                    $summarized['user'],
+                                    $summarized['assistant'],
+                                    $memoryLimit
+                                );
+                                
+                                Log::info('Claude memory saved', [
+                                    'memory_id' => $resolvedMemoryId,
+                                    'save_result' => $result,
+                                ]);
+                            } catch (\Exception $e) {
+                                Log::error('Claude: Exception saving memory', [
+                                    'memory_id' => $resolvedMemoryId,
+                                    'error' => $e->getMessage(),
+                                    'trace' => $e->getTraceAsString(),
+                                ]);
+                            }
+                        }
                     }
                 } catch (\Exception $e) {
                     // Don't fail the request if memory save fails
@@ -2868,36 +2925,52 @@ JS;
                         $assistantMessage = $result['choices'][0]['message']['content'];
                     }
                     
-                    // Save memory in background (async)
+                    // Save memory - lưu trực tiếp (không dispatch) để đảm bảo memory được lưu
                     if (!empty($userMessage) && !empty($assistantMessage)) {
-                        $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
-                        $credentialId = $config['credentialId'] ?? null;
-                        $modelName = $config['model'] ?? null;
+                        // Resolve memoryId before saving (it might be a variable template)
+                        $resolvedMemoryId = $this->resolveVariables($config['memoryId'], $inputData);
                         
-                        // Summarize before saving using the same AI model
-                        $assistantPath = $config['assistantMessagePath'] ?? 'choices[0].message.content';
-                        $summarized = $memoryService->summarizeMemory(
-                            $userMessage, 
-                            $assistantMessage,
-                            'perplexity',
-                            $credentialId,
-                            $modelName,
-                            $assistantPath
-                        );
-                        
-                        // Save to cache (non-blocking)
-                        dispatch(function () use ($memoryService, $config, $summarized, $memoryLimit) {
-                            $memoryService->saveMemory(
-                                $config['memoryId'],
-                                $summarized['user'],
-                                $summarized['assistant'],
-                                $memoryLimit
+                        if (empty($resolvedMemoryId)) {
+                            Log::warning('Perplexity: Cannot save memory - memoryId resolved to empty', [
+                                'original_memoryId' => $config['memoryId'],
+                            ]);
+                        } else {
+                            $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                            $credentialId = $config['credentialId'] ?? null;
+                            $modelName = $config['model'] ?? null;
+                            
+                            // Summarize before saving using the same AI model
+                            $assistantPath = $config['assistantMessagePath'] ?? 'choices[0].message.content';
+                            $summarized = $memoryService->summarizeMemory(
+                                $userMessage, 
+                                $assistantMessage,
+                                'perplexity',
+                                $credentialId,
+                                $modelName,
+                                $assistantPath
                             );
-                        })->afterResponse();
-                        
-                        Log::info('Perplexity memory saved (background)', [
-                            'memory_id' => $config['memoryId'],
-                        ]);
+                            
+                            // Save to cache - lưu trực tiếp
+                            try {
+                                $result = $memoryService->saveMemory(
+                                    $resolvedMemoryId,
+                                    $summarized['user'],
+                                    $summarized['assistant'],
+                                    $memoryLimit
+                                );
+                                
+                                Log::info('Perplexity memory saved', [
+                                    'memory_id' => $resolvedMemoryId,
+                                    'save_result' => $result,
+                                ]);
+                            } catch (\Exception $e) {
+                                Log::error('Perplexity: Exception saving memory', [
+                                    'memory_id' => $resolvedMemoryId,
+                                    'error' => $e->getMessage(),
+                                    'trace' => $e->getTraceAsString(),
+                                ]);
+                            }
+                        }
                     }
                 } catch (\Exception $e) {
                     // Don't fail the request if memory save fails
@@ -3225,36 +3298,52 @@ JS;
                         $assistantMessage = $result['choices'][0]['message']['content'];
                     }
                     
-                    // Save memory in background (async)
+                    // Save memory - lưu trực tiếp (không dispatch) để đảm bảo memory được lưu
                     if (!empty($userMessage) && !empty($assistantMessage)) {
-                        $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
-                        $credentialId = $config['credentialId'] ?? null;
-                        $modelName = $config['model'] ?? null;
+                        // Resolve memoryId before saving (it might be a variable template)
+                        $resolvedMemoryId = $this->resolveVariables($config['memoryId'], $inputData);
                         
-                        // Summarize before saving using the same AI model
-                        $assistantPath = $config['assistantMessagePath'] ?? 'choices[0].message.content';
-                        $summarized = $memoryService->summarizeMemory(
-                            $userMessage, 
-                            $assistantMessage,
-                            'openai',
-                            $credentialId,
-                            $modelName,
-                            $assistantPath
-                        );
-                        
-                        // Save to cache (non-blocking)
-                        dispatch(function () use ($memoryService, $config, $summarized, $memoryLimit) {
-                            $memoryService->saveMemory(
-                                $config['memoryId'],
-                                $summarized['user'],
-                                $summarized['assistant'],
-                                $memoryLimit
+                        if (empty($resolvedMemoryId)) {
+                            Log::warning('OpenAI: Cannot save memory - memoryId resolved to empty', [
+                                'original_memoryId' => $config['memoryId'],
+                            ]);
+                        } else {
+                            $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                            $credentialId = $config['credentialId'] ?? null;
+                            $modelName = $config['model'] ?? null;
+                            
+                            // Summarize before saving using the same AI model
+                            $assistantPath = $config['assistantMessagePath'] ?? 'choices[0].message.content';
+                            $summarized = $memoryService->summarizeMemory(
+                                $userMessage, 
+                                $assistantMessage,
+                                'openai',
+                                $credentialId,
+                                $modelName,
+                                $assistantPath
                             );
-                        })->afterResponse();
-                        
-                        Log::info('OpenAI memory saved (background)', [
-                            'memory_id' => $config['memoryId'],
-                        ]);
+                            
+                            // Save to cache - lưu trực tiếp
+                            try {
+                                $result = $memoryService->saveMemory(
+                                    $resolvedMemoryId,
+                                    $summarized['user'],
+                                    $summarized['assistant'],
+                                    $memoryLimit
+                                );
+                                
+                                Log::info('OpenAI memory saved', [
+                                    'memory_id' => $resolvedMemoryId,
+                                    'save_result' => $result,
+                                ]);
+                            } catch (\Exception $e) {
+                                Log::error('OpenAI: Exception saving memory', [
+                                    'memory_id' => $resolvedMemoryId,
+                                    'error' => $e->getMessage(),
+                                    'trace' => $e->getTraceAsString(),
+                                ]);
+                            }
+                        }
                     }
                 } catch (\Exception $e) {
                     // Don't fail the request if memory save fails
@@ -3282,65 +3371,210 @@ JS;
     private function executeGeminiNode($config, $inputData)
     {
         try {
+            // DEBUG: Log config at the start
+            Log::error('Gemini: DEBUG - executeGeminiNode START', [
+                'config_keys' => array_keys($config),
+                'credentialId' => $config['credentialId'] ?? 'NOT_SET',
+                'credentialId_type' => gettype($config['credentialId'] ?? null),
+                'model' => $config['model'] ?? 'NOT_SET',
+            ]);
+            
             // Build messages array
             $messages = [];
             
             // Add system message if enabled (Gemini supports system in messages array)
             if (!empty($config['systemMessageEnabled']) && !empty($config['systemMessage'])) {
-                $systemMessage = $this->resolveVariables($config['systemMessage'], $inputData);
-                if ($systemMessage) {
-                    $messages[] = [
-                        'role' => 'system',
-                        'content' => $systemMessage
-                    ];
+                try {
+                    $systemMessage = $this->resolveVariables($config['systemMessage'], $inputData);
+                    if ($systemMessage) {
+                        $messages[] = [
+                            'role' => 'system',
+                            'content' => $systemMessage
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    // If variable not found, skip system message
+                    Log::warning('Gemini: system message variable not found', [
+                        'systemMessage' => $config['systemMessage'],
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
             // Load memory from cache if enabled
             $memoryService = app(MemoryService::class);
+            
+            // DEBUG: Log memory config
+            Log::error('Gemini: DEBUG - Memory config check', [
+                'memoryEnabled' => $config['memoryEnabled'] ?? false,
+                'memoryEnabled_type' => gettype($config['memoryEnabled'] ?? null),
+                'memoryId' => $config['memoryId'] ?? 'NOT_SET',
+                'memoryId_empty' => empty($config['memoryId'] ?? null),
+            ]);
+            
             if (!empty($config['memoryEnabled']) && !empty($config['memoryId'])) {
-                $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
-                $memories = $memoryService->getMemory($config['memoryId'], $memoryLimit);
-                $memoryMessages = $memoryService->memoriesToMessages($memories);
-                
-                // Thêm memory messages vào đầu (sau system message)
-                $messages = array_merge($messages, $memoryMessages);
-                
-                Log::info('Gemini memory loaded', [
-                    'memory_id' => $config['memoryId'],
-                    'memory_count' => count($memories),
-                    'memory_messages_count' => count($memoryMessages),
+                try {
+                    // Resolve memoryId if it's a variable template
+                    $originalMemoryId = $config['memoryId'];
+                    Log::error('Gemini: DEBUG - Resolving memoryId', [
+                        'original_memoryId' => $originalMemoryId,
+                    ]);
+                    
+                    $memoryId = $this->resolveVariables($originalMemoryId, $inputData);
+                    
+                    Log::error('Gemini: DEBUG - memoryId resolved', [
+                        'original' => $originalMemoryId,
+                        'resolved' => $memoryId,
+                        'is_empty' => empty($memoryId),
+                    ]);
+                    
+                    if (empty($memoryId)) {
+                        Log::warning('Gemini: memoryId resolved to empty', [
+                            'original_memoryId' => $originalMemoryId,
+                        ]);
+                    } else {
+                        $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                        $memories = $memoryService->getMemory($memoryId, $memoryLimit);
+                        $memoryMessages = $memoryService->memoriesToMessages($memories);
+                        
+                        // Thêm memory messages vào đầu (sau system message)
+                        $messages = array_merge($messages, $memoryMessages);
+                        
+                        Log::error('Gemini: DEBUG - Memory loaded successfully', [
+                            'memory_id' => $memoryId,
+                            'original_memoryId' => $originalMemoryId,
+                            'memory_count' => count($memories),
+                            'memory_messages_count' => count($memoryMessages),
+                            'messages_after_memory' => count($messages),
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Gemini: DEBUG - Memory loading failed with exception', [
+                        'memoryId' => $config['memoryId'],
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                }
+            } else {
+                Log::error('Gemini: DEBUG - Memory not enabled or memoryId empty', [
+                    'memoryEnabled' => $config['memoryEnabled'] ?? false,
+                    'memoryId' => $config['memoryId'] ?? 'NOT_SET',
                 ]);
             }
 
             // Add all user/assistant messages from config
             if (!empty($config['messages']) && is_array($config['messages'])) {
                 foreach ($config['messages'] as $msg) {
-                    $content = $this->resolveVariables($msg['content'] ?? '', $inputData);
-                    if (!empty($content)) {
-                        $messages[] = [
-                            'role' => $msg['role'] ?? 'user',
-                            'content' => $content
-                        ];
+                    try {
+                        $originalContent = $msg['content'] ?? '';
+                        Log::error('Gemini: DEBUG - Resolving message content', [
+                            'original_content' => $originalContent,
+                            'input_data_keys' => array_keys($inputData),
+                            'input_data_structure' => array_map(function($item) {
+                                if (is_array($item)) {
+                                    return '[array with ' . count($item) . ' items]';
+                                } elseif (is_object($item)) {
+                                    return '{object}';
+                                } else {
+                                    return gettype($item);
+                                }
+                            }, $inputData),
+                        ]);
+                        
+                        $content = $this->resolveVariables($originalContent, $inputData);
+                        
+                        Log::error('Gemini: DEBUG - Message content resolved', [
+                            'original' => $originalContent,
+                            'resolved' => $content,
+                            'is_empty' => empty($content),
+                        ]);
+                        
+                        if (!empty($content)) {
+                            $messages[] = [
+                                'role' => $msg['role'] ?? 'user',
+                                'content' => $content
+                            ];
+                        } else {
+                            Log::warning('Gemini: Message content is empty after resolution', [
+                                'original_content' => $originalContent,
+                                'resolved_content' => $content,
+                            ]);
+                        }
+                    } catch (\Exception $e) {
+                        // If variable not found, skip this message
+                        Log::warning('Gemini: message content variable not found', [
+                            'message_content' => $msg['content'] ?? '',
+                            'error' => $e->getMessage(),
+                        ]);
                     }
                 }
             }
+            
+            // Log final messages array
+            Log::error('Gemini: DEBUG - Final messages array', [
+                'messages_count' => count($messages),
+                'messages' => $messages,
+            ]);
 
             // Get credential
             $credentialId = $config['credentialId'] ?? null;
-            if (!$credentialId) {
+            
+            // Handle string "null" or empty string
+            if ($credentialId === 'null' || $credentialId === '') {
+                $credentialId = null;
+            }
+            
+            // Convert to integer if it's a numeric string
+            if ($credentialId !== null && is_numeric($credentialId)) {
+                $credentialId = (int)$credentialId;
+            }
+            
+            if (empty($credentialId)) {
+                Log::error('Gemini node: credentialId is missing or invalid', [
+                    'credentialId' => $config['credentialId'] ?? null,
+                    'config_keys' => array_keys($config),
+                ]);
                 throw new \Exception('Gemini API credential is required');
             }
 
             $credential = \App\Models\Credential::find($credentialId);
             if (!$credential) {
+                Log::error('Gemini node: credential not found', [
+                    'credentialId' => $credentialId,
+                ]);
                 throw new \Exception('Gemini credential not found');
             }
 
+            // Log credential info immediately after finding it
+            Log::error('Gemini: DEBUG - Credential found', [
+                'credential_id' => $credential->id,
+                'credential_type' => $credential->type,
+                'credential_name' => $credential->name ?? null,
+                'credential_data_type' => gettype($credential->data),
+                'credential_data_is_null' => is_null($credential->data),
+                'credential_data_is_array' => is_array($credential->data),
+                'credential_data_keys' => is_array($credential->data) ? array_keys($credential->data ?? []) : 'NOT_ARRAY',
+                'has_data_key' => is_array($credential->data) && isset($credential->data['key']),
+                'data_key_value_preview' => is_array($credential->data) && isset($credential->data['key']) ? substr($credential->data['key'], 0, 20) . '...' : 'NO_KEY',
+            ]);
+
             // Get API key from credential based on type
             $apiKey = null;
+            Log::info('Gemini: Extracting API key from credential', [
+                'credential_id' => $credential->id,
+                'credential_type' => $credential->type,
+                'credential_name' => $credential->name ?? null,
+                'credential_data' => $credential->data,
+                'credential_data_keys' => is_array($credential->data) ? array_keys($credential->data ?? []) : 'NOT_ARRAY',
+                'credential_data_is_null' => is_null($credential->data),
+            ]);
+            
             if ($credential->type === 'gemini') {
                 $apiKey = $credential->data['key'] ?? null;
+                Log::info('Gemini: Using gemini type credential', [
+                    'has_key' => isset($credential->data['key']),
+                    'key_length' => $apiKey ? strlen($apiKey) : 0,
+                ]);
             } elseif ($credential->type === 'custom' && isset($credential->data['headerValue'])) {
                 // Backward compatibility with old custom header credentials
                 $headerValue = $credential->data['headerValue'];
@@ -3348,14 +3582,44 @@ JS;
                 if (strpos($headerValue, 'Bearer ') === 0) {
                     $apiKey = substr($headerValue, 7);
                 }
+                Log::info('Gemini: Using custom type credential', [
+                    'has_headerValue' => isset($credential->data['headerValue']),
+                    'key_length' => $apiKey ? strlen($apiKey) : 0,
+                ]);
             } elseif ($credential->type === 'bearer' && isset($credential->data['token'])) {
                 // Backward compatibility with bearer token credentials
                 $apiKey = $credential->data['token'];
+                Log::info('Gemini: Using bearer type credential', [
+                    'has_token' => isset($credential->data['token']),
+                    'key_length' => $apiKey ? strlen($apiKey) : 0,
+                ]);
+            } else {
+                Log::warning('Gemini: Credential type not matched', [
+                    'credential_id' => $credential->id,
+                    'credential_type' => $credential->type,
+                    'credential_data' => $credential->data ?? [],
+                    'expected_types' => ['gemini', 'custom', 'bearer'],
+                ]);
             }
 
             if (!$apiKey) {
-                throw new \Exception('Invalid Gemini credential configuration');
+                Log::error('Gemini: API key not found in credential', [
+                    'credential_id' => $credential->id,
+                    'credential_type' => $credential->type,
+                    'credential_name' => $credential->name ?? null,
+                    'credential_data' => $credential->data ?? [],
+                    'credential_data_type' => gettype($credential->data ?? null),
+                    'has_data_key' => is_array($credential->data) && isset($credential->data['key']),
+                    'has_data_headerValue' => is_array($credential->data) && isset($credential->data['headerValue']),
+                    'has_data_token' => is_array($credential->data) && isset($credential->data['token']),
+                ]);
+                throw new \Exception('Invalid Gemini credential configuration: API key is missing');
             }
+            
+            Log::info('Gemini: API key extracted successfully', [
+                'key_length' => strlen($apiKey),
+                'key_preview' => substr($apiKey, 0, 10) . '...',
+            ]);
 
             // Build request body
             $requestBody = [
@@ -3438,10 +3702,28 @@ JS;
             ]);
 
             // Build headers
+            // Gemini OpenAI-compatible endpoint requires Authorization header
+            // Also include x-goog-api-key as fallback
+            Log::error('Gemini: DEBUG - Before building headers', [
+                'api_key_is_null' => is_null($apiKey),
+                'api_key_is_empty' => empty($apiKey),
+                'api_key_type' => gettype($apiKey),
+                'api_key_length' => $apiKey ? strlen($apiKey) : 0,
+                'api_key_preview' => $apiKey ? substr($apiKey, 0, 20) . '...' : 'NULL',
+            ]);
+            
             $headers = [
                 'Content-Type' => 'application/json',
-                'x-goog-api-key' => $apiKey,
+                'Authorization' => 'Bearer ' . $apiKey,
+                'x-goog-api-key' => $apiKey, // Fallback
             ];
+            
+            Log::info('Gemini: Request headers prepared', [
+                'has_authorization' => isset($headers['Authorization']),
+                'has_x_goog_api_key' => isset($headers['x-goog-api-key']),
+                'api_key_length' => strlen($apiKey),
+                'authorization_header' => $headers['Authorization'],
+            ]);
 
             Log::info('Gemini timeout setting', [
                 'config_timeout' => $configTimeout,
@@ -3530,33 +3812,67 @@ JS;
                     
                     // Save memory in background (async)
                     if (!empty($userMessage) && !empty($assistantMessage)) {
-                        $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
-                        $credentialId = $config['credentialId'] ?? null;
-                        $modelName = $config['model'] ?? null;
+                        // Resolve memoryId before saving (it might be a variable template)
+                        $resolvedMemoryId = $this->resolveVariables($config['memoryId'], $inputData);
                         
-                        // Summarize before saving using the same AI model
-                        $assistantPath = $config['assistantMessagePath'] ?? 'candidates[0].content.parts[0].text';
-                        $summarized = $memoryService->summarizeMemory(
-                            $userMessage, 
-                            $assistantMessage,
-                            'gemini',
-                            $credentialId,
-                            $modelName,
-                            $assistantPath
-                        );
-                        
-                        // Save to cache (non-blocking)
-                        dispatch(function () use ($memoryService, $config, $summarized, $memoryLimit) {
-                            $memoryService->saveMemory(
-                                $config['memoryId'],
-                                $summarized['user'],
-                                $summarized['assistant'],
-                                $memoryLimit
+                        if (empty($resolvedMemoryId)) {
+                            Log::warning('Gemini: Cannot save memory - memoryId resolved to empty', [
+                                'original_memoryId' => $config['memoryId'],
+                            ]);
+                        } else {
+                            $memoryLimit = isset($config['memoryLimit']) ? (int)$config['memoryLimit'] : 10;
+                            $credentialId = $config['credentialId'] ?? null;
+                            $modelName = $config['model'] ?? null;
+                            
+                            // Summarize before saving using the same AI model
+                            $assistantPath = $config['assistantMessagePath'] ?? 'candidates[0].content.parts[0].text';
+                            $summarized = $memoryService->summarizeMemory(
+                                $userMessage, 
+                                $assistantMessage,
+                                'gemini',
+                                $credentialId,
+                                $modelName,
+                                $assistantPath
                             );
-                        })->afterResponse();
-                        
-                        Log::info('Gemini memory saved (background)', [
-                            'memory_id' => $config['memoryId'],
+                            
+                            // Save to cache - lưu trực tiếp (không dispatch) để đảm bảo memory được lưu
+                            try {
+                                Log::error('Gemini: DEBUG - Saving memory directly', [
+                                    'memory_id' => $resolvedMemoryId,
+                                    'has_summarized' => !empty($summarized),
+                                    'summarized_keys' => is_array($summarized) ? array_keys($summarized) : 'NOT_ARRAY',
+                                ]);
+                                
+                                $result = $memoryService->saveMemory(
+                                    $resolvedMemoryId,
+                                    $summarized['user'],
+                                    $summarized['assistant'],
+                                    $memoryLimit
+                                );
+                                
+                                Log::error('Gemini: DEBUG - Memory save result', [
+                                    'memory_id' => $resolvedMemoryId,
+                                    'save_result' => $result,
+                                ]);
+                            } catch (\Exception $e) {
+                                Log::error('Gemini: DEBUG - Exception saving memory', [
+                                    'memory_id' => $resolvedMemoryId,
+                                    'error' => $e->getMessage(),
+                                    'trace' => $e->getTraceAsString(),
+                                ]);
+                            }
+                            
+                            Log::error('Gemini: DEBUG - Memory save dispatched', [
+                                'original_memoryId' => $config['memoryId'],
+                                'resolved_memoryId' => $resolvedMemoryId,
+                                'user_message_preview' => substr($userMessage, 0, 50),
+                                'assistant_message_preview' => substr($assistantMessage, 0, 50),
+                            ]);
+                        }
+                    } else {
+                        Log::error('Gemini: DEBUG - Cannot save memory - missing messages', [
+                            'has_userMessage' => !empty($userMessage),
+                            'has_assistantMessage' => !empty($assistantMessage),
                         ]);
                     }
                 } catch (\Exception $e) {
@@ -5920,6 +6236,15 @@ JS;
             return null;
         }
 
+        // Remove template variable syntax: {{"choices"[0].message.content}} -> "choices"[0].message.content
+        // or {{choices[0].message.content}} -> choices[0].message.content
+        $path = preg_replace('/^\{\{|\}\}$/', '', $path);
+        $path = trim($path);
+        
+        // Remove quotes around first key if present: "choices"[0].message.content -> choices[0].message.content
+        // Handle both single and double quotes
+        $path = preg_replace('/^["\']([^"\']+)["\'](\[.*)$/', '$1$2', $path);
+
         // Parse path: "candidates[0].content.parts[0].text"
         // Split by . but keep array indices together
         $segments = [];
@@ -5954,6 +6279,9 @@ JS;
         
         foreach ($segments as $segment) {
             // Check if segment has array index: field[0] or field[0][1]
+            // Also handle quoted field names: "field"[0] -> field[0]
+            $segment = preg_replace('/^["\']([^"\']+)["\'](\[.*)$/', '$1$2', $segment);
+            
             if (preg_match('/^([^\[]+)(.*)$/', $segment, $matches)) {
                 $field = $matches[1];
                 $indices = $matches[2];
@@ -6504,7 +6832,17 @@ JS;
 
     private function convertToBase64($config, $inputData)
     {
-        $source = $this->resolveVariables($config['source'] ?? '', $inputData);
+        // Resolve source - handle variable not found gracefully
+        try {
+            $source = $this->resolveVariables($config['source'] ?? '', $inputData);
+        } catch (\Exception $e) {
+            // If variable not found, use empty string and let validation handle it
+            $source = '';
+            Log::warning('Convert toBase64: variable not found in source', [
+                'source_config' => $config['source'] ?? '',
+                'error' => $e->getMessage(),
+            ]);
+        }
         
         if (empty($source)) {
             throw new \Exception('Source URL or file path is required');
@@ -6552,7 +6890,17 @@ JS;
 
     private function convertFromBase64($config, $inputData)
     {
-        $base64Data = $this->resolveVariables($config['base64Data'] ?? '', $inputData);
+        // Resolve base64Data - handle variable not found gracefully
+        try {
+            $base64Data = $this->resolveVariables($config['base64Data'] ?? '', $inputData);
+        } catch (\Exception $e) {
+            // If variable not found, use empty string and let validation handle it
+            $base64Data = '';
+            Log::warning('Convert fromBase64: variable not found in base64Data', [
+                'base64Data_config' => $config['base64Data'] ?? '',
+                'error' => $e->getMessage(),
+            ]);
+        }
         
         if (empty($base64Data)) {
             throw new \Exception('Base64 data is required');

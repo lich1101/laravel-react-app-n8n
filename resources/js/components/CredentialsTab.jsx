@@ -182,25 +182,49 @@ const CredentialsTab = () => {
     );
 
     const getCredentialIcon = (type) => {
-        const icons = {
+        const iconMap = {
+            // AI Providers - use SVG icons from /icons/nodes
+            gemini: '/icons/nodes/gemini.svg',
+            openai: '/icons/nodes/open_ai.svg',
+            claude: '/icons/nodes/claude.svg',
+            anthropic: '/icons/nodes/claude.svg',
+            perplexity: '/icons/nodes/perplexity.svg',
+            
+            // Generic types - fallback to emoji if no SVG
             bearer: '🔑',
             api_key: '🗝️',
             oauth2: '🔐',
             basic: '🔓',
             custom: '⚙️'
         };
-        return icons[type] || '🔒';
+        
+        const icon = iconMap[type?.toLowerCase()] || '🔒';
+        
+        // If it's a path (starts with /), return object with type and path
+        // Otherwise return emoji string
+        if (icon.startsWith('/')) {
+            return { type: 'svg', path: icon };
+        }
+        return { type: 'emoji', emoji: icon };
     };
 
     const getCredentialTypeLabel = (type) => {
         const labels = {
+            // AI Providers
+            gemini: 'Google Gemini',
+            openai: 'OpenAI',
+            claude: 'Anthropic Claude',
+            perplexity: 'Perplexity AI',
+            anthropic: 'Anthropic Claude',
+            
+            // Generic types
             bearer: 'Bearer Token',
             api_key: 'API Key',
             oauth2: 'OAuth2',
             basic: 'Basic Auth',
             custom: 'Custom Header'
         };
-        return labels[type] || type;
+        return labels[type?.toLowerCase()] || type;
     };
 
     if (loading) {
@@ -309,7 +333,21 @@ const CredentialsTab = () => {
                             <div className="flex items-start justify-between">
                                 <div className="flex items-start space-x-4 flex-1">
                                     {/* Icon */}
-                                    <div className="text-3xl">{getCredentialIcon(credential.type)}</div>
+                                    <div className="flex items-center justify-center w-12 h-12 flex-shrink-0">
+                                        {(() => {
+                                            const icon = getCredentialIcon(credential.type);
+                                            if (icon.type === 'svg') {
+                                                return (
+                                                    <img 
+                                                        src={icon.path} 
+                                                        alt={credential.type}
+                                                        className="w-8 h-8 object-contain"
+                                                    />
+                                                );
+                                            }
+                                            return <span className="text-3xl">{icon.emoji}</span>;
+                                        })()}
+                                    </div>
 
                                     {/* Details */}
                                     <div className="flex-1 min-w-0">
