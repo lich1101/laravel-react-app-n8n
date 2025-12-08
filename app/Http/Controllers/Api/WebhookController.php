@@ -1754,11 +1754,43 @@ class WebhookController extends Controller
 
             // Evaluate each rule in order
             foreach ($rules as $index => $rule) {
-                $value = $this->resolveVariables($rule['value'] ?? '', $inputData);
                 $operator = $rule['operator'] ?? 'equal';
-                $value2 = !in_array($operator, ['exists', 'notExists', 'isEmpty', 'isNotEmpty'])
-                    ? $this->resolveVariables($rule['value2'] ?? '', $inputData)
-                    : null;
+                
+                // Resolve value - catch variable not found errors
+                try {
+                    $value = $this->resolveVariables($rule['value'] ?? '', $inputData);
+                } catch (\Exception $e) {
+                    // Variable not found - skip this rule (don't match)
+                    if (strpos($e->getMessage(), 'Variable not found') !== false) {
+                        Log::info('Switch node rule variable not found - skipping rule', [
+                            'rule_index' => $index,
+                            'variable' => $rule['value'] ?? '',
+                            'operator' => $operator,
+                        ]);
+                        continue; // Skip to next rule
+                    }
+                    // Re-throw other exceptions
+                    throw $e;
+                }
+                
+                // Resolve value2 if needed - catch variable not found errors
+                $value2 = null;
+                if (!in_array($operator, ['exists', 'notExists', 'isEmpty', 'isNotEmpty'])) {
+                    try {
+                        $value2 = $this->resolveVariables($rule['value2'] ?? '', $inputData);
+                    } catch (\Exception $e) {
+                        // Variable not found - use null/empty for comparison
+                        if (strpos($e->getMessage(), 'Variable not found') !== false) {
+                            $value2 = null;
+                            Log::info('Switch node value2 variable not found - using null', [
+                                'variable' => $rule['value2'] ?? '',
+                            ]);
+                        } else {
+                            // Re-throw other exceptions
+                            throw $e;
+                        }
+                    }
+                }
 
                 // Evaluate condition
                 $result = $this->evaluateSwitchCondition($value, $operator, $value2);
@@ -1788,13 +1820,31 @@ class WebhookController extends Controller
                 'output' => $inputData[0] ?? [],
             ];
         } catch (\Exception $e) {
+            // Check if this is a "variable not found" error - treat as fallback, not error
+            $errorMessage = $e->getMessage();
+            if (strpos($errorMessage, 'Variable not found') !== false) {
+                Log::info('Switch node variable not found - using fallback', [
+                    'error' => $errorMessage,
+                ]);
+                
+                // Return fallback output (not error) so workflow continues
+                return [
+                    'matchedOutput' => -1,
+                    'outputName' => $config['fallbackOutput'] ?? 'No Match',
+                    'output' => $inputData[0] ?? [],
+                ];
+            }
+            
+            // For other errors, log and return fallback (don't stop workflow)
             Log::error('Switch node execution failed', [
-                'error' => $e->getMessage(),
+                'error' => $errorMessage,
             ]);
 
+            // Return fallback output (not error) so workflow continues
             return [
-                'error' => 'Switch evaluation failed',
-                'message' => $e->getMessage(),
+                'matchedOutput' => -1,
+                'outputName' => $config['fallbackOutput'] ?? 'No Match',
+                'output' => $inputData[0] ?? [],
             ];
         }
     }
@@ -1814,7 +1864,7 @@ class WebhookController extends Controller
                 return [
                     'result' => false,
                     'output' => $inputData[0] ?? [],
-                    'error' => 'No conditions configured',
+                    'conditionResults' => [],
                 ];
             }
 
@@ -1829,13 +1879,79 @@ class WebhookController extends Controller
                 $dataType = $condition['dataType'] ?? 'string';
                 $operator = $condition['operator'] ?? 'equal';
                 
-                // Resolve value1
-                $value1 = $this->resolveVariables($condition['value1'] ?? '', $inputData);
+                // Resolve value1 - catch variable not found errors
+                // Use getValueFromPathWithExists directly to avoid exception from resolveVariables
+                $value1Raw = $condition['value1'] ?? '';
+                $value1 = null;
                 
-                // Resolve value2 if needed
-                $value2 = !in_array($operator, ['exists', 'notExists', 'isEmpty', 'isNotEmpty', 'true', 'false'])
-                    ? $this->resolveVariables($condition['value2'] ?? '', $inputData)
-                    : null;
+                // Check if it's a variable (has {{ }})
+                if (preg_match('/\{\{([^}]+)\}\}/', $value1Raw, $matches)) {
+                    $value1Path = trim($matches[1]);
+                    // Remove quotes if present
+                    $value1Path = trim($value1Path, ' "\'');
+                    
+                    // Check if this looks like a variable path
+                    $isVariablePath = strpos($value1Path, '.') !== false || 
+                                      preg_match('/^(input-\d+|Webhook|Schedule|HttpRequest|Code|If|Switch|Convert|Claude|OpenAI|Perplexity|Gemini|Kling|GoogleDocs|GoogleSheets|Escape)/', $value1Path);
+                    
+                    if ($isVariablePath) {
+                        $value1Result = $this->getValueFromPathWithExists($value1Path, $inputData);
+                        if (!$value1Result['exists'] && !in_array($operator, ['exists', 'notExists'])) {
+                            // Variable doesn't exist - treat condition as false
+                            $conditionResults[] = false;
+                            Log::info('If node condition variable not found - treating as false', [
+                                'variable' => $value1Path,
+                                'operator' => $operator,
+                            ]);
+                            continue;
+                        }
+                        $value1 = $value1Result['value'];
+                    } else {
+                        // Not a variable path, treat as literal
+                        $value1 = $value1Path;
+                    }
+                } else {
+                    // No variable syntax, treat as literal
+                    try {
+                        $value1 = $this->resolveVariables($value1Raw, $inputData);
+                    } catch (\Exception $e) {
+                        // If resolveVariables fails, treat as literal value
+                        $value1 = $value1Raw;
+                    }
+                }
+                
+                // Resolve value2 if needed - use getValueFromPathWithExists directly
+                $value2 = null;
+                if (!in_array($operator, ['exists', 'notExists', 'isEmpty', 'isNotEmpty', 'true', 'false'])) {
+                    $value2Raw = $condition['value2'] ?? '';
+                    
+                    // Check if it's a variable (has {{ }})
+                    if (preg_match('/\{\{([^}]+)\}\}/', $value2Raw, $matches)) {
+                        $value2Path = trim($matches[1]);
+                        // Remove quotes if present
+                        $value2Path = trim($value2Path, ' "\'');
+                        
+                        // Check if this looks like a variable path
+                        $isVariablePath = strpos($value2Path, '.') !== false || 
+                                          preg_match('/^(input-\d+|Webhook|Schedule|HttpRequest|Code|If|Switch|Convert|Claude|OpenAI|Perplexity|Gemini|Kling|GoogleDocs|GoogleSheets|Escape)/', $value2Path);
+                        
+                        if ($isVariablePath) {
+                            $value2Result = $this->getValueFromPathWithExists($value2Path, $inputData);
+                            $value2 = $value2Result['value']; // Use null if not exists
+                        } else {
+                            // Not a variable path, treat as literal
+                            $value2 = $value2Path;
+                        }
+                    } else {
+                        // No variable syntax, treat as literal
+                        try {
+                            $value2 = $this->resolveVariables($value2Raw, $inputData);
+                        } catch (\Exception $e) {
+                            // If resolveVariables fails, treat as literal value
+                            $value2 = $value2Raw;
+                        }
+                    }
+                }
 
                 // Convert types
                 if ($dataType === 'number') {
@@ -1864,17 +1980,27 @@ class WebhookController extends Controller
                     }
                 }
 
-                // Evaluate operator
-                $result = $this->evaluateCondition($value1, $operator, $value2, $dataType);
-                $conditionResults[] = $result;
+                // Evaluate operator - wrap in try-catch to prevent any exceptions
+                try {
+                    $result = $this->evaluateCondition($value1, $operator, $value2, $dataType);
+                    $conditionResults[] = $result;
 
-                Log::info('Condition evaluated', [
-                    'dataType' => $dataType,
-                    'operator' => $operator,
-                    'value1' => is_object($value1) ? get_class($value1) : $value1,
-                    'value2' => is_object($value2) ? get_class($value2) : $value2,
-                    'result' => $result,
-                ]);
+                    Log::info('Condition evaluated', [
+                        'dataType' => $dataType,
+                        'operator' => $operator,
+                        'value1' => is_object($value1) ? get_class($value1) : $value1,
+                        'value2' => is_object($value2) ? get_class($value2) : $value2,
+                        'result' => $result,
+                    ]);
+                } catch (\Exception $e) {
+                    // If evaluation fails, treat as false
+                    $conditionResults[] = false;
+                    Log::warning('Condition evaluation failed - treating as false', [
+                        'dataType' => $dataType,
+                        'operator' => $operator,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
             // Combine results
@@ -1895,15 +2021,22 @@ class WebhookController extends Controller
                 'output' => $inputData[0] ?? [],
             ];
         } catch (\Exception $e) {
-            Log::error('If node execution failed', [
-                'error' => $e->getMessage(),
+            // Catch ALL exceptions and treat as false (don't stop workflow)
+            $errorMessage = $e->getMessage();
+            $errorClass = get_class($e);
+            
+            Log::warning('If node exception caught - treating as false to continue workflow', [
+                'error_class' => $errorClass,
+                'error_message' => $errorMessage,
+                'error_trace' => $e->getTraceAsString(),
             ]);
-
+            
+            // ALWAYS return false result (not error) so workflow continues to false branch
+            // This ensures workflow never stops, even if there's an unexpected error
             return [
                 'result' => false,
                 'output' => $inputData[0] ?? [],
-                'error' => 'If node failed',
-                'message' => $e->getMessage(),
+                'conditionResults' => [],
             ];
         }
     }

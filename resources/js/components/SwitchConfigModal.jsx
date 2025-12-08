@@ -3,6 +3,7 @@ import ExpandableTextarea from './ExpandableTextarea';
 import { useConfigModal } from '../utils/hooks/useConfigModal';
 import ConfigModalLayout from './common/ConfigModalLayout';
 import TestResultViewer from './common/TestResultViewer';
+import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../utils/variablePath';
 
 // Operators for Switch
 const OPERATORS = [
@@ -169,6 +170,28 @@ function SwitchConfigModal({ node, onSave, onClose, onTest, inputData, outputDat
             return newSet;
         });
     };
+
+    // Test buttons
+    const testButtons = onTest && !readOnly ? (
+        <>
+            {isTesting ? (
+                <button
+                    onClick={handleStopTest}
+                    className="btn text-sm w-full bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                    Stop step
+                </button>
+            ) : (
+                <button
+                    onClick={handleTest}
+                    disabled={config.rules.some(r => !r.value)}
+                    className="btn btn-danger text-sm w-full disabled:bg-gray-300 disabled:text-white disabled:cursor-not-allowed"
+                >
+                    Test step
+                </button>
+            )}
+        </>
+    ) : null;
 
     const renderDraggableJSON = (obj, prefix = '', depth = 0) => {
         const currentPrefix = normalizeVariablePrefix(prefix, depth === 0);
