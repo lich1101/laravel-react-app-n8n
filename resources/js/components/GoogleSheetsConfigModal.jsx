@@ -640,9 +640,10 @@ function GoogleSheetsConfigModal({ node, onSave, onClose, onTest, inputData, out
 
         {showCredentialModal && (
             <CredentialModal
+                isOpen={showCredentialModal}
                 onClose={() => setShowCredentialModal(false)}
                 onSave={handleCredentialSaved}
-                initialType="oauth2"
+                credentialType="oauth2"
                 lockedType={true}
             />
         )}
