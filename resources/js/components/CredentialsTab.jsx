@@ -96,11 +96,14 @@ const CredentialsTab = () => {
     const handleExport = async () => {
         try {
             const response = await axios.get('/credentials/export', {
-                responseType: 'blob',
+                responseType: 'json', // Use json instead of blob to properly parse the response
             });
 
+            // Convert response data to JSON string with proper formatting
+            const jsonString = JSON.stringify(response.data, null, 2);
+            
             // Create blob and download
-            const blob = new Blob([response.data], { type: 'application/json' });
+            const blob = new Blob([jsonString], { type: 'application/json' });
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
@@ -113,7 +116,22 @@ const CredentialsTab = () => {
             alert('✅ Credentials exported successfully!');
         } catch (error) {
             console.error('Error exporting credentials:', error);
-            alert('❌ Failed to export credentials: ' + (error.response?.data?.message || error.message));
+            
+            // Try to parse error if it's a blob response
+            if (error.response?.data instanceof Blob) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        const errorData = JSON.parse(reader.result);
+                        alert('❌ Failed to export credentials: ' + (errorData.message || errorData.error || 'Unknown error'));
+                    } catch (e) {
+                        alert('❌ Failed to export credentials: ' + error.message);
+                    }
+                };
+                reader.readAsText(error.response.data);
+            } else {
+                alert('❌ Failed to export credentials: ' + (error.response?.data?.message || error.response?.data?.error || error.message));
+            }
         }
     };
 
@@ -136,6 +154,43 @@ const CredentialsTab = () => {
         }
 
         try {
+            // First, validate the JSON file structure before uploading
+            const fileContent = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(new Error('Failed to read file'));
+                reader.readAsText(file);
+            });
+
+            let importData;
+            try {
+                importData = JSON.parse(fileContent);
+            } catch (parseError) {
+                alert('❌ Invalid JSON file: ' + parseError.message);
+                event.target.value = '';
+                return;
+            }
+
+            // Validate structure
+            if (!importData || typeof importData !== 'object') {
+                alert('❌ Invalid file format: File must be a JSON object');
+                event.target.value = '';
+                return;
+            }
+
+            if (!importData.credentials || !Array.isArray(importData.credentials)) {
+                alert('❌ Invalid file format: File must contain a "credentials" array');
+                event.target.value = '';
+                return;
+            }
+
+            if (importData.credentials.length === 0) {
+                alert('⚠️ File contains no credentials to import');
+                event.target.value = '';
+                return;
+            }
+
+            // Now upload the file
             const formData = new FormData();
             formData.append('file', file);
 
@@ -170,7 +225,23 @@ const CredentialsTab = () => {
             fetchCredentials();
         } catch (error) {
             console.error('Error importing credentials:', error);
-            const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Unknown error';
+            
+            // Better error handling
+            let errorMessage = 'Unknown error';
+            if (error.response?.data) {
+                if (typeof error.response.data === 'string') {
+                    errorMessage = error.response.data;
+                } else if (error.response.data.error) {
+                    errorMessage = error.response.data.error;
+                } else if (error.response.data.message) {
+                    errorMessage = error.response.data.message;
+                } else if (error.response.data.errors) {
+                    errorMessage = JSON.stringify(error.response.data.errors);
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
             alert('❌ Failed to import credentials: ' + errorMessage);
             event.target.value = '';
         }
