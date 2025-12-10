@@ -5,6 +5,8 @@ import ConfigModalLayout from './common/ConfigModalLayout';
 import TestResultViewer from './common/TestResultViewer';
 
 function ConvertConfigModal({ node, onSave, onClose, onTest, inputData, outputData, onTestResult, allEdges, allNodes, onRename, readOnly = false }) {
+    const MAX_EXPIRATION_SECONDS = 5 * 24 * 60 * 60; // 5 days
+
     const [config, setConfig] = useState({
         operation: 'toBase64',
         // To Base64
@@ -13,6 +15,8 @@ function ConvertConfigModal({ node, onSave, onClose, onTest, inputData, outputDa
         base64Data: '',
         filename: '',
         mimeType: 'image/jpeg',
+        expirationValue: 1,
+        expirationUnit: 'days',
     });
 
     const operations = [
@@ -30,6 +34,12 @@ function ConvertConfigModal({ node, onSave, onClose, onTest, inputData, outputDa
         { value: 'application/pdf', label: 'Document - PDF', ext: 'pdf' },
         { value: 'text/plain', label: 'Text - TXT', ext: 'txt' },
         { value: 'application/json', label: 'Data - JSON', ext: 'json' },
+    ];
+
+    const expirationUnits = [
+        { value: 'minutes', label: 'Phút' },
+        { value: 'hours', label: 'Giờ' },
+        { value: 'days', label: 'Ngày' },
     ];
 
     const [testResults, setTestResults] = useState(null);
@@ -141,6 +151,37 @@ function ConvertConfigModal({ node, onSave, onClose, onTest, inputData, outputDa
 
     const currentDisplayOutput = testResults || outputData || displayOutput;
 
+    const convertExpirationToSeconds = (value, unit) => {
+        const numericValue = Number(value) || 0;
+        switch (unit) {
+            case 'minutes':
+                return numericValue * 60;
+            case 'hours':
+                return numericValue * 3600;
+            case 'days':
+            default:
+                return numericValue * 86400;
+        }
+    };
+
+    const normalizeExpirationValue = (value, unit) => {
+        const safeValue = Math.max(1, Number(value) || 1);
+        const seconds = convertExpirationToSeconds(safeValue, unit);
+
+        if (seconds > MAX_EXPIRATION_SECONDS) {
+            // Clamp to the maximum allowed for the chosen unit
+            const maxForUnit = {
+                minutes: Math.floor(MAX_EXPIRATION_SECONDS / 60),
+                hours: Math.floor(MAX_EXPIRATION_SECONDS / 3600),
+                days: Math.floor(MAX_EXPIRATION_SECONDS / 86400),
+            }[unit] || Math.floor(MAX_EXPIRATION_SECONDS / 86400);
+
+            return maxForUnit;
+        }
+
+        return safeValue;
+    };
+
     const renderConfigForm = () => {
         return (
             <div className="space-y-4">
@@ -233,6 +274,44 @@ function ConvertConfigModal({ node, onSave, onClose, onTest, inputData, outputDa
                                 </select>
                                 <p className="text-xs text-gray-500 mt-1">
                                     Dùng cho pure base64 string
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Thời gian tồn tại
+                                </label>
+                                <div className="flex space-x-2">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={config.expirationValue}
+                                        onChange={(e) => {
+                                            const normalizedValue = normalizeExpirationValue(e.target.value, config.expirationUnit);
+                                            setConfig({ ...config, expirationValue: normalizedValue });
+                                        }}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                        disabled={readOnly}
+                                    />
+                                    <select
+                                        value={config.expirationUnit}
+                                        onChange={(e) => {
+                                            const unit = e.target.value;
+                                            const normalizedValue = normalizeExpirationValue(config.expirationValue, unit);
+                                            setConfig({ ...config, expirationUnit: unit, expirationValue: normalizedValue });
+                                        }}
+                                        className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                        disabled={readOnly}
+                                    >
+                                        {expirationUnits.map(unit => (
+                                            <option key={unit.value} value={unit.value}>{unit.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Tối đa 5 ngày. Hết hạn file sẽ tự xóa để tránh nặng hệ thống.
                                 </p>
                             </div>
                         </div>

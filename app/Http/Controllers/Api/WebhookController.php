@@ -8,6 +8,7 @@ use App\Models\WorkflowNode;
 use App\Models\WorkflowExecution;
 use App\Models\SystemSetting;
 use App\Jobs\ExecuteWorkflowJob;
+use App\Jobs\DeleteFileJob;
 use App\Services\MemoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -6927,6 +6928,8 @@ JS;
             // Generate filename
             $extension = $this->getExtensionFromMimeType($mimeType);
             $filename = ($config['filename'] ?? 'file_' . time()) . '.' . $extension;
+            $ttlSeconds = $this->getConvertTtlSeconds($config);
+            $expiresAt = now()->addSeconds($ttlSeconds);
             
             // Save to public storage
             $storagePath = storage_path('app/public/converts');
@@ -6936,6 +6939,9 @@ JS;
             
             $filePath = $storagePath . '/' . $filename;
             file_put_contents($filePath, $fileContent);
+
+            // Schedule cleanup to avoid storage bloat
+            DeleteFileJob::dispatch($filePath)->delay($ttlSeconds);
             
             // Generate public URL
             $publicUrl = url('storage/converts/' . $filename);
@@ -6947,10 +6953,37 @@ JS;
                 'publicUrl' => $publicUrl,
                 'mimeType' => $mimeType,
                 'size' => strlen($fileContent),
+                'expiresAt' => $expiresAt->toIso8601String(),
+                'expiresInSeconds' => $ttlSeconds,
             ];
         } catch (\Exception $e) {
             throw new \Exception('Failed to convert from base64: ' . $e->getMessage());
         }
+    }
+
+    private function getConvertTtlSeconds(array $config): int
+    {
+        $maxSeconds = 5 * 24 * 60 * 60; // 5 days
+
+        $value = isset($config['expirationValue']) ? (int) $config['expirationValue'] : 1;
+        $value = max(1, $value);
+
+        $unit = $config['expirationUnit'] ?? 'days';
+
+        switch ($unit) {
+            case 'minutes':
+                $seconds = $value * 60;
+                break;
+            case 'hours':
+                $seconds = $value * 3600;
+                break;
+            case 'days':
+            default:
+                $seconds = $value * 86400;
+                break;
+        }
+
+        return min($seconds, $maxSeconds);
     }
 
     private function getExtensionFromMimeType($mimeType)
