@@ -126,16 +126,17 @@ class ExecuteWorkflowJob implements ShouldQueue
             }
 
             if ($this->execution->fresh()->status !== 'cancelled') {
-            // Update execution record
-            $this->execution->update([
-                'status' => $hasError ? 'error' : 'success',
-                'output_data' => $finalOutput,
-                'node_results' => $nodeResults,
-                'execution_order' => $executionOrder,
-                'error_node' => $errorNode,
-                'duration_ms' => $duration,
-                'finished_at' => now(),
-            ]);
+                // Update execution record
+                $this->execution->update([
+                    'status' => $hasError ? 'error' : 'completed',
+                    'output_data' => $finalOutput,
+                    'node_results' => $nodeResults,
+                    'execution_order' => $executionOrder,
+                    'error_node' => $errorNode,
+                    'duration_ms' => $duration,
+                    'finished_at' => now(),
+                    'queue_job_id' => null,
+                ]);
             }
 
             Log::info('Workflow execution completed', [
@@ -160,16 +161,26 @@ class ExecuteWorkflowJob implements ShouldQueue
             ]);
 
             if ($this->execution->fresh()->status !== 'cancelled') {
-            // Update execution as failed
-            $this->execution->update([
-                'status' => 'error',
-                'output_data' => [
-                    'error' => 'Workflow execution failed',
-                    'message' => $e->getMessage(),
-                ],
-                'finished_at' => now(),
-            ]);
+                // Update execution as failed
+                $this->execution->update([
+                    'status' => 'error',
+                    'output_data' => [
+                        'error' => 'Workflow execution failed',
+                        'message' => $e->getMessage(),
+                    ],
+                    'finished_at' => now(),
+                    'queue_job_id' => null,
+                ]);
             }
+        }
+        
+        // Safety net: never leave execution stuck in running
+        if ($this->execution->fresh()->status === 'running') {
+            $this->execution->update([
+                'status' => 'completed',
+                'finished_at' => now(),
+                'queue_job_id' => null,
+            ]);
         }
     }
 
@@ -181,13 +192,14 @@ class ExecuteWorkflowJob implements ShouldQueue
         ]);
 
         if ($this->execution->fresh()->status !== 'cancelled') {
-        $this->execution->update([
-            'status' => 'error',
-            'output_data' => [
-                'error' => 'Job failed',
-                'message' => $exception->getMessage(),
-            ],
-            'finished_at' => now(),
+            $this->execution->update([
+                'status' => 'error',
+                'output_data' => [
+                    'error' => 'Job failed',
+                    'message' => $exception->getMessage(),
+                ],
+                'finished_at' => now(),
+                'queue_job_id' => null,
             ]);
         }
     }
