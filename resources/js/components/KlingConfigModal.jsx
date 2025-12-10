@@ -143,14 +143,18 @@ function KlingConfigModal({ node, onSave, onClose, onTest, inputData, outputData
         try {
             const result = await onTest(config);
             setTestResults(result);
-            if (onTestResult) {
-                onTestResult(result);
+            if (onTestResult && node?.id) {
+                onTestResult(node.id, result);
             }
         } catch (error) {
-            setTestResults({
+            const errorResult = {
                 error: true,
                 message: error.response?.data?.message || error.message || 'Test failed'
-            });
+            };
+            setTestResults(errorResult);
+            if (onTestResult && node?.id) {
+                onTestResult(node.id, errorResult);
+            }
         } finally {
             setIsTesting(false);
             testAbortControllerRef.current = null;

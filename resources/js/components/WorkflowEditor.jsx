@@ -17,6 +17,7 @@ import 'reactflow/dist/style.css';
 import axios from '../config/axios';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import usePageTitle from '../hooks/usePageTitle';
+import { loadExecutionData, removeExecutionData, getDataSizeMB } from '../utils/indexedDBStorage';
 import WebhookConfigModal from './WebhookConfigModal';
 import ScheduleTriggerConfigModal from './ScheduleTriggerConfigModal';
 import HttpRequestConfigModal from './HttpRequestConfigModal';
@@ -991,51 +992,113 @@ function WorkflowEditor() {
 
     // Load copied execution data when switching to editor tab or when workflow is loaded
     useEffect(() => {
-        if (activeTab === 'editor' && workflow?.id) {
-            try {
-                const copiedData = localStorage.getItem('copiedExecutionData');
-                if (copiedData) {
-                    const executionData = JSON.parse(copiedData);
+        const loadCopiedData = async () => {
+            if (activeTab === 'editor' && workflow?.id) {
+                try {
+                    const executionData = await loadExecutionData('copiedExecutionData');
                     
-                    // Only load if it's for the current workflow
-                    if (executionData.workflow_id && executionData.workflow_id.toString() === workflow.id.toString()) {
-                        console.log('📋 Found copied execution data, loading into Editor:', executionData);
-                        
-                        // Convert node_results to nodeOutputData format
-                        const outputData = {};
-                        if (executionData.node_results) {
-                            Object.entries(executionData.node_results).forEach(([nodeId, result]) => {
-                                // Extract output from result
-                                outputData[nodeId] = result.output || result;
+                    if (executionData) {
+                        // Only load if it's for the current workflow
+                        if (executionData.workflow_id && executionData.workflow_id.toString() === workflow.id.toString()) {
+                            const sizeMB = getDataSizeMB(executionData);
+                            console.log('📋 Found copied execution data, loading into Editor:', {
+                                execution_id: executionData.execution_id,
+                                node_count: executionData.node_results ? Object.keys(executionData.node_results).length : 0,
+                                execution_order_length: executionData.execution_order?.length || 0,
+                                size_mb: sizeMB.toFixed(2)
                             });
-                        }
-                        
-                        // Set node output data
-                        setNodeOutputData(outputData);
-                        
-                        // Mark nodes as completed/error based on execution order
-                        if (executionData.execution_order) {
-                            const completedSet = new Set(executionData.execution_order);
-                            setCompletedNodes(completedSet);
                             
-                            // Mark error node if exists
-                            if (executionData.error_node) {
-                                setErrorNodes(new Set([executionData.error_node]));
-                                completedSet.delete(executionData.error_node);
+                            // Convert node_results to nodeOutputData format
+                            const outputData = {};
+                            if (executionData.node_results) {
+                                Object.entries(executionData.node_results).forEach(([nodeId, result]) => {
+                                    try {
+                                        // Extract output from result
+                                        if (result && typeof result === 'object') {
+                                            outputData[nodeId] = result.output || result;
+                                        } else {
+                                            outputData[nodeId] = result;
+                                        }
+                                    } catch (err) {
+                                        console.warn(`Error processing node result for ${nodeId}:`, err);
+                                        // Skip this node if processing fails
+                                    }
+                                });
+                            }
+                            
+                            // Set node output data
+                            setNodeOutputData(outputData);
+                            
+                            // Mark nodes as completed/error based on execution order
+                            if (executionData.execution_order && Array.isArray(executionData.execution_order)) {
+                                const completedSet = new Set(executionData.execution_order);
+                                setCompletedNodes(completedSet);
+                                
+                                // Mark error node if exists
+                                if (executionData.error_node) {
+                                    setErrorNodes(new Set([executionData.error_node]));
+                                    completedSet.delete(executionData.error_node);
+                                }
+                            }
+                            
+                            // Show notification
+                            console.log('✅ Loaded execution data into Editor. You can now test individual nodes.');
+                            
+                            // Clear the copied data after loading to avoid reloading on every tab switch
+                            await removeExecutionData('copiedExecutionData');
+                        } else {
+                            // Data is for a different workflow, clear it
+                            console.log('⚠️ Copied execution data is for a different workflow, clearing...');
+                            await removeExecutionData('copiedExecutionData');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading copied execution data:', error);
+                    
+                    // Fallback: try localStorage for backward compatibility
+                    try {
+                        const copiedData = localStorage.getItem('copiedExecutionData');
+                        if (copiedData) {
+                            const executionData = JSON.parse(copiedData);
+                            if (executionData.workflow_id && executionData.workflow_id.toString() === workflow.id.toString()) {
+                                // Process same as above...
+                                const outputData = {};
+                                if (executionData.node_results) {
+                                    Object.entries(executionData.node_results).forEach(([nodeId, result]) => {
+                                        try {
+                                            if (result && typeof result === 'object') {
+                                                outputData[nodeId] = result.output || result;
+                                            } else {
+                                                outputData[nodeId] = result;
+                                            }
+                                        } catch (err) {
+                                            console.warn(`Error processing node result for ${nodeId}:`, err);
+                                        }
+                                    });
+                                }
+                                setNodeOutputData(outputData);
+                                
+                                if (executionData.execution_order && Array.isArray(executionData.execution_order)) {
+                                    const completedSet = new Set(executionData.execution_order);
+                                    setCompletedNodes(completedSet);
+                                    if (executionData.error_node) {
+                                        setErrorNodes(new Set([executionData.error_node]));
+                                        completedSet.delete(executionData.error_node);
+                                    }
+                                }
+                                localStorage.removeItem('copiedExecutionData');
+                                console.log('✅ Loaded from localStorage (fallback)');
                             }
                         }
-                        
-                        // Show notification
-                        console.log('✅ Loaded execution data into Editor. You can now test individual nodes.');
-                        
-                        // Clear the copied data after loading to avoid reloading on every tab switch
-                        localStorage.removeItem('copiedExecutionData');
+                    } catch (fallbackError) {
+                        console.error('Fallback localStorage load also failed:', fallbackError);
+                        alert(`❌ Lỗi khi tải dữ liệu đã copy: ${error.message || 'Unknown error'}`);
                     }
                 }
-            } catch (error) {
-                console.error('Error loading copied execution data:', error);
             }
-        }
+        };
+        
+        loadCopiedData();
     }, [activeTab, workflow?.id]);
 
     // Store testExecutionId and workflow.id in refs so cleanup can access them

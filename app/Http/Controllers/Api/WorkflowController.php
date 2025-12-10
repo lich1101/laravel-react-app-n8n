@@ -23,10 +23,25 @@ class WorkflowController extends Controller
      */
     public function index(): JsonResponse
     {
-        $workflows = Workflow::with('folder')
-            ->orderByDesc('updated_at')
-            ->get();
-        return response()->json($workflows);
+        try {
+            // Try to get workflows with orderBy, but fallback to PHP sort if MySQL sort fails
+            $workflows = Workflow::with('folder')->get();
+            
+            // Sort by updated_at in PHP to avoid MySQL sort memory issues
+            $workflows = $workflows->sortByDesc('updated_at')->values();
+            
+            return response()->json($workflows);
+        } catch (\Exception $e) {
+            // Fallback: get without orderBy and sort in PHP
+            Log::warning('Workflow index query failed, using fallback', [
+                'error' => $e->getMessage()
+            ]);
+            
+            $workflows = Workflow::with('folder')->get();
+            $workflows = $workflows->sortByDesc('updated_at')->values();
+            
+            return response()->json($workflows);
+        }
     }
 
     /**
@@ -526,12 +541,12 @@ class WorkflowController extends Controller
                     break;
                 case 'gemini':
                     $result = $webhookController->testGeminiNode($config, $inputData);
+                    break;
                 case 'kling':
                     $result = $webhookController->testKlingNode($config, $inputData);
+                    break;
                 case 'convert':
                     $result = $webhookController->testConvertNode($config, $inputData);
-                    break;
-                    break;
                     break;
                 case 'openai':
                     $result = $webhookController->testOpenAINode($config, $inputData);

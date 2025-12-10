@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { normalizeVariablePrefix, buildVariablePath, buildArrayPath } from '../../utils/variablePath';
 
 /**
@@ -12,6 +12,48 @@ export default function JSONViewer({
     onToggleCollapse,
     className = ''
 }) {
+    // Track expanded long strings (especially base64)
+    const [expandedStrings, setExpandedStrings] = useState(new Set());
+    
+    const toggleStringExpansion = (path) => {
+        setExpandedStrings(prev => {
+            const next = new Set(prev);
+            if (next.has(path)) {
+                next.delete(path);
+            } else {
+                next.add(path);
+            }
+            return next;
+        });
+    };
+    
+    // Check if string looks like base64
+    const isBase64Like = (str) => {
+        if (typeof str !== 'string' || str.length < 50) return false;
+        // Check for base64 pattern or data URI
+        return /^data:[^;]+;base64,/.test(str) || 
+               /^[A-Za-z0-9+\/]{100,}={0,2}$/.test(str.replace(/\s/g, ''));
+    };
+    
+    // Format long string for display
+    const formatLongString = (str, path, isExpanded) => {
+        const MAX_PREVIEW_LENGTH = 150;
+        const isBase64 = isBase64Like(str);
+        
+        if (str.length <= MAX_PREVIEW_LENGTH || isExpanded) {
+            return str;
+        }
+        
+        // For base64, show first part + indicator
+        if (isBase64) {
+            const preview = str.substring(0, 100);
+            const sizeKB = (str.length / 1024).toFixed(1);
+            return `${preview}... [base64, ${sizeKB}KB, click to expand]`;
+        }
+        
+        // For regular long strings
+        return str.substring(0, MAX_PREVIEW_LENGTH) + '... [click to expand]';
+    };
     const getTypeInfo = (value) => {
         if (value === null) return { icon: '∅', color: 'gray', label: 'null' };
         if (Array.isArray(value)) return { icon: '[]', color: 'purple', label: 'array' };
@@ -127,19 +169,51 @@ export default function JSONViewer({
                                                 </div>
                                                 
                                                 {isPrimitive && (
-                                                    <div 
-                                                        className="mt-1 text-xs text-gray-600 font-mono truncate cursor-move min-w-0"
-                                                        draggable="true"
-                                                        onDragStart={(e) => {
-                                                            e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
-                                                            e.dataTransfer.effectAllowed = 'copy';
-                                                        }}
-                                                        title={typeof value === 'string' ? `"${value}"` : String(value)}
-                                                    >
-                                                        {typeof value === 'string' 
-                                                            ? `"${value}"`
-                                                            : String(value)
-                                                        }
+                                                    <div className="mt-1 min-w-0">
+                                                        {typeof value === 'string' && value.length > 150 ? (
+                                                            <div className="space-y-1">
+                                                                <div 
+                                                                    className="text-xs text-gray-600 font-mono break-words cursor-move"
+                                                                    draggable="true"
+                                                                    onDragStart={(e) => {
+                                                                        e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
+                                                                        e.dataTransfer.effectAllowed = 'copy';
+                                                                    }}
+                                                                    title={`Full value: ${value.substring(0, 500)}...`}
+                                                                >
+                                                                    "{formatLongString(value, variablePath, expandedStrings.has(variablePath))}"
+                                                                </div>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        toggleStringExpansion(variablePath);
+                                                                    }}
+                                                                    className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                                                >
+                                                                    {expandedStrings.has(variablePath) ? '▼ Thu gọn' : '▶ Xem đầy đủ'}
+                                                                </button>
+                                                                {isBase64Like(value) && (
+                                                                    <div className="text-xs text-gray-500 italic">
+                                                                        Base64 data ({(value.length / 1024).toFixed(1)}KB) - Giữ nguyên để chạy được
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div 
+                                                                className="text-xs text-gray-600 font-mono truncate cursor-move min-w-0"
+                                                                draggable="true"
+                                                                onDragStart={(e) => {
+                                                                    e.dataTransfer.setData('text/plain', `{{${variablePath}}}`);
+                                                                    e.dataTransfer.effectAllowed = 'copy';
+                                                                }}
+                                                                title={typeof value === 'string' ? `"${value}"` : String(value)}
+                                                            >
+                                                                {typeof value === 'string' 
+                                                                    ? `"${value}"`
+                                                                    : String(value)
+                                                                }
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -172,14 +246,42 @@ export default function JSONViewer({
         }
 
         const typeInfo = getTypeInfo(obj);
+        const isLongString = typeof obj === 'string' && obj.length > 150;
+        const stringPath = normalizeVariablePrefix(path, false);
+        const isExpanded = expandedStrings.has(stringPath);
+        
         return (
-            <div className="flex items-center gap-2 min-w-0">
-                <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono flex-shrink-0`}>
-                    {typeInfo.icon}
-                </span>
-                <span className="text-xs text-gray-600 font-mono truncate min-w-0" title={typeof obj === 'string' ? `"${obj}"` : String(obj)}>
-                    {typeof obj === 'string' ? `"${obj}"` : String(obj)}
-                </span>
+            <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                    <span className={`text-xs px-1.5 py-0.5 bg-${typeInfo.color}-100 text-${typeInfo.color}-700 rounded font-mono flex-shrink-0`}>
+                        {typeInfo.icon}
+                    </span>
+                    {isLongString ? (
+                        <div className="flex-1 min-w-0">
+                            <div 
+                                className="text-xs text-gray-600 font-mono break-words"
+                                title={typeof obj === 'string' ? `"${obj.substring(0, 500)}..."` : String(obj)}
+                            >
+                                "{formatLongString(obj, stringPath, isExpanded)}"
+                            </div>
+                            <button
+                                onClick={() => toggleStringExpansion(stringPath)}
+                                className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
+                            >
+                                {isExpanded ? '▼ Thu gọn' : '▶ Xem đầy đủ'}
+                            </button>
+                            {isBase64Like(obj) && (
+                                <div className="text-xs text-gray-500 italic mt-1">
+                                    Base64 data ({(obj.length / 1024).toFixed(1)}KB) - Giữ nguyên để chạy được
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <span className="text-xs text-gray-600 font-mono truncate min-w-0" title={typeof obj === 'string' ? `"${obj}"` : String(obj)}>
+                            {typeof obj === 'string' ? `"${obj}"` : String(obj)}
+                        </span>
+                    )}
+                </div>
             </div>
         );
     };

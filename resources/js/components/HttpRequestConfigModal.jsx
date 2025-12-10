@@ -46,8 +46,9 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
         }
         
         // Remove bodyParams from saved config (only save bodyContent for backward compat)
+        // BUT keep specifyBody to remember user's choice
         delete configToSave.bodyParams;
-        delete configToSave.specifyBody;
+        // Don't delete specifyBody - we need it to restore the correct mode when loading
         
         onSave(configToSave);
     };
@@ -102,27 +103,44 @@ function HttpRequestConfigModal({ node, onSave, onClose, onTest, inputData, outp
         if (node?.data?.config) {
             const nodeConfig = { ...node.data.config };
             
-            // If bodyParams exists, use it. Otherwise, try to parse bodyContent to bodyParams
-            if (!nodeConfig.bodyParams && nodeConfig.bodyContent) {
-                try {
-                    // Try to parse JSON bodyContent to extract key-value pairs
-                    const parsed = JSON.parse(nodeConfig.bodyContent);
-                    if (typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
-                        nodeConfig.bodyParams = Object.keys(parsed).map(key => ({
-                            name: key,
-                            value: typeof parsed[key] === 'string' ? parsed[key] : JSON.stringify(parsed[key])
-                        }));
-                        nodeConfig.specifyBody = 'fields';
-                    } else {
+            // If specifyBody is already saved, use it (preserve user's choice)
+            if (nodeConfig.specifyBody) {
+                // If user chose 'fields', try to parse bodyContent to bodyParams
+                if (nodeConfig.specifyBody === 'fields' && nodeConfig.bodyContent && !nodeConfig.bodyParams) {
+                    try {
+                        const parsed = JSON.parse(nodeConfig.bodyContent);
+                        if (typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
+                            nodeConfig.bodyParams = Object.keys(parsed).map(key => ({
+                                name: key,
+                                value: typeof parsed[key] === 'string' ? parsed[key] : JSON.stringify(parsed[key])
+                            }));
+                        }
+                    } catch (e) {
+                        // If can't parse, keep as raw
                         nodeConfig.specifyBody = 'raw';
                     }
-                } catch (e) {
-                    // Not valid JSON or can't parse, keep as raw
+                }
+                // If user chose 'raw', keep it as raw (don't auto-convert)
+            } else {
+                // No specifyBody saved (backward compat) - try to infer from existing data
+                if (nodeConfig.bodyParams && nodeConfig.bodyParams.length > 0) {
+                    nodeConfig.specifyBody = 'fields';
+                } else if (nodeConfig.bodyContent) {
+                    // Try to parse to see if it's structured JSON that could be fields
+                    try {
+                        const parsed = JSON.parse(nodeConfig.bodyContent);
+                        if (typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
+                            // Could be fields, but default to raw for backward compat
+                            nodeConfig.specifyBody = 'raw';
+                        } else {
+                            nodeConfig.specifyBody = 'raw';
+                        }
+                    } catch (e) {
+                        nodeConfig.specifyBody = 'raw';
+                    }
+                } else {
                     nodeConfig.specifyBody = 'raw';
                 }
-            } else if (!nodeConfig.specifyBody) {
-                // Default to fields if bodyParams exists
-                nodeConfig.specifyBody = nodeConfig.bodyParams && nodeConfig.bodyParams.length > 0 ? 'fields' : 'raw';
             }
             
             // Set sendBody based on bodyType or bodyContent

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from '../config/axios';
+import { saveExecutionData, getDataSizeMB } from '../utils/indexedDBStorage';
 import ReactFlow, { Background, Controls, MiniMap, Handle, Position } from 'reactflow';
 import 'reactflow/dist/style.css';
 import WebhookConfigModal from './WebhookConfigModal';
@@ -994,31 +995,62 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
-                                        onClick={() => {
-                                            // Copy execution data to localStorage for WorkflowEditor
-                                            const executionData = {
-                                                node_results: executionDetails.node_results || {},
-                                                execution_order: executionDetails.execution_order || [],
-                                                error_node: executionDetails.error_node || null,
-                                                has_error: executionDetails.status === 'error' || executionDetails.status === 'failed',
-                                                workflow_id: workflowId,
-                                                execution_id: selectedExecution.id,
-                                                copied_at: new Date().toISOString(),
-                                            };
-                                            
+                                        onClick={async () => {
                                             try {
-                                                localStorage.setItem('copiedExecutionData', JSON.stringify(executionData));
-                                                console.log('📋 Copied execution data:', executionData);
+                                                // Copy execution data to IndexedDB (supports unlimited size)
+                                                // IMPORTANT: Keep ALL data including base64 - don't truncate for functionality
+                                                const executionData = {
+                                                    node_results: executionDetails.node_results || {},
+                                                    execution_order: executionDetails.execution_order || [],
+                                                    error_node: executionDetails.error_node || null,
+                                                    has_error: executionDetails.status === 'error' || executionDetails.status === 'failed',
+                                                    workflow_id: workflowId,
+                                                    execution_id: selectedExecution.id,
+                                                    copied_at: new Date().toISOString(),
+                                                };
+                                                
+                                                // Check size for info (IndexedDB can handle any size)
+                                                const sizeInMB = getDataSizeMB(executionData);
+                                                
+                                                // Show info if data is large
+                                                if (sizeInMB > 10) {
+                                                    console.log(`📋 Copying large data (${sizeInMB.toFixed(2)}MB) - using IndexedDB`);
+                                                }
+                                                
+                                                // Save to IndexedDB (or localStorage fallback for small data)
+                                                await saveExecutionData('copiedExecutionData', executionData);
+                                                
+                                                console.log('📋 Copied execution data (full data, no truncation):', {
+                                                    execution_id: executionData.execution_id,
+                                                    size_mb: sizeInMB.toFixed(2),
+                                                    node_count: Object.keys(executionData.node_results || {}).length
+                                                });
                                                 
                                                 // Trigger tab switch if callback provided
                                                 if (onCopyToEditor) {
                                                     onCopyToEditor();
                                                 } else {
-                                                    alert('✅ Đã copy execution data vào Editor!\n\nChuyển sang tab Editor để xem và test các node.');
+                                                    alert(
+                                                        `✅ Đã copy execution data vào Editor!\n\n` +
+                                                        `Kích thước: ${sizeInMB.toFixed(2)}MB\n` +
+                                                        `Dữ liệu base64 đã được giữ nguyên để có thể chạy được.\n\n` +
+                                                        `Chuyển sang tab Editor để xem và test các node.`
+                                                    );
                                                 }
                                             } catch (error) {
                                                 console.error('Error copying execution data:', error);
-                                                alert('❌ Lỗi khi copy execution data. Vui lòng thử lại.');
+                                                
+                                                // Provide more specific error messages
+                                                let errorMessage = '❌ Lỗi khi copy execution data.';
+                                                if (error.message?.includes('circular') || error.message?.includes('Converting circular')) {
+                                                    errorMessage = '❌ Dữ liệu có cấu trúc không hợp lệ (circular reference). Không thể copy.';
+                                                } else if (error.message?.includes('IndexedDB')) {
+                                                    errorMessage = `❌ Lỗi IndexedDB: ${error.message}\n\nVui lòng thử lại hoặc kiểm tra trình duyệt có hỗ trợ IndexedDB không.`;
+                                                } else {
+                                                    errorMessage = `❌ Lỗi khi copy execution data: ${error.message || 'Unknown error'}`;
+                                                }
+                                                
+                                                alert(errorMessage);
                                             }
                                         }}
                                         className="btn btn-primary text-sm flex items-center gap-2"
