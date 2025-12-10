@@ -628,19 +628,39 @@ class CredentialController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->get();
 
+            Log::info('Exporting credentials', [
+                'user_id' => Auth::id(),
+                'credentials_count' => $credentials->count(),
+            ]);
+
             $exportData = [
                 'version' => '1.0',
                 'exported_at' => now()->toIso8601String(),
                 'exported_by' => Auth::user()->email ?? Auth::id(),
                 'credentials' => $credentials->map(function ($credential) {
+                    // Get decrypted data using the model accessor
+                    $decryptedData = $credential->data;
+                    
+                    Log::debug('Exporting credential', [
+                        'name' => $credential->name,
+                        'type' => $credential->type,
+                        'has_data' => !empty($decryptedData),
+                        'data_type' => gettype($decryptedData),
+                    ]);
+                    
                     return [
                         'name' => $credential->name,
                         'type' => $credential->type,
-                        'data' => $credential->data, // Will be decrypted by model accessor
+                        'data' => $decryptedData, // Will be decrypted by model accessor
                         'description' => $credential->description,
                     ];
                 })->toArray(),
             ];
+
+            Log::info('Export data prepared', [
+                'credentials_count' => count($exportData['credentials']),
+                'export_data_keys' => array_keys($exportData),
+            ]);
 
             return response()->json($exportData, 200, [
                 'Content-Type' => 'application/json',

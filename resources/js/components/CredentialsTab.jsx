@@ -99,8 +99,33 @@ const CredentialsTab = () => {
                 responseType: 'json', // Use json instead of blob to properly parse the response
             });
 
+            console.log('Export response:', response.data);
+
+            // Check if response has data
+            if (!response.data) {
+                alert('❌ No data received from server');
+                return;
+            }
+
+            // Check if credentials array exists and has items
+            if (!response.data.credentials || !Array.isArray(response.data.credentials)) {
+                alert('⚠️ No credentials found to export');
+                return;
+            }
+
+            if (response.data.credentials.length === 0) {
+                alert('⚠️ You have no credentials to export');
+                return;
+            }
+
             // Convert response data to JSON string with proper formatting
             const jsonString = JSON.stringify(response.data, null, 2);
+            
+            console.log('Exporting credentials:', {
+                count: response.data.credentials.length,
+                version: response.data.version,
+                exported_at: response.data.exported_at
+            });
             
             // Create blob and download
             const blob = new Blob([jsonString], { type: 'application/json' });
@@ -113,9 +138,10 @@ const CredentialsTab = () => {
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
 
-            alert('✅ Credentials exported successfully!');
+            alert(`✅ Credentials exported successfully!\n\nExported ${response.data.credentials.length} credential(s)`);
         } catch (error) {
             console.error('Error exporting credentials:', error);
+            console.error('Error response:', error.response);
             
             // Try to parse error if it's a blob response
             if (error.response?.data instanceof Blob) {
@@ -130,7 +156,8 @@ const CredentialsTab = () => {
                 };
                 reader.readAsText(error.response.data);
             } else {
-                alert('❌ Failed to export credentials: ' + (error.response?.data?.message || error.response?.data?.error || error.message));
+                const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Unknown error';
+                alert('❌ Failed to export credentials: ' + errorMessage);
             }
         }
     };
