@@ -408,6 +408,15 @@ const nodeTypes = {
             handles={{ input: true, outputs: [{ id: null }] }}
         />
     ),
+    googledrivefolder: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="googledrivefolder"
+            iconPath="/icons/nodes/googledrive.svg"
+            color="blue"
+            handles={{ input: true, outputs: [{ id: null }] }}
+        />
+    ),
 };
 
 const WorkflowHistory = ({ onCopyToEditor }) => {

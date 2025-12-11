@@ -984,6 +984,9 @@ class WebhookController extends Controller
             case 'googlesheets':
                 return $this->executeGoogleSheetsNode($config, $inputData);
 
+            case 'googledrivefolder':
+                return $this->executeGoogleDriveFolderNode($config, $inputData);
+
             case 'gemini':
                 Log::error('Gemini: DEBUG - About to call executeGeminiNode', [
                     'node_id' => $node['id'] ?? 'unknown',
@@ -2454,6 +2457,11 @@ JS;
     public function testGoogleSheetsNode($config, $inputData)
     {
         return $this->executeGoogleSheetsNode($config, $inputData);
+    }
+
+    public function testGoogleDriveFolderNode($config, $inputData)
+    {
+        return $this->executeGoogleDriveFolderNode($config, $inputData);
     }
 
     private function executeClaudeNode($config, $inputData)
@@ -6098,6 +6106,410 @@ JS;
         }
 
         return 'Sheet1';
+    }
+
+    /**
+     * Execute Google Drive Folder node
+     */
+    private function executeGoogleDriveFolderNode($config, $inputData)
+    {
+        try {
+            $credentialId = $config['credentialId'] ?? null;
+            if (!$credentialId) {
+                throw new \Exception('Google Drive credential is required');
+            }
+
+            $credential = \App\Models\Credential::find($credentialId);
+            if (!$credential || $credential->type !== 'oauth2') {
+                throw new \Exception('Invalid Google Drive OAuth2 credential');
+            }
+
+            $operation = $config['operation'] ?? 'createFolder';
+            
+            if ($operation === 'createFolder') {
+                return $this->createGoogleDriveFolder($config, $inputData, $credential);
+            } elseif ($operation === 'uploadFile') {
+                return $this->uploadFileToGoogleDrive($config, $inputData, $credential);
+            } elseif ($operation === 'listFiles') {
+                return $this->listFilesInGoogleDriveFolder($config, $inputData, $credential);
+            } elseif ($operation === 'getFolder') {
+                return $this->getGoogleDriveFolder($config, $inputData, $credential);
+            } elseif ($operation === 'deleteFolder') {
+                return $this->deleteGoogleDriveFolder($config, $inputData, $credential);
+            } elseif ($operation === 'search') {
+                return $this->searchGoogleDriveFiles($config, $inputData, $credential);
+            }
+
+            throw new \Exception('Unsupported operation: ' . $operation);
+        } catch (\Exception $e) {
+            Log::error('Google Drive Folder node execution failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'error' => 'Google Drive request failed',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Create a folder in Google Drive
+     */
+    private function createGoogleDriveFolder($config, $inputData, $credential)
+    {
+        $folderName = $this->resolveVariables($config['folderName'] ?? 'New Folder', $inputData);
+        $parentFolderId = $this->resolveVariables($config['parentFolderId'] ?? '', $inputData);
+
+        if (empty($folderName)) {
+            throw new \Exception('Folder name is required');
+        }
+
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
+
+        // Create folder metadata
+        $metadata = [
+            'name' => $folderName,
+            'mimeType' => 'application/vnd.google-apps.folder'
+        ];
+
+        // Add parent folder if specified
+        if (!empty($parentFolderId)) {
+            $metadata['parents'] = [$parentFolderId];
+        }
+
+        $response = Http::withToken($accessToken)
+            ->post('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', $metadata);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to create folder: ' . $response->body());
+        }
+
+        $folder = $response->json();
+        $folderId = $folder['id'] ?? null;
+
+        if (!$folderId) {
+            throw new \Exception('Folder ID not returned from Google Drive API');
+        }
+
+        Log::info('Google Drive folder created', [
+            'folder_id' => $folderId,
+            'folder_name' => $folderName,
+            'parent_folder_id' => $parentFolderId ?: 'My Drive root',
+        ]);
+
+        return [
+            'id' => $folderId,
+            'name' => $folderName,
+            'url' => "https://drive.google.com/drive/folders/{$folderId}",
+            'parent_id' => $parentFolderId ?: null,
+            'folder' => $folder,
+        ];
+    }
+
+    /**
+     * Upload file from URL to Google Drive
+     */
+    private function uploadFileToGoogleDrive($config, $inputData, $credential)
+    {
+        $fileUrl = $this->resolveVariables($config['fileUrl'] ?? '', $inputData);
+        $fileName = $this->resolveVariables($config['fileName'] ?? 'file', $inputData);
+        $folderId = $this->resolveVariables($config['folderId'] ?? '', $inputData);
+
+        if (empty($fileUrl)) {
+            throw new \Exception('File URL is required');
+        }
+
+        if (empty($fileName)) {
+            throw new \Exception('File name is required');
+        }
+
+        if (empty($folderId)) {
+            throw new \Exception('Folder ID is required');
+        }
+
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
+
+        // Download file from URL
+        Log::info('Downloading file from URL', ['url' => $fileUrl]);
+        $fileResponse = Http::timeout(300)->get($fileUrl);
+
+        if (!$fileResponse->successful()) {
+            throw new \Exception('Failed to download file from URL: ' . $fileResponse->body());
+        }
+
+        $fileContent = $fileResponse->body();
+        $fileSize = strlen($fileContent);
+
+        // Detect MIME type from file extension or Content-Type header
+        $mimeType = $this->detectMimeType($fileName, $fileResponse->header('Content-Type'));
+
+        Log::info('File downloaded', [
+            'file_name' => $fileName,
+            'file_size' => $fileSize,
+            'mime_type' => $mimeType,
+        ]);
+
+        // Upload to Google Drive using multipart upload
+        $metadata = [
+            'name' => $fileName,
+            'parents' => [$folderId]
+        ];
+
+        // Use multipart upload for files
+        $boundary = '----WebKitFormBoundary' . uniqid();
+        $multipartBody = $this->buildMultipartBody($boundary, $metadata, $fileContent, $mimeType);
+
+        $response = Http::withToken($accessToken)
+            ->withHeaders([
+                'Content-Type' => "multipart/related; boundary={$boundary}",
+            ])
+            ->withBody($multipartBody, "multipart/related; boundary={$boundary}")
+            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true');
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to upload file: ' . $response->body());
+        }
+
+        $file = $response->json();
+        $fileId = $file['id'] ?? null;
+
+        if (!$fileId) {
+            throw new \Exception('File ID not returned from Google Drive API');
+        }
+
+        Log::info('File uploaded to Google Drive', [
+            'file_id' => $fileId,
+            'file_name' => $fileName,
+            'folder_id' => $folderId,
+        ]);
+
+        return [
+            'id' => $fileId,
+            'name' => $fileName,
+            'url' => "https://drive.google.com/file/d/{$fileId}/view",
+            'folder_id' => $folderId,
+            'size' => $fileSize,
+            'mime_type' => $mimeType,
+            'file' => $file,
+        ];
+    }
+
+    /**
+     * List files in a Google Drive folder
+     */
+    private function listFilesInGoogleDriveFolder($config, $inputData, $credential)
+    {
+        $folderId = $this->resolveVariables($config['listFolderId'] ?? '', $inputData);
+
+        if (empty($folderId)) {
+            throw new \Exception('Folder ID is required');
+        }
+
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
+
+        // Build query to list files in folder
+        $query = "'{$folderId}' in parents and trashed=false";
+        
+        $url = "https://www.googleapis.com/drive/v3/files?q=" . urlencode($query) . "&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,thumbnailLink)";
+
+        $response = Http::withToken($accessToken)->get($url);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to list files: ' . $response->body());
+        }
+
+        $data = $response->json();
+        $files = $data['files'] ?? [];
+
+        Log::info('Files listed from Google Drive folder', [
+            'folder_id' => $folderId,
+            'file_count' => count($files),
+        ]);
+
+        return [
+            'folder_id' => $folderId,
+            'files' => $files,
+            'count' => count($files),
+        ];
+    }
+
+    /**
+     * Get Google Drive folder info
+     */
+    private function getGoogleDriveFolder($config, $inputData, $credential)
+    {
+        $folderId = $this->resolveVariables($config['getFolderId'] ?? '', $inputData);
+
+        if (empty($folderId)) {
+            throw new \Exception('Folder ID is required');
+        }
+
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
+
+        $response = Http::withToken($accessToken)
+            ->get("https://www.googleapis.com/drive/v3/files/{$folderId}?supportsAllDrives=true&fields=id,name,mimeType,createdTime,modifiedTime,parents,webViewLink");
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to get folder: ' . $response->body());
+        }
+
+        $folder = $response->json();
+
+        Log::info('Google Drive folder retrieved', [
+            'folder_id' => $folderId,
+            'folder_name' => $folder['name'] ?? 'Unknown',
+        ]);
+
+        return [
+            'id' => $folder['id'] ?? null,
+            'name' => $folder['name'] ?? null,
+            'url' => $folder['webViewLink'] ?? "https://drive.google.com/drive/folders/{$folderId}",
+            'parents' => $folder['parents'] ?? [],
+            'created_time' => $folder['createdTime'] ?? null,
+            'modified_time' => $folder['modifiedTime'] ?? null,
+            'folder' => $folder,
+        ];
+    }
+
+    /**
+     * Delete Google Drive folder
+     */
+    private function deleteGoogleDriveFolder($config, $inputData, $credential)
+    {
+        $folderId = $this->resolveVariables($config['deleteFolderId'] ?? '', $inputData);
+
+        if (empty($folderId)) {
+            throw new \Exception('Folder ID is required');
+        }
+
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
+
+        $response = Http::withToken($accessToken)
+            ->delete("https://www.googleapis.com/drive/v3/files/{$folderId}?supportsAllDrives=true");
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to delete folder: ' . $response->body());
+        }
+
+        Log::info('Google Drive folder deleted', [
+            'folder_id' => $folderId,
+        ]);
+
+        return [
+            'success' => true,
+            'folder_id' => $folderId,
+            'message' => 'Folder deleted successfully',
+        ];
+    }
+
+    /**
+     * Search files/folders in Google Drive
+     */
+    private function searchGoogleDriveFiles($config, $inputData, $credential)
+    {
+        $searchQuery = $this->resolveVariables($config['searchQuery'] ?? '', $inputData);
+        $searchFolderId = $this->resolveVariables($config['searchFolderId'] ?? '', $inputData);
+
+        if (empty($searchQuery)) {
+            throw new \Exception('Search query is required');
+        }
+
+        // Get valid access token (auto-refresh if expired)
+        $accessToken = $this->getValidAccessToken($credential);
+
+        // Build query
+        $query = $searchQuery;
+        if (!empty($searchFolderId)) {
+            $query .= " and '{$searchFolderId}' in parents";
+        }
+        $query .= " and trashed=false";
+
+        $url = "https://www.googleapis.com/drive/v3/files?q=" . urlencode($query) . "&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,thumbnailLink,parents)";
+
+        $response = Http::withToken($accessToken)->get($url);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to search files: ' . $response->body());
+        }
+
+        $data = $response->json();
+        $files = $data['files'] ?? [];
+
+        Log::info('Google Drive search completed', [
+            'query' => $searchQuery,
+            'result_count' => count($files),
+        ]);
+
+        return [
+            'query' => $searchQuery,
+            'files' => $files,
+            'count' => count($files),
+        ];
+    }
+
+    /**
+     * Detect MIME type from file name and Content-Type header
+     */
+    private function detectMimeType($fileName, $contentType = null)
+    {
+        // Use Content-Type header if available
+        if ($contentType) {
+            // Remove charset if present: "image/jpeg; charset=utf-8" -> "image/jpeg"
+            $contentType = explode(';', $contentType)[0];
+            $contentType = trim($contentType);
+            if (!empty($contentType)) {
+                return $contentType;
+            }
+        }
+
+        // Detect from file extension
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        
+        $mimeTypes = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'mp3' => 'audio/mpeg',
+            'mp4' => 'video/mp4',
+            'avi' => 'video/x-msvideo',
+            'mov' => 'video/quicktime',
+            'pdf' => 'application/pdf',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'zip' => 'application/zip',
+            'txt' => 'text/plain',
+            'json' => 'application/json',
+            'xml' => 'application/xml',
+            'csv' => 'text/csv',
+        ];
+
+        return $mimeTypes[$extension] ?? 'application/octet-stream';
+    }
+
+    /**
+     * Build multipart body for file upload
+     */
+    private function buildMultipartBody($boundary, $metadata, $fileContent, $mimeType)
+    {
+        $body = "--{$boundary}\r\n";
+        $body .= "Content-Type: application/json; charset=UTF-8\r\n\r\n";
+        $body .= json_encode($metadata) . "\r\n";
+        $body .= "--{$boundary}\r\n";
+        $body .= "Content-Type: {$mimeType}\r\n\r\n";
+        $body .= $fileContent . "\r\n";
+        $body .= "--{$boundary}--\r\n";
+
+        return $body;
     }
 
     /**

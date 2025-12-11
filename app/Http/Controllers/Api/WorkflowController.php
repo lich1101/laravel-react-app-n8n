@@ -536,10 +536,13 @@ class WorkflowController extends Controller
                 case 'googledocs':
                     $result = $webhookController->testGoogleDocsNode($config, $inputData);
                     break;
-                case 'googlesheets':
+            case 'googlesheets':
                     $result = $webhookController->testGoogleSheetsNode($config, $inputData);
                     break;
-                case 'gemini':
+            case 'googledrivefolder':
+                    $result = $webhookController->testGoogleDriveFolderNode($config, $inputData);
+                    break;
+            case 'gemini':
                     $result = $webhookController->testGeminiNode($config, $inputData);
                     break;
                 case 'kling':

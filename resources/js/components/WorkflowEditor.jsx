@@ -30,6 +30,7 @@ import IfConfigModal from './IfConfigModal';
 import SwitchConfigModal from './SwitchConfigModal';
 import GoogleDocsConfigModal from './GoogleDocsConfigModal';
 import GoogleSheetsConfigModal from './GoogleSheetsConfigModal';
+import GoogleDriveFolderConfigModal from './GoogleDriveFolderConfigModal';
 import GeminiConfigModal from './GeminiConfigModal';
 import KlingConfigModal from './KlingConfigModal';
 import ConvertConfigModal from './ConvertConfigModal';
@@ -853,6 +854,20 @@ const nodeTypes = {
             isTestingWorkflow={props.data.isTestingWorkflow}
         />
     ),
+    googledrivefolder: (props) => (
+        <CompactNode 
+            {...props} 
+            nodeType="googledrivefolder"
+            iconPath="/icons/nodes/googledrive.svg"
+            color="blue"
+            handles={{ input: true, outputs: [{ id: null }] }}
+            onQuickAdd={props.data.onQuickAdd}
+            connectedHandles={props.data.connectedHandles || []}
+            selected={props.selected}
+            nodeOutputData={props.data.nodeOutputData}
+            isTestingWorkflow={props.data.isTestingWorkflow}
+        />
+    ),
     gemini: (props) => (
         <CompactNode 
             {...props} 
@@ -913,6 +928,7 @@ const ADD_NODE_OPTIONS = [
     { type: 'switch', label: 'Switch', iconPath: '/icons/nodes/switch.svg' },
     { type: 'googledocs', label: 'Google Docs', iconPath: '/icons/nodes/googledocs.svg' },
     { type: 'googlesheets', label: 'Google Sheets', iconPath: '/icons/nodes/googlesheets.svg' },
+    { type: 'googledrivefolder', label: 'Google Drive Folder', iconPath: '/icons/nodes/googledrive.svg' },
 ];
 
 
@@ -1517,6 +1533,8 @@ function WorkflowEditor() {
             if: 'If',
             switch: 'Switch',
             googledocs: 'Google Docs',
+            googlesheets: 'Google Sheets',
+            googledrivefolder: 'Google Drive Folder',
         };
 
         // Generate unique custom name
@@ -2445,7 +2463,7 @@ function WorkflowEditor() {
     const handleNodeDoubleClick = (event, node) => {
         setSelectedNode(node);
 
-        if (node.type === 'webhook' || node.type === 'schedule' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'openai' || node.type === 'gemini' || node.type === 'kling' || node.type === 'convert' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets') {
+        if (node.type === 'webhook' || node.type === 'schedule' || node.type === 'http' || node.type === 'perplexity' || node.type === 'claude' || node.type === 'openai' || node.type === 'gemini' || node.type === 'kling' || node.type === 'convert' || node.type === 'code' || node.type === 'escape' || node.type === 'if' || node.type === 'switch' || node.type === 'googledocs' || node.type === 'googlesheets' || node.type === 'googledrivefolder') {
             setShowConfigModal(true);
         }
     };
@@ -3000,6 +3018,11 @@ function WorkflowEditor() {
     const handleTestGoogleSheetsNode = async (config) => {
         console.log('Testing Google Sheets with config:', config);
         return await callTestNodeAPI('googlesheets', config);
+    };
+
+    const handleTestGoogleDriveFolderNode = async (config) => {
+        console.log('Testing Google Drive Folder with config:', config);
+        return await callTestNodeAPI('googledrivefolder', config);
     };
 
     // Test Switch node (via backend API)
@@ -3911,6 +3934,21 @@ function WorkflowEditor() {
                         onSave={handleSaveConfig}
                         onClose={() => setShowConfigModal(false)}
                         onTest={handleTestGoogleSheetsNode}
+                        onRename={() => openRenameModal(selectedNode.id)}
+                        inputData={getAllUpstreamNodesData(selectedNode.id)}
+                        outputData={nodeOutputData[selectedNode.id]}
+                        onTestResult={handleTestResult}
+                        allEdges={edges}
+                        allNodes={nodes}
+                    />
+                )}
+
+                {showConfigModal && selectedNode && selectedNode.type === 'googledrivefolder' && (
+                    <GoogleDriveFolderConfigModal
+                        node={selectedNode}
+                        onSave={handleSaveConfig}
+                        onClose={() => setShowConfigModal(false)}
+                        onTest={handleTestGoogleDriveFolderNode}
                         onRename={() => openRenameModal(selectedNode.id)}
                         inputData={getAllUpstreamNodesData(selectedNode.id)}
                         outputData={nodeOutputData[selectedNode.id]}
