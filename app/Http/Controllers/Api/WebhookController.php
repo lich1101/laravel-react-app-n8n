@@ -20,6 +20,40 @@ class WebhookController extends Controller
 {
     public function handle(Request $request, $path)
     {
+        // Generate request signature for idempotency check
+        $requestSignature = $this->generateRequestSignature($request, $path);
+        
+        // Log incoming webhook request with unique signature
+        Log::info('=== WEBHOOK REQUEST RECEIVED ===', [
+            'path' => $path,
+            'method' => $request->method(),
+            'signature' => $requestSignature,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'timestamp' => now()->toIso8601String(),
+        ]);
+
+        // Check for duplicate request within last 5 seconds (idempotency check)
+        $cacheKey = 'webhook_request_' . $requestSignature;
+        $recentRequest = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        
+        if ($recentRequest) {
+            Log::warning('DUPLICATE WEBHOOK REQUEST DETECTED - IGNORING', [
+                'path' => $path,
+                'signature' => $requestSignature,
+                'previous_execution_id' => $recentRequest['execution_id'] ?? null,
+                'previous_timestamp' => $recentRequest['timestamp'] ?? null,
+                'time_since_previous' => now()->diffInSeconds($recentRequest['timestamp'] ?? now()),
+            ]);
+            
+            // Return the same response as previous request
+            return response()->json([
+                'message' => 'Duplicate request ignored',
+                'execution_id' => $recentRequest['execution_id'] ?? null,
+                'duplicate' => true,
+            ], 200);
+        }
+
         // Find active workflows with webhook nodes matching this path
         $webhookNodes = WorkflowNode::where('type', 'webhook')
             ->whereJsonContains('config->path', $path)
@@ -30,10 +64,21 @@ class WebhookController extends Controller
             ->get();
 
         if ($webhookNodes->isEmpty()) {
+            Log::info('Webhook not found', [
+                'path' => $path,
+                'signature' => $requestSignature,
+            ]);
             return response()->json([
                 'message' => 'Webhook not found or workflow is inactive'
             ], 404);
         }
+
+        Log::info('Webhook nodes found', [
+            'path' => $path,
+            'signature' => $requestSignature,
+            'nodes_count' => $webhookNodes->count(),
+            'workflow_ids' => $webhookNodes->pluck('workflow_id')->unique()->toArray(),
+        ]);
 
         // Process the webhook
         $responses = [];
@@ -41,10 +86,22 @@ class WebhookController extends Controller
             $workflow = $webhookNode->workflow;
             $config = $webhookNode->config ?? [];
 
+            Log::info('Processing webhook node', [
+                'webhook_node_id' => $webhookNode->id,
+                'workflow_id' => $workflow->id,
+                'workflow_name' => $workflow->name,
+                'signature' => $requestSignature,
+            ]);
+
             // Check webhook authentication if configured
             if (!empty($config['auth']) && $config['auth'] !== 'none') {
                 if (!$this->validateWebhookAuth($request, $config)) {
                     // Return 401 Unauthorized if auth fails
+                    Log::warning('Webhook authentication failed', [
+                        'webhook_node_id' => $webhookNode->id,
+                        'workflow_id' => $workflow->id,
+                        'signature' => $requestSignature,
+                    ]);
                     return response()->json([
                         'message' => 'Unauthorized: Invalid authentication credentials'
                     ], 401);
@@ -60,8 +117,10 @@ class WebhookController extends Controller
             
             Log::info('Creating execution with workflow snapshot', [
                 'workflow_id' => $workflow->id,
+                'webhook_node_id' => $webhookNode->id,
                 'nodes_count' => count($workflowSnapshot['nodes']),
                 'edges_count' => count($workflowSnapshot['edges']),
+                'signature' => $requestSignature,
             ]);
             
             $execution = WorkflowExecution::create([
@@ -73,12 +132,21 @@ class WebhookController extends Controller
                 'started_at' => now(),
             ]);
 
+            // Store request signature in cache to prevent duplicates (5 seconds window)
+            \Illuminate\Support\Facades\Cache::put($cacheKey, [
+                'execution_id' => $execution->id,
+                'workflow_id' => $workflow->id,
+                'timestamp' => now(),
+            ], now()->addSeconds(5));
+
             // Log webhook trigger
             Log::info('Webhook triggered - dispatching to queue', [
                 'execution_id' => $execution->id,
                 'workflow_id' => $workflow->id,
+                'webhook_node_id' => $webhookNode->id,
                 'path' => $path,
                 'method' => $request->method(),
+                'signature' => $requestSignature,
             ]);
 
             // Parse request body - handle JSON and form data
@@ -159,6 +227,41 @@ class WebhookController extends Controller
             'message' => 'Webhook processed successfully',
             'processed_workflows' => $responses
         ]);
+    }
+
+    /**
+     * Generate unique signature for webhook request to detect duplicates
+     * Signature is based on: method, path, body hash, and timestamp (rounded to second)
+     */
+    private function generateRequestSignature(Request $request, $path)
+    {
+        // Get request body content
+        $bodyContent = $request->getContent();
+        $bodyHash = !empty($bodyContent) ? md5($bodyContent) : 'empty';
+        
+        // Get important headers (exclude variable ones like User-Agent, Accept, etc.)
+        $importantHeaders = [
+            'Content-Type' => $request->header('Content-Type', ''),
+            'X-Request-ID' => $request->header('X-Request-ID', ''),
+            'X-Idempotency-Key' => $request->header('X-Idempotency-Key', ''),
+        ];
+        
+        // Round timestamp to nearest second to catch duplicates within same second
+        $timestamp = now()->format('Y-m-d H:i:s');
+        
+        // Build signature components
+        $signatureData = [
+            'method' => $request->method(),
+            'path' => $path,
+            'body_hash' => $bodyHash,
+            'headers' => $importantHeaders,
+            'timestamp' => $timestamp,
+        ];
+        
+        // Generate hash from signature data
+        $signature = md5(json_encode($signatureData));
+        
+        return $signature;
     }
 
     // Public wrapper for Job to call

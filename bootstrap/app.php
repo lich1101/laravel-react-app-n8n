@@ -33,6 +33,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyMinute()
             ->withoutOverlapping()
             ->runInBackground();
+        
+        // Cleanup stuck executions every 5 minutes
+        $schedule->command('queue:cleanup-stuck --timeout=300')
+            ->everyFiveMinutes()
+            ->withoutOverlapping()
+            ->runInBackground();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

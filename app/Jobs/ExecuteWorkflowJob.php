@@ -100,6 +100,12 @@ class ExecuteWorkflowJob implements ShouldQueue
             $webhookController = new WebhookController();
             
             // Execute workflow
+            Log::info('ExecuteWorkflowJob: Starting workflow execution', [
+                'execution_id' => $this->execution->id,
+                'workflow_id' => $this->workflow->id,
+                'queue_job_id' => $this->job->getJobId(),
+            ]);
+            
             $startTime = microtime(true);
             $executionResult = $webhookController->executeWorkflowPublic(
                 $this->workflow,
@@ -110,6 +116,13 @@ class ExecuteWorkflowJob implements ShouldQueue
             );
             $endTime = microtime(true);
             $duration = round(($endTime - $startTime) * 1000);
+            
+            Log::info('ExecuteWorkflowJob: Workflow execution completed', [
+                'execution_id' => $this->execution->id,
+                'workflow_id' => $this->workflow->id,
+                'duration_ms' => $duration,
+                'has_error' => $executionResult['has_error'] ?? false,
+            ]);
 
             $nodeResults = $executionResult['node_results'] ?? [];
             $executionOrder = $executionResult['execution_order'] ?? [];
@@ -125,26 +138,49 @@ class ExecuteWorkflowJob implements ShouldQueue
                     : $lastNodeResult;
             }
 
-            if ($this->execution->fresh()->status !== 'cancelled') {
-                // Update execution record
-                $this->execution->update([
-                    'status' => $hasError ? 'error' : 'completed',
-                    'output_data' => $finalOutput,
-                    'node_results' => $nodeResults,
-                    'execution_order' => $executionOrder,
-                    'error_node' => $errorNode,
-                    'duration_ms' => $duration,
-                    'finished_at' => now(),
-                    'queue_job_id' => null,
-                ]);
+            $freshExecution = $this->execution->fresh();
+            
+            if ($freshExecution->status !== 'cancelled') {
+                // Update execution record with retry logic for database errors
+                try {
+                    $freshExecution->update([
+                        'status' => $hasError ? 'error' : 'completed',
+                        'output_data' => $finalOutput,
+                        'node_results' => $nodeResults,
+                        'execution_order' => $executionOrder,
+                        'error_node' => $errorNode,
+                        'duration_ms' => $duration,
+                        'finished_at' => now(),
+                        'queue_job_id' => null,
+                    ]);
+                    
+                    Log::info('Workflow execution completed - status updated', [
+                        'execution_id' => $this->execution->id,
+                        'status' => $hasError ? 'error' : 'completed',
+                        'duration_ms' => $duration,
+                        'error_node' => $errorNode,
+                    ]);
+                } catch (\Exception $updateException) {
+                    // If update fails, try simpler update
+                    Log::error('Failed to update execution with full data, trying minimal update', [
+                        'execution_id' => $this->execution->id,
+                        'error' => $updateException->getMessage(),
+                    ]);
+                    
+                    try {
+                        $freshExecution->update([
+                            'status' => $hasError ? 'error' : 'completed',
+                            'finished_at' => now(),
+                            'queue_job_id' => null,
+                        ]);
+                    } catch (\Exception $minimalUpdateException) {
+                        Log::error('Failed to update execution even with minimal data', [
+                            'execution_id' => $this->execution->id,
+                            'error' => $minimalUpdateException->getMessage(),
+                        ]);
+                    }
+                }
             }
-
-            Log::info('Workflow execution completed', [
-                'execution_id' => $this->execution->id,
-                'status' => $hasError ? 'error' : 'success',
-                'duration_ms' => $duration,
-                'error_node' => $errorNode,
-            ]);
 
         } catch (WorkflowCancelledException $e) {
             Log::info('Workflow execution cancelled', [
@@ -160,27 +196,63 @@ class ExecuteWorkflowJob implements ShouldQueue
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            if ($this->execution->fresh()->status !== 'cancelled') {
-                // Update execution as failed
-                $this->execution->update([
-                    'status' => 'error',
-                    'output_data' => [
-                        'error' => 'Workflow execution failed',
-                        'message' => $e->getMessage(),
-                    ],
-                    'finished_at' => now(),
-                    'queue_job_id' => null,
-                ]);
+            $freshExecution = $this->execution->fresh();
+            
+            if ($freshExecution->status !== 'cancelled') {
+                // Update execution as failed with retry logic
+                try {
+                    $freshExecution->update([
+                        'status' => 'error',
+                        'output_data' => [
+                            'error' => 'Workflow execution failed',
+                            'message' => $e->getMessage(),
+                        ],
+                        'finished_at' => now(),
+                        'queue_job_id' => null,
+                    ]);
+                } catch (\Exception $updateException) {
+                    // If update fails, try simpler update
+                    Log::error('Failed to update execution on error, trying minimal update', [
+                        'execution_id' => $this->execution->id,
+                        'error' => $updateException->getMessage(),
+                    ]);
+                    
+                    try {
+                        $freshExecution->update([
+                            'status' => 'error',
+                            'finished_at' => now(),
+                            'queue_job_id' => null,
+                        ]);
+                    } catch (\Exception $minimalUpdateException) {
+                        Log::error('Failed to update execution even with minimal data on error', [
+                            'execution_id' => $this->execution->id,
+                            'error' => $minimalUpdateException->getMessage(),
+                        ]);
+                    }
+                }
             }
         }
         
         // Safety net: never leave execution stuck in running
-        if ($this->execution->fresh()->status === 'running') {
-            $this->execution->update([
-                'status' => 'completed',
-                'finished_at' => now(),
-                'queue_job_id' => null,
+        // Check one more time and force update if still running
+        $finalCheck = $this->execution->fresh();
+        if ($finalCheck && $finalCheck->status === 'running') {
+            Log::warning('Execution still in running state after completion - forcing update', [
+                'execution_id' => $this->execution->id,
             ]);
+            
+            try {
+                $finalCheck->update([
+                    'status' => 'completed',
+                    'finished_at' => now(),
+                    'queue_job_id' => null,
+                ]);
+            } catch (\Exception $safetyNetException) {
+                Log::error('Safety net update failed', [
+                    'execution_id' => $this->execution->id,
+                    'error' => $safetyNetException->getMessage(),
+                ]);
+            }
         }
     }
 

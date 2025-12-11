@@ -32,15 +32,19 @@ class CleanupStuckExecutions extends Command
 
         $this->info("Checking for stuck executions (timeout: {$timeout}s)...");
 
-        // Find stuck 'running' executions
+        // Find stuck 'running' executions (limit to avoid memory issues)
         $stuckRunning = WorkflowExecution::where('status', 'running')
             ->where('started_at', '<', $cutoffTime)
+            ->orderBy('started_at', 'asc')
+            ->limit(100)
             ->get();
 
         // Find stuck 'queued' executions (never started)
         $stuckQueued = WorkflowExecution::where('status', 'queued')
             ->where('created_at', '<', $cutoffTime)
             ->whereNull('started_at')
+            ->orderBy('created_at', 'asc')
+            ->limit(100)
             ->get();
 
         $totalStuck = $stuckRunning->count() + $stuckQueued->count();
@@ -61,28 +65,42 @@ class CleanupStuckExecutions extends Command
 
         // Cleanup stuck running executions
         foreach ($stuckRunning as $execution) {
-            $execution->update([
-                'status' => 'error',
-                'output_data' => [
-                    'error' => 'Execution stuck/timeout',
-                    'message' => 'Workflow was stuck in running state and was automatically cleaned up.',
-                ],
-                'finished_at' => now(),
-            ]);
-            $this->info("  ✓ Cleaned execution #{$execution->id} (workflow #{$execution->workflow_id})");
+            try {
+                $execution->update([
+                    'status' => 'error',
+                    'output_data' => [
+                        'error' => 'Execution stuck/timeout',
+                        'message' => 'Workflow was stuck in running state and was automatically cleaned up.',
+                        'stuck_since' => $execution->started_at?->toIso8601String(),
+                        'cleaned_at' => now()->toIso8601String(),
+                    ],
+                    'finished_at' => now(),
+                    'queue_job_id' => null,
+                ]);
+                $this->info("  ✓ Cleaned execution #{$execution->id} (workflow #{$execution->workflow_id})");
+            } catch (\Exception $e) {
+                $this->error("  ✗ Failed to clean execution #{$execution->id}: " . $e->getMessage());
+            }
         }
 
         // Cleanup stuck queued executions
         foreach ($stuckQueued as $execution) {
-            $execution->update([
-                'status' => 'error',
-                'output_data' => [
-                    'error' => 'Execution stuck in queue',
-                    'message' => 'Workflow was stuck in queued state and was automatically cleaned up.',
-                ],
-                'finished_at' => now(),
-            ]);
-            $this->info("  ✓ Cleaned execution #{$execution->id} (workflow #{$execution->workflow_id})");
+            try {
+                $execution->update([
+                    'status' => 'error',
+                    'output_data' => [
+                        'error' => 'Execution stuck in queue',
+                        'message' => 'Workflow was stuck in queued state and was automatically cleaned up.',
+                        'stuck_since' => $execution->created_at?->toIso8601String(),
+                        'cleaned_at' => now()->toIso8601String(),
+                    ],
+                    'finished_at' => now(),
+                    'queue_job_id' => null,
+                ]);
+                $this->info("  ✓ Cleaned execution #{$execution->id} (workflow #{$execution->workflow_id})");
+            } catch (\Exception $e) {
+                $this->error("  ✗ Failed to clean execution #{$execution->id}: " . $e->getMessage());
+            }
         }
 
         $this->info('');
