@@ -436,13 +436,20 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
     const [resuming, setResuming] = useState(false);
     const pendingDeletionRef = useRef(new Set());
 
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [total, setTotal] = useState(0);
+
     useEffect(() => {
         let isMounted = true;
 
         const load = async () => {
             try {
                 setLoading(true);
-                await fetchExecutions({ skipLoading: true });
+                setPage(1);
+                setHasMore(true);
+                setTotal(0);
+                await fetchExecutions({ skipLoading: true, page: 1 });
             } finally {
                 if (isMounted) {
                     setLoading(false);
@@ -496,27 +503,52 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
             e.status === 'running' || e.status === 'queued'
         );
         
-        // Poll fast (2s) when there's a running execution, slower (5s) otherwise
-        const pollInterval = hasRunningExecution ? 2000 : 5000;
+        // Only poll if there are running executions, otherwise stop polling
+        if (!hasRunningExecution) {
+            return; // Don't poll if no running executions
+        }
+        
+        // Poll faster (3s) when there's a running execution
+        const pollInterval = 3000;
         
         const interval = setInterval(async () => {
             try {
-                const response = await axios.get(`/workflows/${workflowId}/executions`);
-                const rawExecutions = response.data.data || response.data || [];
+                // Only fetch first page when polling (for performance)
+                const response = await axios.get(`/workflows/${workflowId}/executions`, {
+                    params: { per_page: 50, page: 1 }
+                });
+                
+                // Handle paginated response
+                const paginatedData = response.data.data || response.data;
+                const rawExecutions = Array.isArray(paginatedData) 
+                    ? paginatedData 
+                    : (paginatedData?.data || []);
+                
                 const normalizedExecutions = rawExecutions.map(normalizeExecution);
                 const filteredExecutions = applyPendingDeletionFilter(normalizedExecutions);
-                setExecutions(filteredExecutions);
                 
-                // Auto-refresh selected execution details if status changed or is running
-                if (selectedExecution && filteredExecutions.length > 0) {
-                    const updatedExecution = filteredExecutions.find(e => e.id === selectedExecution.id);
-                    if (updatedExecution) {
-                        const statusChanged = updatedExecution.status !== selectedExecution.status;
-                        if (statusChanged) {
-                            setSelectedExecution(updatedExecution);
-                            fetchExecutionDetails(updatedExecution.id);
+                // Only update if there are actually running executions
+                const stillHasRunning = filteredExecutions.some(e => 
+                    e.status === 'running' || e.status === 'queued'
+                );
+                
+                if (stillHasRunning) {
+                    setExecutions(filteredExecutions);
+                    
+                    // Auto-refresh selected execution details if status changed or is running
+                    if (selectedExecution && filteredExecutions.length > 0) {
+                        const updatedExecution = filteredExecutions.find(e => e.id === selectedExecution.id);
+                        if (updatedExecution) {
+                            const statusChanged = updatedExecution.status !== selectedExecution.status;
+                            if (statusChanged) {
+                                setSelectedExecution(updatedExecution);
+                                fetchExecutionDetails(updatedExecution.id);
+                            }
                         }
                     }
+                } else {
+                    // No more running executions, stop polling
+                    clearInterval(interval);
                 }
             } catch (err) {
                 console.error('Error auto-refreshing executions:', err);
@@ -526,16 +558,39 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
         return () => clearInterval(interval);
     }, [executions, selectedExecution, workflowId]);
 
-    const fetchExecutions = async ({ skipLoading = false } = {}) => {
+    const fetchExecutions = async ({ skipLoading = false, page: pageNum = 1, append = false } = {}) => {
         try {
             if (!skipLoading) {
                 setLoading(true);
             }
-            const response = await axios.get(`/workflows/${workflowId}/executions`);
-            const rawExecutions = response.data.data || response.data || [];
+            
+            // Fetch with pagination
+            const response = await axios.get(`/workflows/${workflowId}/executions`, {
+                params: { 
+                    per_page: 50, 
+                    page: pageNum 
+                }
+            });
+            
+            // Handle paginated response
+            const paginatedData = response.data;
+            const rawExecutions = paginatedData?.data || [];
+            const currentPage = paginatedData?.current_page || 1;
+            const lastPage = paginatedData?.last_page || 1;
+            const totalItems = paginatedData?.total || 0;
+            
+            setPage(currentPage);
+            setHasMore(currentPage < lastPage);
+            setTotal(totalItems);
+            
             const normalizedExecutions = rawExecutions.map(normalizeExecution);
             const filteredExecutions = applyPendingDeletionFilter(normalizedExecutions);
-            setExecutions(filteredExecutions);
+            
+            if (append) {
+                setExecutions(prev => [...prev, ...filteredExecutions]);
+            } else {
+                setExecutions(filteredExecutions);
+            }
             
             if (selectedExecution) {
                 const updatedExecution = filteredExecutions.find(e => e.id === selectedExecution.id);
@@ -568,6 +623,11 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
                 setLoading(false);
             }
         }
+    };
+    
+    const loadMore = () => {
+        if (!hasMore || loading) return;
+        fetchExecutions({ skipLoading: true, page: page + 1, append: true });
     };
 
     const fetchExecutionDetails = async (executionId) => {
@@ -656,7 +716,8 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
                 setShowConfigModal(false);
             }
 
-            await fetchExecutions({ skipLoading: true });
+            setPage(1);
+            await fetchExecutions({ skipLoading: true, page: 1 });
         } catch (err) {
             console.error('Error bulk deleting executions:', err);
             alert('Không thể xóa các executions. Vui lòng thử lại.');
@@ -752,16 +813,19 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
                 const normalized = normalizeExecution(newExecution);
                 setSelectedExecution(normalized);
                 setExecutionDetails(null);
-                await fetchExecutions({ skipLoading: true });
+                setPage(1);
+            await fetchExecutions({ skipLoading: true, page: 1 });
                 await fetchExecutionDetails(normalized.id);
             } else {
-                await fetchExecutions({ skipLoading: true });
+                setPage(1);
+            await fetchExecutions({ skipLoading: true, page: 1 });
             }
         } catch (err) {
             console.error('Error resuming execution:', err);
             const message = err.response?.data?.message || 'Không thể chạy lại execution. Vui lòng thử lại.';
             alert(message);
-            await fetchExecutions({ skipLoading: true });
+            setPage(1);
+            await fetchExecutions({ skipLoading: true, page: 1 });
         } finally {
             setResuming(false);
         }
@@ -960,14 +1024,29 @@ const WorkflowHistory = ({ onCopyToEditor }) => {
                                             </button>
                                         </div>
                                     </div>
-                                    <p className="text-xs text-muted">
-                                        Hoàn thành trong {execution.duration_ms}ms
-                                    </p>
+                                    {execution.duration_ms && (
+                                        <p className="text-xs text-muted">
+                                            Hoàn thành trong {execution.duration_ms}ms
+                                        </p>
+                                    )}
                                     <p className="text-xs text-muted">
                                         ID#{execution.id}
                                     </p>
                                 </div>
                             ))}
+                            
+                            {/* Load More Button */}
+                            {hasMore && (
+                                <div className="pt-2">
+                                    <button
+                                        onClick={loadMore}
+                                        disabled={loading}
+                                        className="w-full btn btn-secondary text-sm py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {loading ? 'Đang tải...' : `Tải thêm (${total - executions.length} còn lại)`}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

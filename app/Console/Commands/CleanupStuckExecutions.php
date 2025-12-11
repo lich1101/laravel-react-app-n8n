@@ -33,17 +33,19 @@ class CleanupStuckExecutions extends Command
         $this->info("Checking for stuck executions (timeout: {$timeout}s)...");
 
         // Find stuck 'running' executions (limit to avoid memory issues)
+        // Use orderBy('id') instead of orderBy('started_at') to avoid memory issues
         $stuckRunning = WorkflowExecution::where('status', 'running')
             ->where('started_at', '<', $cutoffTime)
-            ->orderBy('started_at', 'asc')
+            ->orderBy('id', 'desc')
             ->limit(100)
             ->get();
 
         // Find stuck 'queued' executions (never started)
+        // Use orderBy('id') instead of orderBy('created_at') to avoid memory issues
         $stuckQueued = WorkflowExecution::where('status', 'queued')
             ->where('created_at', '<', $cutoffTime)
             ->whereNull('started_at')
-            ->orderBy('created_at', 'asc')
+            ->orderBy('id', 'desc')
             ->limit(100)
             ->get();
 

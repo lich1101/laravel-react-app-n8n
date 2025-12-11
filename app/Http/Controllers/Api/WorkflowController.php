@@ -230,14 +230,37 @@ class WorkflowController extends Controller
 
     /**
      * Get workflow execution history
+     * Optimized: Only select necessary fields for list view to improve performance
      */
-    public function executions(string $id): JsonResponse
+    public function executions(Request $request, string $id): JsonResponse
     {
         $workflow = Workflow::findOrFail($id);
 
+        // Get pagination params
+        $perPage = min((int) $request->get('per_page', 50), 100); // Max 100 per page
+        $page = (int) $request->get('page', 1);
+
+        // Only select fields needed for list view (exclude large JSON fields)
         $executions = $workflow->executions()
+            ->select([
+                'id',
+                'workflow_id',
+                'trigger_type',
+                'status',
+                'duration_ms',
+                'started_at',
+                'finished_at',
+                'cancel_requested_at',
+                'cancelled_at',
+                'error_node',
+                'created_at',
+                'updated_at',
+                // Only get a small preview of error_message (first 200 chars)
+                DB::raw('LEFT(error_message, 200) as error_message_preview'),
+            ])
             ->orderBy('started_at', 'desc')
-            ->paginate(20);
+            ->orderBy('id', 'desc') // Secondary sort for consistency
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json($executions);
     }

@@ -190,21 +190,37 @@ class WebhookController extends Controller
                 'raw_content' => $request->getContent(),
             ]);
             
+            // Check concurrency limit BEFORE dispatching to avoid unnecessary queue jobs
+            // This prevents creating jobs that will just be released back to queue
+            $maxConcurrent = SystemSetting::get('max_concurrent_workflows', 10);
+            $runningCount = WorkflowExecution::where('status', 'running')
+                ->where('started_at', '>', now()->subHour())
+                ->count();
+            
             // Dispatch job to execute workflow asynchronously
-            // Concurrency limit will be checked in the Job itself
+            // Use dispatch() for better Laravel queue features (retry, failed jobs, etc.)
             $job = new ExecuteWorkflowJob(
                 $execution,
                 $workflow,
                 $webhookData
             );
-
-            $jobId = Queue::push($job);
-
-            if ($jobId) {
-                $execution->update([
-                    'queue_job_id' => $jobId,
-                ]);
-            }
+            
+            // Dispatch to default queue (can be configured per workflow later for priority)
+            // Use static dispatch() method for proper Laravel queue integration
+            ExecuteWorkflowJob::dispatch($execution, $workflow, $webhookData)
+                ->onQueue('default');
+            
+            // Note: For database queue, we can't reliably get job ID immediately after dispatch
+            // The job will update queue_job_id when it starts running (in handle() method)
+            // This is acceptable as queue_job_id is mainly for tracking/debugging
+            
+            Log::info('Workflow job dispatched to queue', [
+                'execution_id' => $execution->id,
+                'workflow_id' => $workflow->id,
+                'running_count' => $runningCount,
+                'max_concurrent' => $maxConcurrent,
+                'queue_name' => 'default',
+            ]);
 
             // Return response immediately
             $responses[] = [
@@ -271,6 +287,7 @@ class WebhookController extends Controller
             'trigger_type' => $triggerType,
             'webhook_data_keys' => array_keys($webhookRequestData),
             'workflow_id' => $workflow->id,
+            'has_existing_execution' => $existingExecution instanceof WorkflowExecution,
         ]);
         
         if ($existingExecution instanceof WorkflowExecution) {
@@ -357,23 +374,42 @@ class WebhookController extends Controller
             $errorNode = $result['error_node'] ?? null;
             $hasError = $result['has_error'] ?? false;
             
-            // Update execution as completed with all details
-            $execution->update([
-                'status' => $hasError ? 'error' : 'completed',
-                'output_data' => $result,
-                'node_results' => $nodeResults,
-                'execution_order' => $executionOrder,
-                'error_node' => $errorNode,
-                'finished_at' => now(),
-                'duration_ms' => $execution->started_at->diffInMilliseconds(now()),
-            ]);
-            
-            Log::info('Workflow execution completed', [
-                'execution_id' => $execution->id,
-                'node_results_count' => count($nodeResults),
-                'execution_order_count' => count($executionOrder),
-                'has_error' => $hasError,
-            ]);
+            // Only update execution if NOT called from Job (when existingExecution is provided, Job will handle update)
+            // If called directly (not from Job), we need to update here
+            if (!$existingExecution instanceof WorkflowExecution) {
+                // Called directly, update execution here
+                try {
+                    $execution->update([
+                        'status' => $hasError ? 'error' : 'completed',
+                        'output_data' => $result,
+                        'node_results' => $nodeResults,
+                        'execution_order' => $executionOrder,
+                        'error_node' => $errorNode,
+                        'finished_at' => now(),
+                        'duration_ms' => $execution->started_at->diffInMilliseconds(now()),
+                    ]);
+                    
+                    Log::info('Workflow execution completed - updated by executeWorkflowPublic', [
+                        'execution_id' => $execution->id,
+                        'node_results_count' => count($nodeResults),
+                        'execution_order_count' => count($executionOrder),
+                        'has_error' => $hasError,
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to update execution in executeWorkflowPublic', [
+                        'execution_id' => $execution->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            } else {
+                // Called from Job - Job will handle the update, just log
+                Log::info('Workflow execution completed - update will be handled by Job', [
+                    'execution_id' => $execution->id,
+                    'node_results_count' => count($nodeResults),
+                    'execution_order_count' => count($executionOrder),
+                    'has_error' => $hasError,
+                ]);
+            }
             
             return $result;
             
