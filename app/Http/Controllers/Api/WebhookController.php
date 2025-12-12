@@ -7404,86 +7404,46 @@ JS;
         try {
             // Check if it's a URL or file path
             if (filter_var($source, FILTER_VALIDATE_URL)) {
-                // Download from URL with proper headers, increased timeout, and retry logic
-                $parsedUrl = parse_url($source);
-                $referer = ($parsedUrl['scheme'] ?? 'https') . '://' . ($parsedUrl['host'] ?? '') . '/';
+                // Try Cloudflare Worker first, then fallback to direct download
+                $fileContent = null;
+                $mimeType = null;
                 
-                // Increase timeout to 120 seconds for slow servers or large files
-                $timeout = 120;
-                
-                // Set PHP socket timeout to ensure it works
-                $originalSocketTimeout = ini_get('default_socket_timeout');
-                if ($timeout > 60) {
-                    ini_set('default_socket_timeout', $timeout);
-                }
-                
-                // Increase PHP execution time limit
-                $originalMaxExecutionTime = ini_get('max_execution_time');
-                if ($timeout > 60) {
-                    set_time_limit($timeout + 30); // Add 30s buffer
-                }
-                
-                $maxRetries = 3;
-                $retryDelay = 1; // Start with 1 second
-                $lastException = null;
-                
+                // Try Cloudflare Worker first
                 try {
-                    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
-                        try {
-                            if ($attempt > 1) {
-                                // Wait before retry with exponential backoff
-                                sleep($retryDelay);
-                                $retryDelay *= 2; // Exponential backoff: 1s, 2s, 4s
-                                Log::info('Convert toBase64: Retrying download', [
-                                    'url' => $source,
-                                    'attempt' => $attempt,
-                                    'max_retries' => $maxRetries,
-                                ]);
-                            }
-                            
-                            $response = Http::timeout($timeout)
-                                ->withOptions([
-                                    'connect_timeout' => 30, // Connection timeout: 30 seconds
-                                    'timeout' => $timeout, // Total timeout: 120 seconds
-                                    'read_timeout' => $timeout, // Read timeout: 120 seconds
-                                ])
-                                ->withHeaders([
-                                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                                    'Accept' => 'image/*,*/*;q=0.8',
-                                    'Accept-Language' => 'en-US,en;q=0.9',
-                                    'Accept-Encoding' => 'gzip, deflate, br',
-                                    'Connection' => 'keep-alive',
-                                    'Referer' => $referer,
-                                ])
-                                ->withoutRedirecting()
-                                ->get($source);
-                            
-                            if ($response->successful()) {
-                                $fileContent = $response->body();
-                                $mimeType = $response->header('Content-Type') ?: 'application/octet-stream';
-                                break; // Success, exit retry loop
-                            } else {
-                                throw new \Exception('HTTP ' . $response->status() . ': ' . substr($response->body(), 0, 200));
-                            }
-                        } catch (\Exception $e) {
-                            $lastException = $e;
-                            if ($attempt === $maxRetries) {
-                                // Last attempt failed, throw exception
-                                throw $e;
-                            }
-                            // Continue to next retry
-                        }
+                    Log::info('Convert toBase64: Attempting download via Cloudflare Worker', [
+                        'url' => $source,
+                    ]);
+                    
+                    $result = $this->downloadViaCloudflareWorker($source);
+                    if ($result) {
+                        $fileContent = $result['content'];
+                        $mimeType = $result['mimeType'];
+                        Log::info('Convert toBase64: Successfully downloaded via Cloudflare Worker', [
+                            'url' => $source,
+                            'size' => strlen($fileContent),
+                        ]);
                     }
-                } finally {
-                    // Restore original PHP settings
-                    if ($timeout > 60) {
-                        ini_set('default_socket_timeout', $originalSocketTimeout);
-                        set_time_limit($originalMaxExecutionTime ?: 0);
-                    }
+                } catch (\Exception $workerException) {
+                    Log::warning('Convert toBase64: Cloudflare Worker failed, falling back to direct download', [
+                        'url' => $source,
+                        'worker_error' => $workerException->getMessage(),
+                    ]);
                 }
                 
+                // If Worker failed, try direct download
                 if (!isset($fileContent)) {
-                    throw $lastException ?? new \Exception('Failed to download file after ' . $maxRetries . ' attempts');
+                    Log::info('Convert toBase64: Attempting direct download', [
+                        'url' => $source,
+                    ]);
+                    
+                    $result = $this->downloadDirectly($source);
+                    $fileContent = $result['content'];
+                    $mimeType = $result['mimeType'];
+                    
+                    Log::info('Convert toBase64: Successfully downloaded directly', [
+                        'url' => $source,
+                        'size' => strlen($fileContent),
+                    ]);
                 }
             } else {
                 // Read from file path
@@ -7511,6 +7471,150 @@ JS;
         } catch (\Exception $e) {
             throw new \Exception('Failed to convert to base64: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Download file via Cloudflare Worker proxy
+     */
+    private function downloadViaCloudflareWorker(string $url): ?array
+    {
+        $workerUrl = 'https://broken-dust-70e6.dangvanbinh11012003.workers.dev/?url=' . urlencode($url);
+        $timeout = 60; // Worker should be faster, use shorter timeout
+        
+        try {
+            $response = Http::timeout($timeout)
+                ->withOptions([
+                    'connect_timeout' => 15,
+                    'timeout' => $timeout,
+                    'read_timeout' => $timeout,
+                ])
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept' => 'image/*,*/*;q=0.8',
+                ])
+                ->get($workerUrl);
+            
+            if ($response->successful()) {
+                $content = $response->body();
+                
+                // Check if content is actually an image (not HTML error page)
+                $contentType = $response->header('Content-Type') ?: '';
+                if (strpos($contentType, 'image/') === false && strpos($contentType, 'application/octet-stream') === false) {
+                    // Might be HTML error page, check content
+                    if (strpos($content, '<html') !== false || strpos($content, '<!DOCTYPE') !== false) {
+                        throw new \Exception('Worker returned HTML instead of image');
+                    }
+                }
+                
+                // Validate content size (should be > 0)
+                if (strlen($content) === 0) {
+                    throw new \Exception('Worker returned empty content');
+                }
+                
+                return [
+                    'content' => $content,
+                    'mimeType' => $contentType ?: 'application/octet-stream',
+                ];
+            } else {
+                throw new \Exception('HTTP ' . $response->status() . ': ' . substr($response->body(), 0, 200));
+            }
+        } catch (\Exception $e) {
+            throw new \Exception('Cloudflare Worker download failed: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Download file directly from URL with retry logic
+     */
+    private function downloadDirectly(string $url): array
+    {
+        $parsedUrl = parse_url($url);
+        $referer = ($parsedUrl['scheme'] ?? 'https') . '://' . ($parsedUrl['host'] ?? '') . '/';
+        
+        // Increase timeout to 120 seconds for slow servers or large files
+        $timeout = 120;
+        
+        // Set PHP socket timeout to ensure it works
+        $originalSocketTimeout = ini_get('default_socket_timeout');
+        if ($timeout > 60) {
+            ini_set('default_socket_timeout', $timeout);
+        }
+        
+        // Increase PHP execution time limit
+        $originalMaxExecutionTime = ini_get('max_execution_time');
+        if ($timeout > 60) {
+            set_time_limit($timeout + 30); // Add 30s buffer
+        }
+        
+        $maxRetries = 3;
+        $retryDelay = 1; // Start with 1 second
+        $lastException = null;
+        $fileContent = null;
+        $mimeType = null;
+        
+        try {
+            for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+                try {
+                    if ($attempt > 1) {
+                        // Wait before retry with exponential backoff
+                        sleep($retryDelay);
+                        $retryDelay *= 2; // Exponential backoff: 1s, 2s, 4s
+                        Log::info('Convert toBase64: Retrying direct download', [
+                            'url' => $url,
+                            'attempt' => $attempt,
+                            'max_retries' => $maxRetries,
+                        ]);
+                    }
+                    
+                    $response = Http::timeout($timeout)
+                        ->withOptions([
+                            'connect_timeout' => 30, // Connection timeout: 30 seconds
+                            'timeout' => $timeout, // Total timeout: 120 seconds
+                            'read_timeout' => $timeout, // Read timeout: 120 seconds
+                        ])
+                        ->withHeaders([
+                            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept' => 'image/*,*/*;q=0.8',
+                            'Accept-Language' => 'en-US,en;q=0.9',
+                            'Accept-Encoding' => 'gzip, deflate, br',
+                            'Connection' => 'keep-alive',
+                            'Referer' => $referer,
+                        ])
+                        ->withoutRedirecting()
+                        ->get($url);
+                    
+                    if ($response->successful()) {
+                        $fileContent = $response->body();
+                        $mimeType = $response->header('Content-Type') ?: 'application/octet-stream';
+                        break; // Success, exit retry loop
+                    } else {
+                        throw new \Exception('HTTP ' . $response->status() . ': ' . substr($response->body(), 0, 200));
+                    }
+                } catch (\Exception $e) {
+                    $lastException = $e;
+                    if ($attempt === $maxRetries) {
+                        // Last attempt failed, throw exception
+                        throw $e;
+                    }
+                    // Continue to next retry
+                }
+            }
+        } finally {
+            // Restore original PHP settings
+            if ($timeout > 60) {
+                ini_set('default_socket_timeout', $originalSocketTimeout);
+                set_time_limit($originalMaxExecutionTime ?: 0);
+            }
+        }
+        
+        if (!isset($fileContent)) {
+            throw $lastException ?? new \Exception('Failed to download file after ' . $maxRetries . ' attempts');
+        }
+        
+        return [
+            'content' => $fileContent,
+            'mimeType' => $mimeType,
+        ];
     }
 
     private function convertFromBase64($config, $inputData)
