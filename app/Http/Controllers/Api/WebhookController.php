@@ -7403,15 +7403,28 @@ JS;
         try {
             // Check if it's a URL or file path
             if (filter_var($source, FILTER_VALIDATE_URL)) {
-                // Download from URL
-                $response = Http::timeout(60)->get($source);
+                // Download from URL with proper headers for CDN compatibility
+                $parsedUrl = parse_url($source);
+                $referer = ($parsedUrl['scheme'] ?? 'https') . '://' . ($parsedUrl['host'] ?? '') . '/';
+                
+                $response = Http::timeout(60)
+                    ->withHeaders([
+                        'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept' => 'image/*,*/*;q=0.8',
+                        'Accept-Language' => 'en-US,en;q=0.9',
+                        'Accept-Encoding' => 'gzip, deflate, br',
+                        'Connection' => 'keep-alive',
+                        'Referer' => $referer,
+                    ])
+                    ->withoutRedirecting()
+                    ->get($source);
                 
                 if (!$response->successful()) {
-                    throw new \Exception('Failed to download file from URL: ' . $response->status());
+                    throw new \Exception('Failed to download file from URL: HTTP ' . $response->status() . ' - ' . $response->body());
                 }
                 
                 $fileContent = $response->body();
-                $mimeType = $response->header('Content-Type');
+                $mimeType = $response->header('Content-Type') ?: 'application/octet-stream';
             } else {
                 // Read from file path
                 if (!file_exists($source)) {
