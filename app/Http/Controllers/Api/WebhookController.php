@@ -192,9 +192,10 @@ class WebhookController extends Controller
             
             // Check concurrency limit BEFORE dispatching to avoid unnecessary queue jobs
             // This prevents creating jobs that will just be released back to queue
+            // Exclude executions that started more than 5 minutes ago (likely stuck)
             $maxConcurrent = SystemSetting::get('max_concurrent_workflows', 10);
             $runningCount = WorkflowExecution::where('status', 'running')
-                ->where('started_at', '>', now()->subHour())
+                ->where('started_at', '>', now()->subMinutes(5))
                 ->count();
             
             // Dispatch job to execute workflow asynchronously
@@ -7403,28 +7404,87 @@ JS;
         try {
             // Check if it's a URL or file path
             if (filter_var($source, FILTER_VALIDATE_URL)) {
-                // Download from URL with proper headers for CDN compatibility
+                // Download from URL with proper headers, increased timeout, and retry logic
                 $parsedUrl = parse_url($source);
                 $referer = ($parsedUrl['scheme'] ?? 'https') . '://' . ($parsedUrl['host'] ?? '') . '/';
                 
-                $response = Http::timeout(60)
-                    ->withHeaders([
-                        'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept' => 'image/*,*/*;q=0.8',
-                        'Accept-Language' => 'en-US,en;q=0.9',
-                        'Accept-Encoding' => 'gzip, deflate, br',
-                        'Connection' => 'keep-alive',
-                        'Referer' => $referer,
-                    ])
-                    ->withoutRedirecting()
-                    ->get($source);
+                // Increase timeout to 120 seconds for slow servers or large files
+                $timeout = 120;
                 
-                if (!$response->successful()) {
-                    throw new \Exception('Failed to download file from URL: HTTP ' . $response->status() . ' - ' . $response->body());
+                // Set PHP socket timeout to ensure it works
+                $originalSocketTimeout = ini_get('default_socket_timeout');
+                if ($timeout > 60) {
+                    ini_set('default_socket_timeout', $timeout);
                 }
                 
-                $fileContent = $response->body();
-                $mimeType = $response->header('Content-Type') ?: 'application/octet-stream';
+                // Increase PHP execution time limit
+                $originalMaxExecutionTime = ini_get('max_execution_time');
+                if ($timeout > 60) {
+                    set_time_limit($timeout + 30); // Add 30s buffer
+                }
+                
+                $maxRetries = 3;
+                $retryDelay = 1; // Start with 1 second
+                $lastException = null;
+                
+                try {
+                    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+                        try {
+                            if ($attempt > 1) {
+                                // Wait before retry with exponential backoff
+                                sleep($retryDelay);
+                                $retryDelay *= 2; // Exponential backoff: 1s, 2s, 4s
+                                Log::info('Convert toBase64: Retrying download', [
+                                    'url' => $source,
+                                    'attempt' => $attempt,
+                                    'max_retries' => $maxRetries,
+                                ]);
+                            }
+                            
+                            $response = Http::timeout($timeout)
+                                ->withOptions([
+                                    'connect_timeout' => 30, // Connection timeout: 30 seconds
+                                    'timeout' => $timeout, // Total timeout: 120 seconds
+                                    'read_timeout' => $timeout, // Read timeout: 120 seconds
+                                ])
+                                ->withHeaders([
+                                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                    'Accept' => 'image/*,*/*;q=0.8',
+                                    'Accept-Language' => 'en-US,en;q=0.9',
+                                    'Accept-Encoding' => 'gzip, deflate, br',
+                                    'Connection' => 'keep-alive',
+                                    'Referer' => $referer,
+                                ])
+                                ->withoutRedirecting()
+                                ->get($source);
+                            
+                            if ($response->successful()) {
+                                $fileContent = $response->body();
+                                $mimeType = $response->header('Content-Type') ?: 'application/octet-stream';
+                                break; // Success, exit retry loop
+                            } else {
+                                throw new \Exception('HTTP ' . $response->status() . ': ' . substr($response->body(), 0, 200));
+                            }
+                        } catch (\Exception $e) {
+                            $lastException = $e;
+                            if ($attempt === $maxRetries) {
+                                // Last attempt failed, throw exception
+                                throw $e;
+                            }
+                            // Continue to next retry
+                        }
+                    }
+                } finally {
+                    // Restore original PHP settings
+                    if ($timeout > 60) {
+                        ini_set('default_socket_timeout', $originalSocketTimeout);
+                        set_time_limit($originalMaxExecutionTime ?: 0);
+                    }
+                }
+                
+                if (!isset($fileContent)) {
+                    throw $lastException ?? new \Exception('Failed to download file after ' . $maxRetries . ' attempts');
+                }
             } else {
                 // Read from file path
                 if (!file_exists($source)) {

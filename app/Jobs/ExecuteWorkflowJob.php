@@ -49,6 +49,9 @@ class ExecuteWorkflowJob implements ShouldQueue
 
     public function handle()
     {
+        $executionId = $this->execution->id;
+        $startedAt = null;
+        
         try {
             $this->execution = $this->execution->fresh();
 
@@ -64,9 +67,10 @@ class ExecuteWorkflowJob implements ShouldQueue
             $maxConcurrent = SystemSetting::get('max_concurrent_workflows', 10);
             
             // Count only truly running executions (not stuck ones)
-            // Exclude executions that started more than 1 hour ago (likely stuck)
+            // Exclude executions that started more than 5 minutes ago (likely stuck)
+            // This prevents stuck executions from blocking new workflows
             $runningCount = WorkflowExecution::where('status', 'running')
-                ->where('started_at', '>', now()->subHour())
+                ->where('started_at', '>', now()->subMinutes(5))
                 ->count();
             
             if ($runningCount >= $maxConcurrent) {
@@ -106,9 +110,10 @@ class ExecuteWorkflowJob implements ShouldQueue
             }
 
             // Update status to running
+            $startedAt = now();
             $this->execution->update([
                 'status' => 'running',
-                'started_at' => now(),
+                'started_at' => $startedAt,
                 'queue_job_id' => null,
             ]);
 
@@ -279,21 +284,141 @@ class ExecuteWorkflowJob implements ShouldQueue
 
         } catch (WorkflowCancelledException $e) {
             Log::info('Workflow execution cancelled', [
-                'execution_id' => $this->execution->id,
+                'execution_id' => $executionId,
                 'message' => $e->getMessage(),
             ]);
 
             $this->markCancelled();
         } catch (\Exception $e) {
             Log::error('Workflow execution job failed', [
-                'execution_id' => $this->execution->id,
+                'execution_id' => $executionId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
 
+            $this->markAsFailed($e);
+        } finally {
+            // CRITICAL: Safety net - ALWAYS check and fix stuck executions
+            // This runs even if job was killed, timeout, or exception occurred
+            try {
+                $finalCheck = WorkflowExecution::find($executionId);
+                if ($finalCheck && $finalCheck->status === 'running') {
+                    Log::warning('Execution still in running state after job completion - forcing update (safety net)', [
+                        'execution_id' => $executionId,
+                        'started_at' => $finalCheck->started_at?->toIso8601String(),
+                        'running_for_seconds' => $finalCheck->started_at ? $finalCheck->started_at->diffInSeconds(now()) : 0,
+                    ]);
+                    
+                    // Calculate duration for safety net update
+                    $safetyDuration = $finalCheck->started_at 
+                        ? $finalCheck->started_at->diffInMilliseconds(now())
+                        : 0;
+                    
+                    // Try to determine if it was an error or completion
+                    // If started_at exists but no finished_at, likely an error/timeout
+                    $finalStatus = ($safetyDuration > 3000000) ? 'error' : 'completed'; // > 50 min = likely error
+                    
+                    $finalCheck->update([
+                        'status' => $finalStatus,
+                        'finished_at' => now(),
+                        'duration_ms' => $safetyDuration,
+                        'queue_job_id' => null,
+                        'output_data' => $finalStatus === 'error' ? [
+                            'error' => 'Workflow execution timeout or stuck',
+                            'message' => 'Execution was stuck in running state and was automatically marked as ' . $finalStatus,
+                            'auto_fixed_at' => now()->toIso8601String(),
+                        ] : ($finalCheck->output_data ?? []),
+                    ]);
+                    
+                    Log::info('Safety net: Execution status fixed', [
+                        'execution_id' => $executionId,
+                        'new_status' => $finalStatus,
+                        'duration_ms' => $safetyDuration,
+                    ]);
+                }
+            } catch (\Exception $safetyNetException) {
+                // Even safety net failed - log but don't throw
+                Log::error('Safety net update failed - execution may be stuck', [
+                    'execution_id' => $executionId,
+                    'error' => $safetyNetException->getMessage(),
+                    'trace' => $safetyNetException->getTraceAsString(),
+                ]);
+            }
+        }
+    }
+
+    public function failed(\Throwable $exception)
+    {
+        $executionId = $this->execution->id;
+        
+        Log::error('Workflow execution job failed permanently', [
+            'execution_id' => $executionId,
+            'error' => $exception->getMessage(),
+            'trace' => $exception->getTraceAsString(),
+        ]);
+
+        try {
             $freshExecution = $this->execution->fresh();
             
-            if ($freshExecution->status !== 'cancelled') {
+            if ($freshExecution && $freshExecution->status !== 'cancelled') {
+                // Calculate duration even on permanent failure
+                $errorDuration = $freshExecution->started_at 
+                    ? $freshExecution->started_at->diffInMilliseconds(now())
+                    : 0;
+                
+                $freshExecution->update([
+                    'status' => 'error',
+                    'output_data' => [
+                        'error' => 'Job failed permanently',
+                        'message' => $exception->getMessage(),
+                        'failed_at' => now()->toIso8601String(),
+                    ],
+                    'finished_at' => now(),
+                    'duration_ms' => $errorDuration,
+                    'queue_job_id' => null,
+                ]);
+                
+                Log::info('Execution marked as failed in failed() method', [
+                    'execution_id' => $executionId,
+                    'duration_ms' => $errorDuration,
+                ]);
+            }
+        } catch (\Exception $updateException) {
+            // If update fails, try minimal update
+            Log::error('Failed to update execution in failed() method, trying minimal update', [
+                'execution_id' => $executionId,
+                'error' => $updateException->getMessage(),
+            ]);
+            
+            try {
+                $freshExecution = WorkflowExecution::find($executionId);
+                if ($freshExecution && $freshExecution->status !== 'cancelled') {
+                    $errorDuration = $freshExecution->started_at 
+                        ? $freshExecution->started_at->diffInMilliseconds(now())
+                        : 0;
+                    
+                    $freshExecution->update([
+                        'status' => 'error',
+                        'finished_at' => now(),
+                        'duration_ms' => $errorDuration,
+                        'queue_job_id' => null,
+                    ]);
+                }
+            } catch (\Exception $minimalUpdateException) {
+                Log::error('Failed to update execution even with minimal data in failed() method', [
+                    'execution_id' => $executionId,
+                    'error' => $minimalUpdateException->getMessage(),
+                ]);
+            }
+        }
+    }
+    
+    protected function markAsFailed(\Exception $exception): void
+    {
+        try {
+            $freshExecution = $this->execution->fresh();
+            
+            if ($freshExecution && $freshExecution->status !== 'cancelled') {
                 // Calculate duration even on error
                 $errorDuration = $freshExecution->started_at 
                     ? $freshExecution->started_at->diffInMilliseconds(now())
@@ -305,7 +430,7 @@ class ExecuteWorkflowJob implements ShouldQueue
                         'status' => 'error',
                         'output_data' => [
                             'error' => 'Workflow execution failed',
-                            'message' => $e->getMessage(),
+                            'message' => $exception->getMessage(),
                         ],
                         'finished_at' => now(),
                         'duration_ms' => $errorDuration,
@@ -333,53 +458,10 @@ class ExecuteWorkflowJob implements ShouldQueue
                     }
                 }
             }
-        }
-        
-        // Safety net: never leave execution stuck in running
-        // Check one more time and force update if still running
-        $finalCheck = $this->execution->fresh();
-        if ($finalCheck && $finalCheck->status === 'running') {
-            Log::warning('Execution still in running state after completion - forcing update', [
+        } catch (\Exception $e) {
+            Log::error('markAsFailed() method itself failed', [
                 'execution_id' => $this->execution->id,
-            ]);
-            
-            try {
-                // Calculate duration for safety net update
-                $safetyDuration = $finalCheck->started_at 
-                    ? $finalCheck->started_at->diffInMilliseconds(now())
-                    : 0;
-                
-                $finalCheck->update([
-                    'status' => 'completed',
-                    'finished_at' => now(),
-                    'duration_ms' => $safetyDuration,
-                    'queue_job_id' => null,
-                ]);
-            } catch (\Exception $safetyNetException) {
-                Log::error('Safety net update failed', [
-                    'execution_id' => $this->execution->id,
-                    'error' => $safetyNetException->getMessage(),
-                ]);
-            }
-        }
-    }
-
-    public function failed(\Throwable $exception)
-    {
-        Log::error('Workflow execution job failed permanently', [
-            'execution_id' => $this->execution->id,
-            'error' => $exception->getMessage(),
-        ]);
-
-        if ($this->execution->fresh()->status !== 'cancelled') {
-            $this->execution->update([
-                'status' => 'error',
-                'output_data' => [
-                    'error' => 'Job failed',
-                    'message' => $exception->getMessage(),
-                ],
-                'finished_at' => now(),
-                'queue_job_id' => null,
+                'error' => $e->getMessage(),
             ]);
         }
     }
